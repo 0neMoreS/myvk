@@ -2,6 +2,7 @@
 
 #include "Helpers.hpp"
 #include "refsol.hpp"
+#include "VK.hpp"
 
 static uint32_t vert_code[] = {
 #include "../shaders/spv/background.vert.inl"
@@ -15,7 +16,23 @@ void Tutorial::BackgroundPipeline::create(RTG &rtg, VkRenderPass render_pass, ui
 	VkShaderModule vert_module = rtg.helpers.create_shader_module(vert_code);
 	VkShaderModule frag_module = rtg.helpers.create_shader_module(frag_code);
 
-	refsol::BackgroundPipeline_create(rtg, render_pass, subpass, vert_module, frag_module, &layout, &handle);
+	{ //create pipeline layout:
+		VkPushConstantRange range{
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.offset = 0,
+			.size = sizeof(Push),
+		};
+
+		VkPipelineLayoutCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+			.setLayoutCount = 0,
+			.pSetLayouts = nullptr,
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges = &range,
+		};
+
+		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
+	}
 }
 
 void Tutorial::BackgroundPipeline::destroy(RTG &rtg) {

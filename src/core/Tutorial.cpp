@@ -40,6 +40,13 @@ Tutorial::~Tutorial() {
 
 	for (Workspace &workspace : workspaces) {
 		refsol::Tutorial_destructor_workspace(rtg, command_pool, &workspace.command_buffer);
+
+		if (workspace.lines_vertices_src.handle != VK_NULL_HANDLE) {
+			rtg.helpers.destroy_buffer(std::move(workspace.lines_vertices_src));
+		}
+		if (workspace.lines_vertices.handle != VK_NULL_HANDLE) {
+			rtg.helpers.destroy_buffer(std::move(workspace.lines_vertices));
+		}
 	}
 	workspaces.clear();
 
@@ -74,12 +81,47 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	
 	{ //begin recording:
 		VkCommandBufferBeginInfo begin_info{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
 		};
 		
 		VK( vkBeginCommandBuffer(workspace.command_buffer, &begin_info) );
-	
+
+		{
+			if (!lines_vertices.empty()) { //upload lines vertices:
+				//[re-]allocate lines buffers if needed:
+				size_t needed_bytes = lines_vertices.size() * sizeof(lines_vertices[0]);
+				if (workspace.lines_vertices_src.handle == VK_NULL_HANDLE || workspace.lines_vertices_src.size < needed_bytes) {
+					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
+					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
+					if (workspace.lines_vertices_src.handle) {
+						rtg.helpers.destroy_buffer(std::move(workspace.lines_vertices_src));
+					}
+					if (workspace.lines_vertices.handle) {
+						rtg.helpers.destroy_buffer(std::move(workspace.lines_vertices));
+					}
+
+					workspace.lines_vertices_src = rtg.helpers.create_buffer(
+						new_bytes,
+						VK_BUFFER_USAGE_TRANSFER_SRC_BIT, //going to have GPU copy from this memory
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, //host-visible memory, coherent (no special sync needed)
+						Helpers::Mapped //get a pointer to the memory
+					);
+					workspace.lines_vertices = rtg.helpers.create_buffer(
+						new_bytes,
+						VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, //going to use as vertex buffer, also going to have GPU into this memory
+						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //GPU-local memory
+						Helpers::Unmapped //don't get a pointer to the memory
+					);
+
+					std::cout << "Re-allocated lines buffers to " << new_bytes << " bytes." << std::endl;
+				}
+
+				assert(workspace.lines_vertices_src.size == workspace.lines_vertices.size);
+				assert(workspace.lines_vertices_src.size >= needed_bytes);
+			}
+		}
+
 		//render pass
 		{
 			std::array< VkClearValue, 2 > clear_values{

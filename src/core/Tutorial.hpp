@@ -63,7 +63,10 @@ struct Tutorial : RTG::Application {
 	//workspaces hold per-render resources:
 	struct Workspace {
 		VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
-
+		
+		//location for lines data: (streamed to GPU per-frame)
+		Helpers::AllocatedBuffer lines_vertices_src; //host coherent; mapped
+		Helpers::AllocatedBuffer lines_vertices; //device-local
 	};
 	std::vector< Workspace > workspaces;
 

@@ -20,6 +20,7 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 
 	background_pipeline.create(rtg, render_pass, 0);
 	lines_pipeline.create(rtg, render_pass, 0);
+	objects_pipeline.create(rtg, render_pass, 0);
 
 	{ //create descriptor pool:
 		uint32_t per_workspace = uint32_t(rtg.workspaces.size()); //for easier-to-read counting
@@ -99,6 +100,37 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 			);
 		}
 	}
+
+	{ //create object vertices
+		std::vector< PosColVertex > vertices;
+		
+		//TODO: replace with more interesting geometry
+		//A single triangle:
+		vertices.emplace_back(PosColVertex{
+			.Position{ .x = 0.0f, .y = 0.0f, .z = 0.0f },
+			.Color{ .r = 0xff, .g = 0xff, .b = 0xff, .a = 0xff  },
+		});
+		vertices.emplace_back(PosColVertex{
+			.Position{ .x = 1.0f, .y = 0.0f, .z = 0.0f },
+			.Color{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 0xff },
+		});
+		vertices.emplace_back(PosColVertex{
+			.Position{ .x = 0.0f, .y = 1.0f, .z = 0.0f },
+			.Color{ .r = 0x00, .g = 0xff, .b = 0x00, .a = 0xff  },
+		});
+
+		size_t bytes = vertices.size() * sizeof(vertices[0]);
+
+		object_vertices = rtg.helpers.create_buffer(
+			bytes,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			Helpers::Unmapped
+		);
+
+		//copy data to buffer:
+		rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
+	}
 }
 
 Tutorial::~Tutorial() {
@@ -107,6 +139,8 @@ Tutorial::~Tutorial() {
 	if (VkResult result = vkDeviceWaitIdle(rtg.device); result != VK_SUCCESS) {
 		std::cerr << "Failed to vkDeviceWaitIdle in Tutorial::~Tutorial [" << string_VkResult(result) << "]; continuing anyway." << std::endl;
 	}
+
+	rtg.helpers.destroy_buffer(std::move(object_vertices));
 
 	if (swapchain_depth_image.handle != VK_NULL_HANDLE) {
 		destroy_framebuffers();
@@ -139,6 +173,7 @@ Tutorial::~Tutorial() {
 
 	background_pipeline.destroy(rtg);
 	lines_pipeline.destroy(rtg);
+	objects_pipeline.destroy(rtg);
 	
 	refsol::Tutorial_destructor(rtg, &render_pass, &command_pool);
 }
@@ -336,6 +371,21 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 					//draw lines vertices:
 					vkCmdDraw(workspace.command_buffer, uint32_t(lines_vertices.size()), 1, 0, 0);
+				}
+
+				{ //draw with the objects pipeline:
+					vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, objects_pipeline.handle);
+
+					{ //use object_vertices (offset 0) as vertex buffer binding 0:
+						std::array< VkBuffer, 1 > vertex_buffers{ object_vertices.handle };
+						std::array< VkDeviceSize, 1 > offsets{ 0 };
+						vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+					}
+
+					//Camera descriptor set is still bound(!)
+
+					//draw all vertices:
+					vkCmdDraw(workspace.command_buffer, uint32_t(object_vertices.size / sizeof(ObjectsPipeline::Vertex)), 1, 0, 0);
 				}
 			}
 

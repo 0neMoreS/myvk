@@ -1,6 +1,8 @@
 #pragma once
 
 #include "PosColVertex.hpp"
+#include "mat4.hpp"
+
 #include "RTG.hpp"
 
 struct Tutorial : RTG::Application {
@@ -41,7 +43,14 @@ struct Tutorial : RTG::Application {
 	} background_pipeline;
 
 	struct LinesPipeline {
-		//no descriptor set layouts (yet)
+		//descriptor set layouts:
+		VkDescriptorSetLayout set0_Camera = VK_NULL_HANDLE;
+
+		//types for descriptors:
+		struct Camera {
+			mat4 CLIP_FROM_WORLD;
+		};
+		static_assert(sizeof(Camera) == 16*4, "camera buffer structure is packed");
 
 		//no push constants
 
@@ -57,6 +66,7 @@ struct Tutorial : RTG::Application {
 
 	//pools from which per-workspace things are allocated:
 	VkCommandPool command_pool = VK_NULL_HANDLE;
+	VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 	
 	//STEPX: Add descriptor pool here.
 
@@ -67,6 +77,11 @@ struct Tutorial : RTG::Application {
 		//location for lines data: (streamed to GPU per-frame)
 		Helpers::AllocatedBuffer lines_vertices_src; //host coherent; mapped
 		Helpers::AllocatedBuffer lines_vertices; //device-local
+
+		//location for LinesPipeline::Camera data: (streamed to GPU per-frame)
+		Helpers::AllocatedBuffer Camera_src; //host coherent; mapped
+		Helpers::AllocatedBuffer Camera; //device-local
+		VkDescriptorSet Camera_descriptors; //references Camera
 	};
 	std::vector< Workspace > workspaces;
 
@@ -91,6 +106,8 @@ struct Tutorial : RTG::Application {
 	virtual void on_input(InputEvent const &) override;
 
 	float time = 0.0f;
+
+	mat4 CLIP_FROM_WORLD;
 
 	std::vector< LinesPipeline::Vertex > lines_vertices;
 

@@ -415,8 +415,6 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 
 			//transfer data:
 			rtg.helpers.transfer_to_image(data.data(), sizeof(data[0]) * data.size(), textures.back());
-
-			//TODO: transfer data
 		}
 
 		{ //texture 1 will be a classic 'xor' texture:

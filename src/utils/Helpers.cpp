@@ -227,8 +227,6 @@ void Helpers::transfer_to_buffer(void *data, size_t size, AllocatedBuffer &targe
 }
 
 void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target) {
-	// refsol::Helpers_transfer_to_image(rtg, data, size, &target);
-
 	assert(target.handle != VK_NULL_HANDLE); //target image should be allocated already
 
 	//check data is the right size:

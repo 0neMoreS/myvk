@@ -2,6 +2,7 @@
 
 #include "Helpers.hpp"
 #include "InputEvent.hpp"
+#include "sejp.hpp"
 
 #include <vulkan/vulkan_core.h>
 
@@ -11,6 +12,8 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <glm/glm.hpp>
+
 
 struct GLFWwindow;
 

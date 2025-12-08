@@ -32,6 +32,7 @@ const main_objs = [
 	maek.CPP('./src/core/PosNorTexVertex.cpp'),
 	maek.CPP('./src/utils/RTG.cpp'),
 	maek.CPP('./src/utils/Helpers.cpp'),
+	maek.CPP('./src/utils/sejp.cpp'),
 	maek.CPP('./src/main.cpp'),
 ];
 
@@ -96,7 +97,8 @@ function custom_flags_and_rules() {
 			`-I${VULKAN_SDK}/include`,
 			`-I${GLFW_DIR}/include`,
 			`-I./src/core`,
-			`-I./src/utils`
+			`-I./src/utils`,
+			`-I./external/stb`,
 		];
 
 		maek.options.LINKLibs = [

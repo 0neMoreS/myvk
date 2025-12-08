@@ -27,12 +27,14 @@ custom_flags_and_rules();
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const main_objs = [
-	maek.CPP('./src/core/Tutorial.cpp'),
-	maek.CPP('./src/core/PosColVertex.cpp'),
-	maek.CPP('./src/core/PosNorTexVertex.cpp'),
+	maek.CPP('./src/core/Tutorial/Tutorial.cpp'),
+	maek.CPP('./src/core/Tutorial/PosColVertex.cpp'),
+	maek.CPP('./src/core/Tutorial/PosNorTexVertex.cpp'),
+	// maek.CPP('./src/core/A1/A1.cpp'),
 	maek.CPP('./src/utils/RTG.cpp'),
 	maek.CPP('./src/utils/Helpers.cpp'),
 	maek.CPP('./src/utils/sejp.cpp'),
+	maek.CPP('./src/utils/s72.cpp'),
 	maek.CPP('./src/main.cpp'),
 ];
 
@@ -44,21 +46,21 @@ const background_shaders = [
 	maek.GLSLC('./src/shaders/background.vert'),
 	maek.GLSLC('./src/shaders/background.frag'),
 ];
-main_objs.push( maek.CPP('./src/core/Tutorial-BackgroundPipeline.cpp', undefined, { depends:[...background_shaders] } ) );
+main_objs.push( maek.CPP('./src/core/Tutorial/Tutorial-BackgroundPipeline.cpp', undefined, { depends:[...background_shaders] } ) );
 
 //uncomment to build lines shaders and pipeline:
 const lines_shaders = [
 	maek.GLSLC('./src/shaders/lines.vert'),
 	maek.GLSLC('./src/shaders/lines.frag'),
 ];
-main_objs.push( maek.CPP('./src/core/Tutorial-LinesPipeline.cpp', undefined, { depends:[...lines_shaders] } ) );
+main_objs.push( maek.CPP('./src/core/Tutorial/Tutorial-LinesPipeline.cpp', undefined, { depends:[...lines_shaders] } ) );
 
 //uncomment to build objects shaders and pipeline:
 const objects_shaders = [
 	maek.GLSLC('./src/shaders/objects.vert'),
 	maek.GLSLC('./src/shaders/objects.frag'),
 ];
-main_objs.push( maek.CPP('./src/core/Tutorial-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ) );
+main_objs.push( maek.CPP('./src/core/Tutorial/Tutorial-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ) );
 
 // const prebuilt_objs = [ ];
 
@@ -96,7 +98,8 @@ function custom_flags_and_rules() {
 			'-O2',
 			`-I${VULKAN_SDK}/include`,
 			`-I${GLFW_DIR}/include`,
-			`-I./src/core`,
+			`-I./src/core/Tutorial`,
+			`-I./src/core/A1`,
 			`-I./src/utils`,
 			`-I./external/stb`,
 		];

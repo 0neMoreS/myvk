@@ -2,12 +2,14 @@
 #include "RTG.hpp"
 
 #include "Tutorial.hpp"
+#include "A1.hpp"
 
 #include <iostream>
 
 int main(int argc, char **argv) {
 	//main wrapped in a try-catch so we can print some debug info about uncaught exceptions:
 	try {
+		s72::Document doc = s72::load_file("./external/s72/examples/origin-check.s72");
 
 		//configure application:
 		RTG::Configuration configuration;

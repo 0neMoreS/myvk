@@ -267,32 +267,38 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 			plane_vertices.first = uint32_t(vertices.size());
 			vertices.emplace_back(Vertex{
 				.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 0.0f, .t = 0.0f },
 			});
 			vertices.emplace_back(Vertex{
 				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 1.0f, .t = 0.0f },
 			});
 			vertices.emplace_back(Vertex{
 				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 0.0f, .t = 1.0f },
 			});
 			vertices.emplace_back(Vertex{
 				.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 1.0f, .t = 1.0f },
 			});
 			vertices.emplace_back(Vertex{
 				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 0.0f, .t = 1.0f },
 			});
 			vertices.emplace_back(Vertex{
 				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
 				.TexCoord{ .s = 1.0f, .t = 0.0f },
 			});
 
@@ -487,26 +493,20 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		vkUpdateDescriptorSets( rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr );
 	}
 
-	{ //P and V
-		if( !doc.cameras.empty() && doc.cameras[0].perspective.has_value() ) {
-			const s72::Camera::Perspective& perspective = doc.cameras[0].perspective.value();
-			camera_fov = perspective.vfov;
-			PERSPECTIVE = glm::perspectiveRH_ZO(camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), perspective.near, perspective.far.has_value() ? perspective.far.value() : 1000.0f);
-			PERSPECTIVE[1][1] *= -1.0f; //flip Y for Vulkan
+	{ // init camera
+		if( !doc.cameras.empty() && doc.cameras[0].parent != nullptr) {
+			const s72::Node* camera_node = doc.cameras[0].parent;
+			camera_position =  BLENDER_TO_VULKAN_3 * glm::vec3{camera_node->translation.x, camera_node->translation.y, camera_node->translation.z};
+
+            glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
+            glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
+			glm::mat4 rotation_matrix = BLENDER_TO_VULKAN_4 * blender_rotation_matrix;
+            
+            glm::vec3 forward = glm::normalize(glm::vec3(rotation_matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+			
+            camera_theta = std::acos(-forward.y);
+            camera_phi = std::atan2(-forward.z, forward.x);
 		}
-
-		// if( !doc.cameras.empty() && doc.cameras[0].parent != nullptr) {
-		// 	const s72::Node* camera_node = doc.cameras[0].parent;
-		// 	camera_position = glm::vec3{camera_node->translation.x, camera_node->translation.y, camera_node->translation.z};
-		// }
-
-		// Update VIEW based on camera position and orientation
-		// glm::vec3 forward = glm::vec3(
-		// 	std::cos(camera_pitch) * std::cos(camera_yaw),
-		// 	std::cos(camera_pitch) * std::sin(camera_yaw),
-		// 	std::sin(camera_pitch)
-		// );
-		VIEW = glm::lookAtRH(camera_position, camera_position + glm::vec3{0.f, 0.f, -1.f}, up);
 	}
 }
 
@@ -915,11 +915,25 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	{// Camera movement
+	{ // Camera movement
+		// keyboard rotate
+		if(keys_down[GLFW_KEY_J]) {
+			camera_phi -= rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_L]) {
+			camera_phi += rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_I]) {
+			camera_theta -= rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_K]) {
+			camera_theta += rotate_speed * dt;
+		}
+
 		glm::vec3 forward = glm::vec3(
 			std::sin(camera_theta) * std::cos(camera_phi),
 			-std::cos(camera_theta),
-			-std::sin(camera_theta) * std::sin(camera_phi)
+			std::sin(camera_theta) * std::sin(camera_phi)
 		);
 		glm::vec3 right = glm::normalize(glm::cross(forward, up));
 
@@ -942,23 +956,13 @@ void A1::update(float dt) {
 		if (keys_down[GLFW_KEY_E]) {
 			camera_position -= up * move_speed * dt;
 		}
+
+		// keyboard fov
 		if(keys_down[GLFW_KEY_R]) {
 			camera_fov += fov_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_F]) {
 			camera_fov -= fov_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_J]) {
-			camera_phi -= rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_L]) {
-			camera_phi += rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_I]) {
-			camera_theta += rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_K]) {
-			camera_theta -= rotate_speed * dt;
 		}
 
 		// Update VIEW matrix
@@ -1069,9 +1073,7 @@ void A1::update(float dt) {
 
 void A1::on_input(InputEvent const &event) {
 	if (event.type == InputEvent::MouseWheel) {
-		const float fov_speed = 0.1f;
 		camera_fov -= event.wheel.y * fov_speed;
-		camera_fov = glm::clamp(camera_fov, 10.0f * float(M_PI) / 180.0f, 120.0f * float(M_PI) / 180.0f);
 	} else if (event.type == InputEvent::KeyDown) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = true;

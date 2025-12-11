@@ -133,8 +133,8 @@ struct A1 : RTG::Application {
 	glm::mat4 VIEW;
 
 	// Camera control
-	glm::vec3 camera_position{0.0f, 0.0f, 2.0f};
-	glm::vec3 up = glm::vec3(0.0f, -1.0f, 0.0f);
+	glm::vec3 camera_position{0.0f, 0.0f, -2.0f};
+	glm::vec3 up = glm::vec3{0.0f, -1.0f, 0.0f};
 	float camera_theta = glm::radians(90.0f);
 	float camera_phi = glm::radians(90.0f);
 	float camera_fov = glm::radians(60.0f);

@@ -17,13 +17,13 @@ layout(location=0) out vec4 outColor;
 
 void main() {
 	vec3 n = normalize(normal);
-	vec3 l = vec3(0.0, 0.0, 1.0);
+	vec3 l = vec3(0.3, 0.4, 0.5);
 	vec3 albedo = texture(TEXTURE, texCoord).rgb;
 
 	//hemisphere lighting from direction l:
-	// vec3 e = vec3(0.5 * dot(n,l) + 0.5);
-	vec3 e = SKY_ENERGY * (0.5 * dot(n,SKY_DIRECTION) + 0.5)
-	       + SUN_ENERGY * max(0.0, dot(n,SUN_DIRECTION)) ;
+	vec3 e = vec3(0.5 * dot(n,l) + 0.5);
+	// vec3 e = SKY_ENERGY * (0.5 * dot(n,SKY_DIRECTION) + 0.5)
+	//        + SUN_ENERGY * max(0.0, dot(n,SUN_DIRECTION)) ;
 
 	outColor = vec4(e * albedo, 1.0);
 }

@@ -817,7 +817,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		}
 
 		{ //upload world info:
-			assert(workspace.Camera_src.size == sizeof(world));
+			assert(workspace.World_src.size == sizeof(world));
 
 			//host-side copy into World_src:
 			memcpy(workspace.World_src.allocation.data(), &world, sizeof(world));

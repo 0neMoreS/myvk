@@ -30,12 +30,6 @@ Object const expect_object(sejp::value const &v, std::string_view ctx) {
 	return obj.value();
 }
 
-// std::vector< sejp::value > const &expect_array(sejp::value const &v, std::string_view ctx) {
-// 	auto arr = v.as_array();
-// 	if (!arr) fail(describe(ctx, "expected array"));
-// 	return *arr;
-// }
-
 std::string expect_string(Object const &obj, std::string_view key, std::string_view ctx) {
 	auto it = obj.find(std::string(key));
 	if (it == obj.end()) fail(describe(ctx, std::string("missing '") + std::string(key) + "'"));

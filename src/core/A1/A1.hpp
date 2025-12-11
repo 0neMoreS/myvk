@@ -26,46 +26,6 @@ struct A1 : RTG::Application {
 
 	//Pipelines:
 
-	struct BackgroundPipeline {
-		//no descriptor set layouts
-
-		//push constants
-		struct Push {
-			float time;
-		};
-
-		VkPipelineLayout layout = VK_NULL_HANDLE;
-
-		//no vertex bindings
-		
-		VkPipeline handle = VK_NULL_HANDLE;
-
-		void create(RTG &, VkRenderPass render_pass, uint32_t subpass);
-		void destroy(RTG &);
-	} background_pipeline;
-
-	struct LinesPipeline {
-		//descriptor set layouts:
-		VkDescriptorSetLayout set0_Camera = VK_NULL_HANDLE;
-
-		//types for descriptors:
-		struct Camera {
-			mat4 CLIP_FROM_WORLD;
-		};
-		static_assert(sizeof(Camera) == 16*4, "camera buffer structure is packed");
-
-		//no push constants
-
-		VkPipelineLayout layout = VK_NULL_HANDLE;
-
-		using Vertex = PosColVertex;
-
-		VkPipeline handle = VK_NULL_HANDLE;
-
-		void create(RTG &, VkRenderPass render_pass, uint32_t subpass);
-		void destroy(RTG &);
-	} lines_pipeline;
-
 	struct ObjectsPipeline {
 		//descriptor set layouts:
 		
@@ -111,15 +71,6 @@ struct A1 : RTG::Application {
 	//workspaces hold per-render resources:
 	struct Workspace {
 		VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
-		
-		//location for lines data: (streamed to GPU per-frame)
-		Helpers::AllocatedBuffer lines_vertices_src; //host coherent; mapped
-		Helpers::AllocatedBuffer lines_vertices; //device-local
-
-		//location for LinesPipeline::Camera data: (streamed to GPU per-frame)
-		Helpers::AllocatedBuffer Camera_src; //host coherent; mapped
-		Helpers::AllocatedBuffer Camera; //device-local
-		VkDescriptorSet Camera_descriptors; //references Camera
 
 		//location for ObjectsPipeline::World data: (streamed to GPU per-frame)
 		Helpers::AllocatedBuffer World_src; //host coherent; mapped
@@ -170,8 +121,6 @@ struct A1 : RTG::Application {
 	float time = 0.0f;
 
 	mat4 CLIP_FROM_WORLD;
-
-	std::vector< LinesPipeline::Vertex > lines_vertices;
 
 	ObjectsPipeline::World world;
 

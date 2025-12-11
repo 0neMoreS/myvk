@@ -1,8 +1,10 @@
 #pragma once
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "PosColVertex.hpp"
 #include "PosNorTexVertex.hpp"
-#include "mat4.hpp"
 
 #include "RTG.hpp"
 
@@ -49,7 +51,7 @@ struct Tutorial : RTG::Application {
 
 		//types for descriptors:
 		struct Camera {
-			mat4 CLIP_FROM_WORLD;
+			glm::mat4 CLIP_FROM_WORLD;
 		};
 		static_assert(sizeof(Camera) == 16*4, "camera buffer structure is packed");
 
@@ -83,9 +85,9 @@ struct Tutorial : RTG::Application {
 
 		//types for descriptors:
 		struct Transform {
-			mat4 CLIP_FROM_LOCAL;
-			mat4 WORLD_FROM_LOCAL;
-			mat4 WORLD_FROM_LOCAL_NORMAL;
+			glm::mat4 CLIP_FROM_LOCAL;
+			glm::mat4 WORLD_FROM_LOCAL;
+			glm::mat4 WORLD_FROM_LOCAL_NORMAL;
 		};
 		static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4, "Transform is the expected size.");
 
@@ -168,7 +170,7 @@ struct Tutorial : RTG::Application {
 
 	float time = 0.0f;
 
-	mat4 CLIP_FROM_WORLD;
+	glm::mat4 CLIP_FROM_WORLD;
 
 	std::vector< LinesPipeline::Vertex > lines_vertices;
 

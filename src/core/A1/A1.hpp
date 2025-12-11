@@ -1,8 +1,9 @@
 #pragma once
 
-#include "PosColVertex.hpp"
-#include "PosNorTexVertex.hpp"
-#include "mat4.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include "Vertex.hpp"
 #include "s72.hpp"
 
 #include "RTG.hpp"
@@ -10,11 +11,13 @@
 struct A1 : RTG::Application {
 
 	A1(RTG &);
+	A1(RTG &, const std::string &);
 	A1(A1 const &) = delete; //you shouldn't be copying this object
 	~A1();
 
 	//kept for use in destructor:
 	RTG &rtg;
+	s72::Document doc;
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -44,17 +47,16 @@ struct A1 : RTG::Application {
 
 		//types for descriptors:
 		struct Transform {
-			mat4 CLIP_FROM_LOCAL;
-			mat4 WORLD_FROM_LOCAL;
-			mat4 WORLD_FROM_LOCAL_NORMAL;
+			glm::mat4 PERSPECTIVE;
+			glm::mat4 VIEW;
+			glm::mat4 MODEL;
+			glm::mat4 MODEL_NORMAL;
 		};
-		static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4, "Transform is the expected size.");
+		static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
 
 		//no push constants
 
 		VkPipelineLayout layout = VK_NULL_HANDLE;
-
-		using Vertex = PosNorTexVertex;
 			
 		VkPipeline handle = VK_NULL_HANDLE;
 
@@ -92,8 +94,7 @@ struct A1 : RTG::Application {
 		uint32_t first = 0;
 		uint32_t count = 0;
 	};
-	ObjectVertices plane_vertices;
-	ObjectVertices torus_vertices;
+	std::vector<ObjectVertices> object_vertices_list;
 
 	std::vector< Helpers::AllocatedImage > textures;
 	std::vector< VkImageView > texture_views;
@@ -120,7 +121,8 @@ struct A1 : RTG::Application {
 
 	float time = 0.0f;
 
-	mat4 CLIP_FROM_WORLD;
+	glm::mat4 PERSPECTIVE;
+	glm::mat4 VIEW;
 
 	ObjectsPipeline::World world;
 

@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		A1 application(rtg);
+		Tutorial application(rtg);
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

@@ -3,7 +3,11 @@
 #include "sejp.hpp"
 
 #include <cmath>
+#include <cstring>
+#include <fstream>
 #include <limits>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_set>
@@ -46,7 +50,7 @@ std::optional< std::string > optional_string(Object const &obj, std::string_view
 	return *s;
 }
 
-double expect_number(Object const &obj, std::string_view key, std::string_view ctx) {
+float expect_number(Object const &obj, std::string_view key, std::string_view ctx) {
 	auto it = obj.find(std::string(key));
 	if (it == obj.end()) fail(describe(ctx, std::string("missing '") + std::string(key) + "'"));
 	auto n = it->second.as_number();
@@ -54,7 +58,7 @@ double expect_number(Object const &obj, std::string_view key, std::string_view c
 	return *n;
 }
 
-std::optional< double > optional_number(Object const &obj, std::string_view key) {
+std::optional< float > optional_number(Object const &obj, std::string_view key) {
 	auto it = obj.find(std::string(key));
 	if (it == obj.end()) return std::nullopt;
 	auto n = it->second.as_number();
@@ -62,10 +66,10 @@ std::optional< double > optional_number(Object const &obj, std::string_view key)
 	return *n;
 }
 
-uint32_t to_u32(double value, std::string_view ctx) {
-	double integral = 0.0;
-	double frac = std::modf(value, &integral);
-	if (frac != 0.0 || integral < 0.0 || integral > double(std::numeric_limits< uint32_t >::max())) {
+uint32_t to_u32(float value, std::string_view ctx) {
+	float integral = 0.0;
+	float frac = std::modf(value, &integral);
+	if (frac != 0.0 || integral < 0.0 || integral > float(std::numeric_limits< uint32_t >::max())) {
 		fail(describe(ctx, "expected unsigned 32-bit integer"));
 	}
 	return static_cast< uint32_t >(integral);
@@ -91,10 +95,10 @@ glm::vec<N, float> vec_or_default(Object const &obj, std::string_view key, glm::
 	return parse_vec<N>(it->second, ctx);
 }
 
-std::vector< double > parse_number_array(sejp::value const &v, std::string_view ctx) {
+std::vector< float > parse_number_array(sejp::value const &v, std::string_view ctx) {
 	auto arr = v.as_array();
 	if (!arr) fail(describe(ctx, "expected array"));
-	std::vector< double > out;
+	std::vector< float > out;
 	out.reserve(arr->size());
 	for (auto const &entry : *arr) {
 		auto n = entry.as_number();
@@ -430,6 +434,113 @@ Document load_file(std::string const &path) {
 Document load_string(std::string const &contents) {
 	auto root = sejp::parse(contents);
 	return parse_document(root);
+}
+
+std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh) {
+	// Map to store loaded data streams
+	std::map<std::string, std::vector<uint8_t>> data_streams;
+	
+	// First, load all unique data streams
+	std::set<std::string> unique_sources;
+	for (const auto &attr : mesh.attributes) {
+		unique_sources.insert(attr.second.src);
+	}
+	
+	// Load each unique data stream from file
+	for (const auto &src : unique_sources) {
+		std::string filepath = base_path;
+		if (!base_path.empty() && base_path.back() != '/') {
+			filepath += '/';
+		}
+		filepath += src;
+		
+		std::ifstream file(filepath, std::ios::binary);
+		if (!file) {
+			throw std::runtime_error("Failed to open data stream file: " + filepath);
+		}
+		
+		file.seekg(0, std::ios::end);
+		size_t file_size = file.tellg();
+		file.seekg(0, std::ios::beg);
+		
+		std::vector<uint8_t> data(file_size);
+		file.read(reinterpret_cast<char*>(data.data()), file_size);
+		if (!file) {
+			throw std::runtime_error("Failed to read data stream file: " + filepath);
+		}
+		
+		data_streams[src] = std::move(data);
+	}
+	
+	// Determine the stride for output (sum of all attribute sizes)
+	uint32_t output_stride = 0;
+	std::vector<std::pair<std::string, uint32_t>> attribute_sizes;
+	
+	for (const auto &attr : mesh.attributes) {
+		// Parse format to determine size
+		const std::string &format = attr.second.format;
+		uint32_t attr_size = 0;
+		
+		if (format.find("R32G32B32A32") != std::string::npos) {
+			attr_size = 16; // 4 * 4 bytes
+		} else if (format.find("R32G32B32") != std::string::npos) {
+			attr_size = 12; // 3 * 4 bytes
+		} else if (format.find("R32G32") != std::string::npos) {
+			attr_size = 8; // 2 * 4 bytes
+		} else if (format.find("R32") != std::string::npos) {
+			attr_size = 4; // 1 * 4 bytes
+		} else {
+			throw std::runtime_error("Unsupported format: " + format);
+		}
+		
+		attribute_sizes.push_back({attr.first, attr_size});
+		output_stride += attr_size;
+	}
+	
+	// Allocate output buffer
+	size_t total_size = static_cast<size_t>(output_stride) * mesh.count;
+	std::vector<uint8_t> output(total_size);
+	
+	// Interleave data from all attributes
+	for (uint32_t vertex_idx = 0; vertex_idx < mesh.count; ++vertex_idx) {
+		uint8_t *vertex_ptr = output.data() + vertex_idx * output_stride;
+		uint32_t output_offset = 0;
+		
+		for (const auto &attr_name : mesh.attributes) {
+			const DataStream &stream = attr_name.second;
+			const std::vector<uint8_t> &src_data = data_streams[stream.src];
+			
+			// Find the size of this attribute
+			uint32_t attr_size = 0;
+			for (const auto &size_pair : attribute_sizes) {
+				if (size_pair.first == attr_name.first) {
+					attr_size = size_pair.second;
+					break;
+				}
+			}
+			
+			// Calculate source offset
+			uint32_t src_offset = stream.offset + vertex_idx * stream.stride.value_or(attr_size);
+			
+			// Copy data
+			if (src_offset + attr_size > src_data.size()) {
+				throw std::runtime_error(
+					"Data stream read out of bounds: " + stream.src +
+					" (vertex " + std::to_string(vertex_idx) + ", offset " + std::to_string(src_offset) + ")"
+				);
+			}
+			
+			std::memcpy(
+				vertex_ptr + output_offset,
+				src_data.data() + src_offset,
+				attr_size
+			);
+			
+			output_offset += attr_size;
+		}
+	}
+	
+	return output;
 }
 
 } // namespace s72

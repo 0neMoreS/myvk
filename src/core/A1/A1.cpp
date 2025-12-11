@@ -14,8 +14,10 @@
 #include <cstring>
 #include <iostream>
 
-A1::A1(RTG &rtg_) : rtg(rtg_) {
-	s72::Document doc = s72::load_file("./external/s72/examples/origin-check.s72");
+A1::A1(RTG &rtg_) : A1(rtg_, "./external/s72/examples/origin-check.s72") {
+}
+
+A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(filename)) {
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -218,128 +220,42 @@ A1::A1(RTG &rtg_) : rtg(rtg_) {
 	}
 
 	{ //create object vertices
-		std::vector< PosNorTexVertex > vertices;
-		
-		{ //A [-1,1]x[-1,1]x{0} quadrilateral:
-			plane_vertices.first = uint32_t(vertices.size());
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
-				.TexCoord{ .s = 0.0f, .t = 0.0f },
-			});
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
-				.TexCoord{ .s = 1.0f, .t = 0.0f },
-			});
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
-				.TexCoord{ .s = 0.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
-				.TexCoord{ .s = 1.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
-				.TexCoord{ .s = 0.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(PosNorTexVertex{
-				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
-				.TexCoord{ .s = 1.0f, .t = 0.0f },
-			});
+		std::vector< uint8_t > all_vertices;
 
-			plane_vertices.count = uint32_t(vertices.size()) - plane_vertices.first;
+		// Get the directory containing the s72 file
+		std::string s72_dir = "./external/s72/examples";
+
+		// Load vertices from all meshes in the document
+		uint32_t vertex_offset = 0;
+		for (const auto &mesh : doc.meshes) {
+			try {
+				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
+				
+				ObjectVertices vertices;
+				vertices.first = vertex_offset;
+				vertices.count = mesh.count;
+				object_vertices_list.push_back(vertices);
+
+				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
+				vertex_offset += mesh.count;
+			} catch (const std::exception &e) {
+				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
+			}
 		}
 
-		{ //A torus:
-			torus_vertices.first = uint32_t(vertices.size());
+		size_t bytes = all_vertices.size();
 
-				//will parameterize with (u,v) where:
-				// - u is angle around main axis (+z)
-				// - v is angle around the tube
+		if (bytes > 0) {
+			object_vertices = rtg.helpers.create_buffer(
+				bytes,
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				Helpers::Unmapped
+			);
 
-				constexpr float R1 = 0.75f; //main radius
-				constexpr float R2 = 0.15f; //tube radius
-
-				constexpr uint32_t U_STEPS = 20;
-				constexpr uint32_t V_STEPS = 16;
-
-				//texture repeats around the torus:
-				constexpr float V_REPEATS = 2.0f;
-				constexpr float U_REPEATS = std::ceil(V_REPEATS / R2 * R1);
-
-				auto emplace_vertex = [&](uint32_t ui, uint32_t vi) {
-					//convert steps to angles:
-					// (doing the mod since trig on 2 M_PI may not exactly match 0)
-					float ua = (ui % U_STEPS) / float(U_STEPS) * 2.0f * float(M_PI);
-					float va = (vi % V_STEPS) / float(V_STEPS) * 2.0f * float(M_PI);
-
-					vertices.emplace_back( PosNorTexVertex{
-						.Position{
-							.x = (R1 + R2 * std::cos(va)) * std::cos(ua),
-							.y = (R1 + R2 * std::cos(va)) * std::sin(ua),
-							.z = R2 * std::sin(va),
-						},
-						.Normal{
-							.x = std::cos(va) * std::cos(ua),
-							.y = std::cos(va) * std::sin(ua),
-							.z = std::sin(va),
-						},
-						.TexCoord{
-							.s = ui / float(U_STEPS) * U_REPEATS,
-							.t = vi / float(V_STEPS) * V_REPEATS,
-						},
-					});
-				};
-
-				for (uint32_t ui = 0; ui < U_STEPS; ++ui) {
-					for (uint32_t vi = 0; vi < V_STEPS; ++vi) {
-						emplace_vertex(ui, vi);
-						emplace_vertex(ui+1, vi);
-						emplace_vertex(ui, vi+1);
-
-						emplace_vertex(ui, vi+1);
-						emplace_vertex(ui+1, vi);
-						emplace_vertex(ui+1, vi+1);
-					}
-				}
-
-			torus_vertices.count = uint32_t(vertices.size()) - torus_vertices.first;
+			//copy data to buffer:
+			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
 		}
-		
-		// //A single triangle:
-		// vertices.emplace_back(PosNorTexVertex{
-		// 	.Position{ .x = 0.0f, .y = 0.0f, .z = 0.0f },
-		// 	.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
-		// 	.TexCoord{ .s = 0.0f, .t = 0.0f },
-		// });
-		// vertices.emplace_back(PosNorTexVertex{
-		// 	.Position{ .x = 1.0f, .y = 0.0f, .z = 0.0f },
-		// 	.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
-		// 	.TexCoord{ .s = 1.0f, .t = 0.0f },
-		// });
-		// vertices.emplace_back(PosNorTexVertex{
-		// 	.Position{ .x = 0.0f, .y = 1.0f, .z = 0.0f },
-		// 	.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
-		// 	.TexCoord{ .s = 0.0f, .t = 1.0f },
-		// });
-
-		size_t bytes = vertices.size() * sizeof(vertices[0]);
-
-		object_vertices = rtg.helpers.create_buffer(
-			bytes,
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped
-		);
-
-		//copy data to buffer:
-		rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
 	}
 
 
@@ -927,20 +843,6 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	{ //camera orbiting the origin:
-		float ang = float(M_PI) * 2.0f * 10.0f * (time / 60.0f);
-		CLIP_FROM_WORLD = perspective(
-			60.0f * float(M_PI) / 180.0f, //vfov
-			rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), //aspect
-			0.1f, //near
-			1000.0f //far
-		) * look_at(
-			3.0f * std::cos(ang), 3.0f * std::sin(ang), 1.0f, //eye
-			0.0f, 0.0f, 0.5f, //target
-			0.0f, 0.0f, 1.0f //up
-		);
-	}
-
 	{ //static sun and sky:
 		world.SKY_DIRECTION.x = 0.0f;
 		world.SKY_DIRECTION.y = 0.0f;
@@ -959,45 +861,33 @@ void A1::update(float dt) {
 		world.SUN_ENERGY.b = 0.9f;
 	}
 
-	{ //make some objects:
-		object_instances.clear();
-
-		{ //plane translated +x by one unit:
-			mat4 WORLD_FROM_LOCAL{
-				1.0f, 0.0f, 0.0f, 0.0f,
-				0.0f, 1.0f, 0.0f, 0.0f,
-				0.0f, 0.0f, 1.0f, 0.0f,
-				1.0f, 0.0f, 0.0f, 1.0f,
-			};
-
-			object_instances.emplace_back(ObjectInstance{
-				.vertices = plane_vertices,
-				.transform{
-					.CLIP_FROM_LOCAL = CLIP_FROM_WORLD * WORLD_FROM_LOCAL,
-					.WORLD_FROM_LOCAL = WORLD_FROM_LOCAL,
-					.WORLD_FROM_LOCAL_NORMAL = WORLD_FROM_LOCAL,
-				},
-				.texture = 1,
-			});
+	{ //P and V
+		if( doc.cameras.empty() || !doc.cameras[0].perspective.has_value() ) {
+			return;
 		}
 
-		{ //torus translated -x by one unit and rotated CCW around +y:
-			float ang = time / 60.0f * 2.0f * float(M_PI) * 10.0f;
-			float ca = std::cos(ang);
-			float sa = std::sin(ang);
-			mat4 WORLD_FROM_LOCAL{
-				  ca, 0.0f,  -sa, 0.0f,
-				0.0f, 1.0f, 0.0f, 0.0f,
-				  sa, 0.0f,   ca, 0.0f,
-				-1.0f,0.0f, 0.0f, 1.0f,
-			};
+		const s72::Camera::Perspective& perspective = doc.cameras[0].perspective.value();
+		PERSPECTIVE = glm::perspectiveRH_ZO(perspective.vfov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), perspective.near, perspective.far.has_value() ? perspective.far.value() : 1000.0f);
+		PERSPECTIVE[1][1] *= -1.0f; //flip Y for Vulkan
 
+		// VIEW = glm::lookAtRH(
+		// 	glm::vec3(doc.cameras[0].position.x, doc.cameras[0].position.y, doc.cameras[0].position.z),
+		// 	glm::vec3(doc.cameras[0].target.x, doc.cameras[0].target.y, doc.cameras[0].target.z),
+		// 	glm::vec3(doc.cameras[0].up.x, doc.cameras[0].up.y, doc.cameras[0].up.z)
+		// );
+	}
+
+	{
+		object_instances.clear();
+		for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
+		{
 			object_instances.emplace_back(ObjectInstance{
-				.vertices = torus_vertices,
+				.vertices = object_vertices_list[i],
 				.transform{
-					.CLIP_FROM_LOCAL = CLIP_FROM_WORLD * WORLD_FROM_LOCAL,
-					.WORLD_FROM_LOCAL = WORLD_FROM_LOCAL,
-					.WORLD_FROM_LOCAL_NORMAL = WORLD_FROM_LOCAL,
+					.PERSPECTIVE = PERSPECTIVE,
+					.VIEW = VIEW,
+					.MODEL = glm::mat4(1.0f),
+					.MODEL_NORMAL = glm::mat4(1.0f),
 				},
 				.texture = 0,
 			});

@@ -49,10 +49,10 @@ struct Mesh {
 
 struct Camera {
 	struct Perspective {
-		double aspect = 1.0;
-		double vfov = 1.0;
-		double near = 0.1;
-		std::optional<double> far;
+		float aspect = 1.0;
+		float vfov = 1.0;
+		float near = 0.1;
+		std::optional<float> far;
 	};
 
 	std::string name;
@@ -63,8 +63,8 @@ struct Driver {
 	std::string name;
 	std::string node;
 	std::string channel;
-	std::vector<double> times;
-	std::vector<double> values;
+	std::vector<float> times;
+	std::vector<float> values;
 	std::string interpolation = "LINEAR";
 };
 
@@ -78,9 +78,9 @@ struct Material {
 	struct PBR {
 		std::optional<Vec3> albedo_value;
 		std::optional<Texture> albedo_texture;
-		std::optional<double> roughness_value;
+		std::optional<float> roughness_value;
 		std::optional<Texture> roughness_texture;
-		std::optional<double> metalness_value;
+		std::optional<float> metalness_value;
 		std::optional<Texture> metalness_texture;
 	};
 
@@ -105,22 +105,22 @@ struct Environment {
 
 struct Light {
 	struct Sun {
-		double angle = 0.0;
-		double strength = 0.0;
+		float angle = 0.0;
+		float strength = 0.0;
 	};
 
 	struct Sphere {
-		double radius = 0.0;
-		double power = 0.0;
-		std::optional<double> limit;
+		float radius = 0.0;
+		float power = 0.0;
+		std::optional<float> limit;
 	};
 
 	struct Spot {
-		double radius = 0.0;
-		double power = 0.0;
-		std::optional<double> limit;
-		double fov = 0.0;
-		double blend = 0.0;
+		float radius = 0.0;
+		float power = 0.0;
+		std::optional<float> limit;
+		float fov = 0.0;
+		float blend = 0.0;
 	};
 
 	std::string name;
@@ -144,5 +144,9 @@ struct Document {
 
 Document load_file(const std::string &path);
 Document load_string(const std::string &contents);
+
+// Load binary mesh data from b72 files according to mesh attributes
+// Returns interleaved vertex data as a vector of bytes
+std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh);
 
 } // namespace s72

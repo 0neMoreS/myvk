@@ -1092,16 +1092,21 @@ void Tutorial::update(float dt) {
 
 	{ //camera orbiting the origin:
 		float ang = float(M_PI) * 2.0f * 10.0f * (time / 60.0f);
-		CLIP_FROM_WORLD = perspective(
-			60.0f * float(M_PI) / 180.0f, //vfov
-			rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), //aspect
-			0.1f, //near
-			1000.0f //far
-		) * look_at(
-			3.0f * std::cos(ang), 3.0f * std::sin(ang), 1.0f, //eye
-			0.0f, 0.0f, 0.5f, //target
-			0.0f, 0.0f, 1.0f //up
+		glm::mat4 P = glm::perspectiveRH_ZO(
+			60.0f * float(M_PI) / 180.0f,   // vfov
+			rtg.swapchain_extent.width / float(rtg.swapchain_extent.height),
+			0.1f,
+			1000.0f
 		);
+		P[1][1] *= -1.0f;
+
+		glm::mat4 V = glm::lookAtRH(
+			glm::vec3{3.0f * std::cos(ang), 3.0f * std::sin(ang), 1.0f},
+			glm::vec3{0.0f, 0.0f, 0.5f},
+			glm::vec3{0.0f, 0.0f, 1.0f}
+		);
+
+		CLIP_FROM_WORLD = P * V;
 	}
 
 	{ //static sun and sky:
@@ -1159,7 +1164,7 @@ void Tutorial::update(float dt) {
 		object_instances.clear();
 
 		{ //plane translated +x by one unit:
-			mat4 WORLD_FROM_LOCAL{
+			glm::mat4 WORLD_FROM_LOCAL{
 				1.0f, 0.0f, 0.0f, 0.0f,
 				0.0f, 1.0f, 0.0f, 0.0f,
 				0.0f, 0.0f, 1.0f, 0.0f,
@@ -1181,7 +1186,7 @@ void Tutorial::update(float dt) {
 			float ang = time / 60.0f * 2.0f * float(M_PI) * 10.0f;
 			float ca = std::cos(ang);
 			float sa = std::sin(ang);
-			mat4 WORLD_FROM_LOCAL{
+			glm::mat4 WORLD_FROM_LOCAL{
 				  ca, 0.0f,  -sa, 0.0f,
 				0.0f, 1.0f, 0.0f, 0.0f,
 				  sa, 0.0f,   ca, 0.0f,

@@ -8,6 +8,8 @@
 #include "VK.hpp"
 #include "refsol.hpp"
 
+#include <GLFW/glfw3.h>
+
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -219,46 +221,97 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		}
 	}
 
-	{ //create object vertices
-		std::vector< uint8_t > all_vertices;
+	// { //create object vertices
+	// 	std::vector< uint8_t > all_vertices;
 
-		// Get the directory containing the s72 file
-		std::string s72_dir = "./external/s72/examples";
+	// 	// Get the directory containing the s72 file
+	// 	std::string s72_dir = "./external/s72/examples";
 
-		// Load vertices from all meshes in the document
-		uint32_t vertex_offset = 0;
-		for (const auto &mesh : doc.meshes) {
-			try {
-				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
+	// 	// Load vertices from all meshes in the document
+	// 	uint32_t vertex_offset = 0;
+	// 	for (const auto &mesh : doc.meshes) {
+	// 		try {
+	// 			std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
 				
-				ObjectVertices vertices;
-				vertices.first = vertex_offset;
-				vertices.count = mesh.count;
-				object_vertices_list.push_back(vertices);
+	// 			ObjectVertices vertices;
+	// 			vertices.first = vertex_offset;
+	// 			vertices.count = mesh.count;
+	// 			object_vertices_list.push_back(vertices);
 
-				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
-				vertex_offset += mesh.count;
-			} catch (const std::exception &e) {
-				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
-			}
+	// 			all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
+	// 			vertex_offset += mesh.count;
+	// 		} catch (const std::exception &e) {
+	// 			std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
+	// 		}
+	// 	}
+
+	// 	size_t bytes = all_vertices.size();
+
+	// 	if (bytes > 0) {
+	// 		object_vertices = rtg.helpers.create_buffer(
+	// 			bytes,
+	// 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	// 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	// 			Helpers::Unmapped
+	// 		);
+
+	// 		//copy data to buffer:
+	// 		rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
+	// 	}
+	// }
+
+	{ //create object vertices
+		std::vector< Vertex > vertices;
+		
+		{ //A [-1,1]x[-1,1]x{0} quadrilateral:
+			plane_vertices.first = uint32_t(vertices.size());
+			vertices.emplace_back(Vertex{
+				.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
+				.TexCoord{ .s = 0.0f, .t = 0.0f },
+			});
+			vertices.emplace_back(Vertex{
+				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.TexCoord{ .s = 1.0f, .t = 0.0f },
+			});
+			vertices.emplace_back(Vertex{
+				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.TexCoord{ .s = 0.0f, .t = 1.0f },
+			});
+			vertices.emplace_back(Vertex{
+				.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f },
+				.TexCoord{ .s = 1.0f, .t = 1.0f },
+			});
+			vertices.emplace_back(Vertex{
+				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.TexCoord{ .s = 0.0f, .t = 1.0f },
+			});
+			vertices.emplace_back(Vertex{
+				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
+				.Normal{ .x = 0.0f, .y = 0.0f, .z = 1.0f},
+				.TexCoord{ .s = 1.0f, .t = 0.0f },
+			});
+
+			plane_vertices.count = uint32_t(vertices.size()) - plane_vertices.first;
 		}
 
-		size_t bytes = all_vertices.size();
+		size_t bytes = vertices.size() * sizeof(vertices[0]);
 
-		if (bytes > 0) {
-			object_vertices = rtg.helpers.create_buffer(
-				bytes,
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				Helpers::Unmapped
-			);
+		object_vertices = rtg.helpers.create_buffer(
+			bytes,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			Helpers::Unmapped
+		);
 
-			//copy data to buffer:
-			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
-		}
+		//copy data to buffer:
+		rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
 	}
-
-
+	
 	{ //make some textures
 		textures.reserve(2);
 
@@ -434,6 +487,27 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		vkUpdateDescriptorSets( rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr );
 	}
 
+	{ //P and V
+		if( !doc.cameras.empty() && doc.cameras[0].perspective.has_value() ) {
+			const s72::Camera::Perspective& perspective = doc.cameras[0].perspective.value();
+			camera_fov = perspective.vfov;
+			PERSPECTIVE = glm::perspectiveRH_ZO(camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), perspective.near, perspective.far.has_value() ? perspective.far.value() : 1000.0f);
+			PERSPECTIVE[1][1] *= -1.0f; //flip Y for Vulkan
+		}
+
+		// if( !doc.cameras.empty() && doc.cameras[0].parent != nullptr) {
+		// 	const s72::Node* camera_node = doc.cameras[0].parent;
+		// 	camera_position = glm::vec3{camera_node->translation.x, camera_node->translation.y, camera_node->translation.z};
+		// }
+
+		// Update VIEW based on camera position and orientation
+		// glm::vec3 forward = glm::vec3(
+		// 	std::cos(camera_pitch) * std::cos(camera_yaw),
+		// 	std::cos(camera_pitch) * std::sin(camera_yaw),
+		// 	std::sin(camera_pitch)
+		// );
+		VIEW = glm::lookAtRH(camera_position, camera_position + glm::vec3{0.f, 0.f, -1.f}, up);
+	}
 }
 
 A1::~A1() {
@@ -783,8 +857,6 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							);
 						}
 
-						//Camera descriptor set is still bound, but unused(!)
-
 						//draw all instances:
 						for (ObjectInstance const &inst : object_instances) {
 							uint32_t index = uint32_t(&inst - &object_instances[0]);
@@ -843,6 +915,60 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
+	{// Camera movement
+		glm::vec3 forward = glm::vec3(
+			std::sin(camera_theta) * std::cos(camera_phi),
+			-std::cos(camera_theta),
+			-std::sin(camera_theta) * std::sin(camera_phi)
+		);
+		glm::vec3 right = glm::normalize(glm::cross(forward, up));
+
+		// keyboard movement
+		if (keys_down[GLFW_KEY_W]) {
+			camera_position += forward * move_speed * dt;
+		}
+		if (keys_down[GLFW_KEY_S]) {
+			camera_position -= forward * move_speed * dt;
+		}
+		if (keys_down[GLFW_KEY_A]) {
+			camera_position -= right * move_speed * dt;
+		}
+		if (keys_down[GLFW_KEY_D]) {
+			camera_position += right * move_speed * dt;
+		}
+		if (keys_down[GLFW_KEY_Q]) {
+			camera_position += up * move_speed * dt;
+		}
+		if (keys_down[GLFW_KEY_E]) {
+			camera_position -= up * move_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_R]) {
+			camera_fov += fov_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_F]) {
+			camera_fov -= fov_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_J]) {
+			camera_phi -= rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_L]) {
+			camera_phi += rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_I]) {
+			camera_theta += rotate_speed * dt;
+		}
+		if(keys_down[GLFW_KEY_K]) {
+			camera_theta -= rotate_speed * dt;
+		}
+
+		// Update VIEW matrix
+		VIEW = glm::lookAtRH(camera_position, camera_position + forward, up);
+
+		// Update PERSPECTIVE matrix with current FOV
+		PERSPECTIVE = glm::perspectiveRH_ZO(camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), 0.1f, 1000.0f);
+		PERSPECTIVE[1][1] *= -1.0f; // flip Y for Vulkan
+	}
+	
 	{ //static sun and sky:
 		world.SKY_DIRECTION.x = 0.0f;
 		world.SKY_DIRECTION.y = 0.0f;
@@ -861,40 +987,108 @@ void A1::update(float dt) {
 		world.SUN_ENERGY.b = 0.9f;
 	}
 
-	{ //P and V
-		if( doc.cameras.empty() || !doc.cameras[0].perspective.has_value() ) {
-			return;
-		}
+	// {
+	// 	object_instances.clear();
+	// 	for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
+	// 	{
+	// 		const s72::Mesh& mesh = doc.meshes[i];
+	// 		const s72::Node* node = mesh.parent;
+			
+	// 		glm::mat4 MODEL = glm::mat4(1.0f);
+			
+	// 		if (node) {
+	// 			glm::quat q(node->rotation.w, node->rotation.x, node->rotation.y, node->rotation.z);
+				
+	// 			glm::mat4 T = glm::translate(glm::mat4(1.0f), node->translation);
+	// 			glm::mat4 R = glm::mat4_cast(q);
+	// 			glm::mat4 S = glm::scale(glm::mat4(1.0f), node->scale);
+				
+	// 			MODEL = T * R * S;
+	// 		}
+			
+	// 		glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
-		const s72::Camera::Perspective& perspective = doc.cameras[0].perspective.value();
-		PERSPECTIVE = glm::perspectiveRH_ZO(perspective.vfov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), perspective.near, perspective.far.has_value() ? perspective.far.value() : 1000.0f);
-		PERSPECTIVE[1][1] *= -1.0f; //flip Y for Vulkan
+	// 		object_instances.emplace_back(ObjectInstance{
+	// 			.vertices = object_vertices_list[i],
+	// 			.transform{
+	// 				.PERSPECTIVE = PERSPECTIVE,
+	// 				.VIEW = VIEW,
+	// 				.MODEL = MODEL,
+	// 				.MODEL_NORMAL = MODEL_NORMAL,
+	// 			},
+	// 			.texture = 0,
+	// 		});
+	// 	}
+	// }
 
-		// VIEW = glm::lookAtRH(
-		// 	glm::vec3(doc.cameras[0].position.x, doc.cameras[0].position.y, doc.cameras[0].position.z),
-		// 	glm::vec3(doc.cameras[0].target.x, doc.cameras[0].target.y, doc.cameras[0].target.z),
-		// 	glm::vec3(doc.cameras[0].up.x, doc.cameras[0].up.y, doc.cameras[0].up.z)
-		// );
-	}
+	// { //camera orbiting the origin:
+	// 	float ang = float(M_PI) * 2.0f * 10.0f * (time / 60.0f);
+	// 	glm::mat4 P = glm::perspectiveRH_ZO(
+	// 		60.0f * float(M_PI) / 180.0f,   // vfov
+	// 		rtg.swapchain_extent.width / float(rtg.swapchain_extent.height),
+	// 		0.1f,
+	// 		1000.0f
+	// 	);
+	// 	P[1][1] *= -1.0f;
 
-	{
+	// 	glm::mat4 V = glm::lookAtRH(
+	// 		glm::vec3{3.0f * std::cos(ang), 3.0f * std::sin(ang), 1.0f},
+	// 		glm::vec3{0.0f, 0.0f, 0.5f},
+	// 		glm::vec3{0.0f, 0.0f, 1.0f}
+	// 	);
+
+	// 	PERSPECTIVE = P;
+	// 	VIEW = V;
+	// }
+
+	{ //make some objects:
 		object_instances.clear();
-		for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
-		{
+
+		{ //plane translated +x by one unit:
+			glm::mat4 WORLD_FROM_LOCAL{
+				1.0f, 0.0f, 0.0f, 0.0f,
+				0.0f, 1.0f, 0.0f, 0.0f,
+				0.0f, 0.0f, 1.0f, 0.0f,
+				1.0f, 0.0f, 0.0f, 1.0f,
+			};
+
 			object_instances.emplace_back(ObjectInstance{
-				.vertices = object_vertices_list[i],
+				.vertices = plane_vertices,
 				.transform{
 					.PERSPECTIVE = PERSPECTIVE,
 					.VIEW = VIEW,
-					.MODEL = glm::mat4(1.0f),
-					.MODEL_NORMAL = glm::mat4(1.0f),
+					.MODEL = WORLD_FROM_LOCAL,
+					.MODEL_NORMAL = WORLD_FROM_LOCAL,
 				},
-				.texture = 0,
+				.texture = 1,
 			});
 		}
 	}
 }
 
 
-void A1::on_input(InputEvent const &) {
+void A1::on_input(InputEvent const &event) {
+	if (event.type == InputEvent::MouseWheel) {
+		const float fov_speed = 0.1f;
+		camera_fov -= event.wheel.y * fov_speed;
+		camera_fov = glm::clamp(camera_fov, 10.0f * float(M_PI) / 180.0f, 120.0f * float(M_PI) / 180.0f);
+	} else if (event.type == InputEvent::KeyDown) {
+		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
+			keys_down[event.key.key] = true;
+		}
+	} else if (event.type == InputEvent::KeyUp) {
+		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
+			keys_down[event.key.key] = false;
+		}
+	} else if (event.type == InputEvent::MouseMotion) {
+		// float dx = event.motion.x - last_mouse_x;
+		// float dy = event.motion.y - last_mouse_y;
+
+		// const float sensitivity = 0.0005f;
+		// camera_phi += dx * sensitivity;
+		// camera_theta += dy * sensitivity;
+		
+		// last_mouse_x = event.motion.x;
+		// last_mouse_y = event.motion.y;
+	}
 }

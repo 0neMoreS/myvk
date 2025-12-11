@@ -10,6 +10,7 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace s72 {
@@ -421,6 +422,93 @@ Document parse_document(sejp::value const &root) {
 		}
 	}
 	if (!scene_set) fail("File must contain exactly one SCENE");
+
+	std::unordered_map< std::string, Node * > node_lookup;
+	for (auto &node : doc.nodes) {
+		node_lookup.emplace(node.name, &node);
+	}
+
+	std::unordered_map< std::string, Mesh * > mesh_lookup;
+	for (auto &mesh : doc.meshes) {
+		mesh_lookup.emplace(mesh.name, &mesh);
+	}
+
+	std::unordered_map< std::string, Camera * > camera_lookup;
+	for (auto &camera : doc.cameras) {
+		camera_lookup.emplace(camera.name, &camera);
+	}
+
+	std::unordered_map< std::string, Environment * > environment_lookup;
+	for (auto &env : doc.environments) {
+		environment_lookup.emplace(env.name, &env);
+	}
+
+	std::unordered_map< std::string, Light * > light_lookup;
+	for (auto &light : doc.lights) {
+		light_lookup.emplace(light.name, &light);
+	}
+
+	for (auto &node : doc.nodes) {
+		for (auto const &child_name : node.children) {
+			auto it = node_lookup.find(child_name);
+			if (it == node_lookup.end()) {
+				fail(describe("NODE.children", std::string("unknown child '") + child_name + "'"));
+			}
+			auto *child = it->second;
+			if (child->parent && child->parent != &node) {
+				fail(describe("NODE", std::string("node '") + child_name + "' has multiple parents"));
+			}
+			child->parent = &node;
+		}
+
+		if (node.mesh) {
+			auto mit = mesh_lookup.find(*node.mesh);
+			if (mit == mesh_lookup.end()) {
+				fail(describe("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'"));
+			}
+			auto *mesh = mit->second;
+			if (mesh->parent && mesh->parent != &node) {
+				fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
+			}
+			mesh->parent = &node;
+		}
+
+		if (node.camera) {
+			auto cit = camera_lookup.find(*node.camera);
+			if (cit == camera_lookup.end()) {
+				fail(describe("NODE.camera", std::string("unknown camera '") + *node.camera + "'"));
+			}
+			auto *camera = cit->second;
+			if (camera->parent && camera->parent != &node) {
+				fail(describe("CAMERA", std::string("'") + camera->name + "' referenced by multiple nodes"));
+			}
+			camera->parent = &node;
+		}
+
+		if (node.environment) {
+			auto eit = environment_lookup.find(*node.environment);
+			if (eit == environment_lookup.end()) {
+				fail(describe("NODE.environment", std::string("unknown environment '") + *node.environment + "'"));
+			}
+			auto *env = eit->second;
+			if (env->parent && env->parent != &node) {
+				fail(describe("ENVIRONMENT", std::string("'") + env->name + "' referenced by multiple nodes"));
+			}
+			env->parent = &node;
+		}
+
+		if (node.light) {
+			auto lit = light_lookup.find(*node.light);
+			if (lit == light_lookup.end()) {
+				fail(describe("NODE.light", std::string("unknown light '") + *node.light + "'"));
+			}
+			auto *light = lit->second;
+			if (light->parent && light->parent != &node) {
+				fail(describe("LIGHT", std::string("'") + light->name + "' referenced by multiple nodes"));
+			}
+			light->parent = &node;
+		}
+	}
 	return doc;
 }
 

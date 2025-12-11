@@ -40,6 +40,11 @@ const objects_shaders = [
 	maek.GLSLC('./src/shaders/objects.frag'),
 ];
 
+const a1_load_shaders = [
+	maek.GLSLC('./src/shaders/A1-load.vert'),
+	maek.GLSLC('./src/shaders/A1-load.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const main_objs = [
@@ -52,7 +57,7 @@ const main_objs = [
 	maek.CPP('./src/core/Tutorial/Tutorial-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ),
 	// A1 files
 	maek.CPP('./src/core/A1/A1.cpp'),
-	maek.CPP('./src/core/A1/A1-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ),
+	maek.CPP('./src/core/A1/A1-ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
 	// utility files
 	maek.CPP('./src/utils/RTG.cpp'),
 	maek.CPP('./src/utils/Helpers.cpp'),

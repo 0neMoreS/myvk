@@ -9,8 +9,6 @@
 int main(int argc, char **argv) {
 	//main wrapped in a try-catch so we can print some debug info about uncaught exceptions:
 	try {
-		s72::Document doc = s72::load_file("./external/s72/examples/origin-check.s72");
-
 		//configure application:
 		RTG::Configuration configuration;
 
@@ -43,7 +41,7 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		Tutorial application(rtg);
+		A1 application(rtg);
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

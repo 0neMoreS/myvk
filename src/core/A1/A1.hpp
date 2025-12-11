@@ -2,11 +2,16 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+#include <cmath>
 
 #include "Vertex.hpp"
 #include "s72.hpp"
 
 #include "RTG.hpp"
+
+#include <GLFW/glfw3.h>
 
 struct A1 : RTG::Application {
 
@@ -96,6 +101,9 @@ struct A1 : RTG::Application {
 	};
 	std::vector<ObjectVertices> object_vertices_list;
 
+	ObjectVertices plane_vertices;
+	ObjectVertices torus_vertices;
+
 	std::vector< Helpers::AllocatedImage > textures;
 	std::vector< VkImageView > texture_views;
 	VkSampler texture_sampler = VK_NULL_HANDLE;
@@ -123,6 +131,19 @@ struct A1 : RTG::Application {
 
 	glm::mat4 PERSPECTIVE;
 	glm::mat4 VIEW;
+
+	// Camera control
+	glm::vec3 camera_position{0.0f, 0.0f, 2.0f};
+	glm::vec3 up = glm::vec3(0.0f, -1.0f, 0.0f);
+	float camera_theta = glm::radians(90.0f);
+	float camera_phi = glm::radians(90.0f);
+	float camera_fov = glm::radians(60.0f);
+	float last_mouse_x = 0.0f;
+	float last_mouse_y = 0.0f;
+	bool keys_down[GLFW_KEY_LAST + 1] = {};
+	const float move_speed = 2.0f;
+	const float fov_speed = 1.0f;
+	const float rotate_speed = 1.0f;
 
 	ObjectsPipeline::World world;
 

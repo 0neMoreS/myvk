@@ -32,6 +32,7 @@ struct Node {
 	Vec4 rotation{0.0, 0.0, 0.0, 1.0};
 	Vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
+	Node *parent = nullptr;
 	std::optional<std::string> mesh;
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
@@ -45,6 +46,7 @@ struct Mesh {
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
+	Node *parent = nullptr;
 };
 
 struct Camera {
@@ -57,6 +59,7 @@ struct Camera {
 
 	std::string name;
 	std::optional<Perspective> perspective;
+	Node *parent = nullptr;
 };
 
 struct Driver {
@@ -101,6 +104,7 @@ struct Material {
 struct Environment {
 	std::string name;
 	Texture radiance;
+	Node *parent = nullptr;
 };
 
 struct Light {
@@ -129,6 +133,7 @@ struct Light {
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;
 	std::optional<Spot> spot;
+	Node *parent = nullptr;
 };
 
 struct Document {

@@ -229,7 +229,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 
 		// Load vertices from all meshes in the document
 		uint32_t vertex_offset = 0;
-		for (const auto &mesh : doc.meshes) {
+		for (const auto &mesh : doc->meshes) {
 			try {
 				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, *mesh);
 				
@@ -436,8 +436,8 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	}
 
 	{ // init camera
-		if( !doc.cameras.empty() && doc.cameras[0]->parent != nullptr) {
-			const std::shared_ptr< s72::Node > camera_node = doc.cameras[0]->parent;
+		if( !doc->cameras.empty() && doc->cameras[0]->parent != nullptr) {
+			const std::shared_ptr< s72::Node > camera_node = doc->cameras[0]->parent;
 			camera_position =  BLENDER_TO_VULKAN_3 * camera_node->translation;
 
             glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
@@ -940,9 +940,9 @@ void A1::update(float dt) {
 
 	{
 		object_instances.clear();
-		for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
+		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
-			const auto& mesh = doc.meshes[i];
+			const auto& mesh = doc->meshes[i];
 			const std::shared_ptr< s72::Node > node = mesh->parent;
 			
 			glm::mat4 MODEL = glm::mat4(1.0f);

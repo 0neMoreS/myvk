@@ -144,8 +144,8 @@ struct Document {
 	std::vector<std::shared_ptr<Light>> lights;
 };
 
-Document load_file(const std::string &path);
-Document load_string(const std::string &contents);
+std::shared_ptr<Document> load_file(const std::string &path);
+std::shared_ptr<Document> load_string(const std::string &contents);
 
 // Load binary mesh data from b72 files according to mesh attributes
 // Returns interleaved vertex data as a vector of bytes

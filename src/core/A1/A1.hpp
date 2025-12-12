@@ -22,7 +22,7 @@ struct A1 : RTG::Application {
 
 	//kept for use in destructor:
 	RTG &rtg;
-	s72::Document doc;
+	std::shared_ptr<s72::Document> doc;
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:

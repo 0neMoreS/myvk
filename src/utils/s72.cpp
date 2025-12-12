@@ -371,6 +371,16 @@ Document parse_document(sejp::value const &root) {
 	if (!first || *first != "s72-v2") fail("First entry must be 's72-v2'");
 
 	Document doc;
+
+	size_t cap = arr_opt->size() / 2;
+    doc.nodes.reserve(cap);
+    doc.meshes.reserve(cap);
+    doc.cameras.reserve(cap);
+    doc.drivers.reserve(cap);
+    doc.materials.reserve(cap);
+    doc.environments.reserve(cap);
+    doc.lights.reserve(cap);
+
 	bool scene_set = false;
 	std::unordered_map< std::string, Node * > node_lookup;
 	std::unordered_map< std::string, Mesh * > mesh_lookup;
@@ -488,6 +498,7 @@ Document parse_document(sejp::value const &root) {
 					fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
 				}
 				mesh->parent = node;
+				std::cout << "Mesh name: " << mesh->name << std::endl;
 			}
 
 			if (node->camera) {
@@ -544,110 +555,42 @@ Document load_string(std::string const &contents) {
 }
 
 std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh) {
-	// Map to store loaded data streams
-	std::map<std::string, std::vector<uint8_t>> data_streams;
-	
-	// First, load all unique data streams
-	std::set<std::string> unique_sources;
-	for (const auto &attr : mesh.attributes) {
-		unique_sources.insert(attr.second.src);
-	}
-	
-	// Load each unique data stream from file
-	for (const auto &src : unique_sources) {
-		std::string filepath = base_path;
-		if (!base_path.empty() && base_path.back() != '/') {
-			filepath += '/';
-		}
-		filepath += src;
-		
-		std::ifstream file(filepath, std::ios::binary);
-		if (!file) {
-			throw std::runtime_error("Failed to open data stream file: " + filepath);
-		}
-		
-		file.seekg(0, std::ios::end);
-		size_t file_size = file.tellg();
-		file.seekg(0, std::ios::beg);
-		
-		std::vector<uint8_t> data(file_size);
-		file.read(reinterpret_cast<char*>(data.data()), file_size);
-		if (!file) {
-			throw std::runtime_error("Failed to read data stream file: " + filepath);
-		}
-		
-		data_streams[src] = std::move(data);
-	}
-	
-	// Determine the stride for output (sum of all attribute sizes)
-	uint32_t output_stride = 0;
-	std::vector<std::pair<std::string, uint32_t>> attribute_sizes;
-	
-	for (const auto &attr : mesh.attributes) {
-		// Parse format to determine size
-		const std::string &format = attr.second.format;
-		uint32_t attr_size = 0;
-		
-		if (format.find("R32G32B32A32") != std::string::npos) {
-			attr_size = 16; // 4 * 4 bytes
-		} else if (format.find("R32G32B32") != std::string::npos) {
-			attr_size = 12; // 3 * 4 bytes
-		} else if (format.find("R32G32") != std::string::npos) {
-			attr_size = 8; // 2 * 4 bytes
-		} else if (format.find("R32") != std::string::npos) {
-			attr_size = 4; // 1 * 4 bytes
-		} else {
-			throw std::runtime_error("Unsupported format: " + format);
-		}
-		
-		attribute_sizes.push_back({attr.first, attr_size});
-		output_stride += attr_size;
-	}
-	
-	// Allocate output buffer
-	size_t total_size = static_cast<size_t>(output_stride) * mesh.count;
-	std::vector<uint8_t> output(total_size);
-	
-	// Interleave data from all attributes
-	for (uint32_t vertex_idx = 0; vertex_idx < mesh.count; ++vertex_idx) {
-		uint8_t *vertex_ptr = output.data() + vertex_idx * output_stride;
-		uint32_t output_offset = 0;
-		
-		for (const auto &attr_name : mesh.attributes) {
-			const DataStream &stream = attr_name.second;
-			const std::vector<uint8_t> &src_data = data_streams[stream.src];
-			
-			// Find the size of this attribute
-			uint32_t attr_size = 0;
-			for (const auto &size_pair : attribute_sizes) {
-				if (size_pair.first == attr_name.first) {
-					attr_size = size_pair.second;
-					break;
-				}
-			}
-			
-			// Calculate source offset
-			uint32_t src_offset = stream.offset + vertex_idx * stream.stride.value_or(attr_size);
-			
-			// Copy data
-			if (src_offset + attr_size > src_data.size()) {
-				throw std::runtime_error(
-					"Data stream read out of bounds: " + stream.src +
-					" (vertex " + std::to_string(vertex_idx) + ", offset " + std::to_string(src_offset) + ")"
-				);
-			}
-			
-			std::memcpy(
-				vertex_ptr + output_offset,
-				src_data.data() + src_offset,
-				attr_size
-			);
-			
-			output_offset += attr_size;
-		}
-	}
-	
-	return output;
+    // Determine which file to load
+    std::string src;
+    if (mesh.indices) {
+        // If mesh has indices, load the indices data
+        src = mesh.indices->src;
+    } else if (!mesh.attributes.empty()) {
+        // Otherwise load the first attribute's data source
+        src = mesh.attributes.begin()->second.src;
+    } else {
+        throw std::runtime_error("Mesh has no data sources");
+    }
+    
+    // Build full file path
+    std::string filepath = base_path;
+    if (!base_path.empty() && base_path.back() != '/') {
+        filepath += '/';
+    }
+    filepath += src;
+    
+    // Open and read the file
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Failed to open data file: " + filepath);
+    }
+    
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    
+    std::vector<uint8_t> data(file_size);
+    file.read(reinterpret_cast<char*>(data.data()), file_size);
+    if (!file) {
+        throw std::runtime_error("Failed to read data file: " + filepath);
+    }
+    
+    return data;
 }
 
 } // namespace s72

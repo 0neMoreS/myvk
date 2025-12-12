@@ -221,102 +221,102 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		}
 	}
 
-	// { //create object vertices
-	// 	std::vector< uint8_t > all_vertices;
-
-	// 	// Get the directory containing the s72 file
-	// 	std::string s72_dir = "./external/s72/examples";
-
-	// 	// Load vertices from all meshes in the document
-	// 	uint32_t vertex_offset = 0;
-	// 	for (const auto &mesh : doc.meshes) {
-	// 		try {
-	// 			std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
-				
-	// 			ObjectVertices vertices;
-	// 			vertices.first = vertex_offset;
-	// 			vertices.count = mesh.count;
-	// 			object_vertices_list.push_back(vertices);
-
-	// 			all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
-	// 			vertex_offset += mesh.count;
-	// 		} catch (const std::exception &e) {
-	// 			std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
-	// 		}
-	// 	}
-
-	// 	size_t bytes = all_vertices.size();
-
-	// 	if (bytes > 0) {
-	// 		object_vertices = rtg.helpers.create_buffer(
-	// 			bytes,
-	// 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-	// 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	// 			Helpers::Unmapped
-	// 		);
-
-	// 		//copy data to buffer:
-	// 		rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
-	// 	}
-	// }
-
 	{ //create object vertices
-		std::vector< Vertex > vertices;
-		
-		{ //A [-1,1]x[-1,1]x{0} quadrilateral:
-			plane_vertices.first = uint32_t(vertices.size());
-			vertices.emplace_back(Vertex{
-				.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 0.0f, .t = 0.0f },
-			});
-			vertices.emplace_back(Vertex{
-				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 1.0f, .t = 0.0f },
-			});
-			vertices.emplace_back(Vertex{
-				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 0.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(Vertex{
-				.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 1.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(Vertex{
-				.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 0.0f, .t = 1.0f },
-			});
-			vertices.emplace_back(Vertex{
-				.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-				.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-				.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-				.TexCoord{ .s = 1.0f, .t = 0.0f },
-			});
+		std::vector< uint8_t > all_vertices;
 
-			plane_vertices.count = uint32_t(vertices.size()) - plane_vertices.first;
+		// Get the directory containing the s72 file
+		std::string s72_dir = "./external/s72/examples";
+
+		// Load vertices from all meshes in the document
+		uint32_t vertex_offset = 0;
+		for (const auto &mesh : doc.meshes) {
+			try {
+				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
+				
+				ObjectVertices vertices;
+				vertices.first = vertex_offset;
+				vertices.count = mesh.count;
+				object_vertices_list.push_back(vertices);
+
+				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
+				vertex_offset += mesh.count;
+			} catch (const std::exception &e) {
+				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
+			}
 		}
 
-		size_t bytes = vertices.size() * sizeof(vertices[0]);
+		size_t bytes = all_vertices.size();
 
-		object_vertices = rtg.helpers.create_buffer(
-			bytes,
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped
-		);
+		if (bytes > 0) {
+			object_vertices = rtg.helpers.create_buffer(
+				bytes,
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				Helpers::Unmapped
+			);
 
-		//copy data to buffer:
-		rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
+			//copy data to buffer:
+			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
+		}
 	}
+
+	// { //create object vertices
+	// 	std::vector< Vertex > vertices;
+		
+	// 	{ //A [-1,1]x[-1,1]x{0} quadrilateral:
+	// 		plane_vertices.first = uint32_t(vertices.size());
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 0.0f, .t = 0.0f },
+	// 		});
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 1.0f, .t = 0.0f },
+	// 		});
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 0.0f, .t = 1.0f },
+	// 		});
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 1.0f, .t = 1.0f },
+	// 		});
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 0.0f, .t = 1.0f },
+	// 		});
+	// 		vertices.emplace_back(Vertex{
+	// 			.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
+	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
+	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+	// 			.TexCoord{ .s = 1.0f, .t = 0.0f },
+	// 		});
+
+	// 		plane_vertices.count = uint32_t(vertices.size()) - plane_vertices.first;
+	// 	}
+
+	// 	size_t bytes = vertices.size() * sizeof(vertices[0]);
+
+	// 	object_vertices = rtg.helpers.create_buffer(
+	// 		bytes,
+	// 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	// 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	// 		Helpers::Unmapped
+	// 	);
+
+	// 	//copy data to buffer:
+	// 	rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
+	// }
 	
 	{ //make some textures
 		textures.reserve(2);
@@ -496,7 +496,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	{ // init camera
 		if( !doc.cameras.empty() && doc.cameras[0].parent != nullptr) {
 			const s72::Node* camera_node = doc.cameras[0].parent;
-			camera_position =  BLENDER_TO_VULKAN_3 * glm::vec3{camera_node->translation.x, camera_node->translation.y, camera_node->translation.z};
+			camera_position =  BLENDER_TO_VULKAN_3 * camera_node->translation;
 
             glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
             glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
@@ -994,83 +994,71 @@ void A1::update(float dt) {
 		world.SUN_ENERGY.b = 0.9f;
 	}
 
-	// {
-	// 	object_instances.clear();
-	// 	for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
-	// 	{
-	// 		const s72::Mesh& mesh = doc.meshes[i];
-	// 		const s72::Node* node = mesh.parent;
-			
-	// 		glm::mat4 MODEL = glm::mat4(1.0f);
-			
-	// 		if (node) {
-	// 			glm::quat q(node->rotation.w, node->rotation.x, node->rotation.y, node->rotation.z);
-				
-	// 			glm::mat4 T = glm::translate(glm::mat4(1.0f), node->translation);
-	// 			glm::mat4 R = glm::mat4_cast(q);
-	// 			glm::mat4 S = glm::scale(glm::mat4(1.0f), node->scale);
-				
-	// 			MODEL = T * R * S;
-	// 		}
-			
-	// 		glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-
-	// 		object_instances.emplace_back(ObjectInstance{
-	// 			.vertices = object_vertices_list[i],
-	// 			.transform{
-	// 				.PERSPECTIVE = PERSPECTIVE,
-	// 				.VIEW = VIEW,
-	// 				.MODEL = MODEL,
-	// 				.MODEL_NORMAL = MODEL_NORMAL,
-	// 			},
-	// 			.texture = 0,
-	// 		});
-	// 	}
-	// }
-
-	// { //camera orbiting the origin:
-	// 	float ang = float(M_PI) * 2.0f * 10.0f * (time / 60.0f);
-	// 	glm::mat4 P = glm::perspectiveRH_ZO(
-	// 		60.0f * float(M_PI) / 180.0f,   // vfov
-	// 		rtg.swapchain_extent.width / float(rtg.swapchain_extent.height),
-	// 		0.1f,
-	// 		1000.0f
-	// 	);
-	// 	P[1][1] *= -1.0f;
-
-	// 	glm::mat4 V = glm::lookAtRH(
-	// 		glm::vec3{3.0f * std::cos(ang), 3.0f * std::sin(ang), 1.0f},
-	// 		glm::vec3{0.0f, 0.0f, 0.5f},
-	// 		glm::vec3{0.0f, 0.0f, 1.0f}
-	// 	);
-
-	// 	PERSPECTIVE = P;
-	// 	VIEW = V;
-	// }
-
-	{ //make some objects:
+	{
 		object_instances.clear();
+		for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
+		{
+			const s72::Mesh& mesh = doc.meshes[i];
+			const s72::Node* node = mesh.parent;
+			
+			glm::mat4 MODEL = glm::mat4(1.0f);
+			
+			if (node) {
+				glm::quat q(node->rotation.w, node->rotation.x, node->rotation.y, node->rotation.z);
+				
+				glm::mat4 T = glm::translate(glm::mat4(1.0f), node->translation);
+				glm::mat4 R = glm::mat4_cast(q);
+				glm::mat4 S = glm::scale(glm::mat4(1.0f), node->scale);
+				
+				MODEL = BLENDER_TO_VULKAN_4 * (T * R * S);
 
-		{ //plane translated +x by one unit:
-			glm::mat4 WORLD_FROM_LOCAL{
-				1.0f, 0.0f, 0.0f, 0.0f,
-				0.0f, 1.0f, 0.0f, 0.0f,
-				0.0f, 0.0f, 1.0f, 0.0f,
-				1.0f, 0.0f, 0.0f, 1.0f,
-			};
+			// 	std::cout << "Model matrix for mesh " << i << ": " << std::endl;
+			// std::cout << MODEL[0][0] << " " << MODEL[0][1] << " " << MODEL[0][2] << " " << MODEL[0][3] << std::endl;
+			// std::cout << MODEL[1][0] << " " << MODEL[1][1] << " " << MODEL[1][2] << " " << MODEL[1][3] << std::endl;
+			// std::cout << MODEL[2][0] << " " << MODEL[2][1] << " " << MODEL[2][2] << " " << MODEL[2][3] << std::endl;
+			// std::cout << MODEL[3][0] << " " << MODEL[3][1] << " " << MODEL[3][2] << " " << MODEL[3][3] << std::endl;	
+			
+			}
+
+			
+			glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
 			object_instances.emplace_back(ObjectInstance{
-				.vertices = plane_vertices,
+				.vertices = object_vertices_list[i],
 				.transform{
 					.PERSPECTIVE = PERSPECTIVE,
 					.VIEW = VIEW,
-					.MODEL = WORLD_FROM_LOCAL,
-					.MODEL_NORMAL = WORLD_FROM_LOCAL,
+					.MODEL = MODEL,
+					.MODEL_NORMAL = MODEL_NORMAL,
 				},
-				.texture = 1,
+				.texture = 0,
 			});
 		}
 	}
+
+	// { //make some objects:
+	// 	object_instances.clear();
+
+	// 	{ //plane translated +x by one unit:
+	// 		glm::mat4 WORLD_FROM_LOCAL{
+	// 			1.0f, 0.0f, 0.0f, 0.0f,
+	// 			0.0f, 1.0f, 0.0f, 0.0f,
+	// 			0.0f, 0.0f, 1.0f, 0.0f,
+	// 			1.0f, 0.0f, 0.0f, 1.0f,
+	// 		};
+
+	// 		object_instances.emplace_back(ObjectInstance{
+	// 			.vertices = plane_vertices,
+	// 			.transform{
+	// 				.PERSPECTIVE = PERSPECTIVE,
+	// 				.VIEW = VIEW,
+	// 				.MODEL = WORLD_FROM_LOCAL,
+	// 				.MODEL_NORMAL = WORLD_FROM_LOCAL,
+	// 			},
+	// 			.texture = 1,
+	// 		});
+	// 	}
+	// }
 }
 
 

@@ -10,10 +10,6 @@
 
 namespace s72 {
 
-using Vec2 = glm::fvec2;
-using Vec3 = glm::fvec3;
-using Vec4 = glm::fvec4;
-
 struct DataStream {
 	std::string src;
 	uint32_t offset = 0;
@@ -28,9 +24,9 @@ struct Scene {
 
 struct Node {
 	std::string name;
-	Vec3 translation{0.0, 0.0, 0.0};
-	Vec4 rotation{0.0, 0.0, 0.0, 1.0};
-	Vec3 scale{1.0, 1.0, 1.0};
+	glm::vec3 translation{0.0, 0.0, 0.0};
+	glm::vec4 rotation{0.0, 0.0, 0.0, 1.0};
+	glm::vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
 	Node *parent = nullptr;
 	std::optional<std::string> mesh;
@@ -79,7 +75,7 @@ struct Texture {
 
 struct Material {
 	struct PBR {
-		std::optional<Vec3> albedo_value;
+		std::optional<glm::vec3> albedo_value;
 		std::optional<Texture> albedo_texture;
 		std::optional<float> roughness_value;
 		std::optional<Texture> roughness_texture;
@@ -88,7 +84,7 @@ struct Material {
 	};
 
 	struct Lambertian {
-		std::optional<Vec3> albedo_value;
+		std::optional<glm::vec3> albedo_value;
 		std::optional<Texture> albedo_texture;
 	};
 
@@ -128,7 +124,7 @@ struct Light {
 	};
 
 	std::string name;
-	Vec3 tint{1.0, 1.0, 1.0};
+	glm::vec3 tint{1.0, 1.0, 1.0};
 	uint32_t shadow = 0;
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;

@@ -223,28 +223,28 @@ std::shared_ptr<Node> parse_node(Object const &obj) {
 	return node;
 }
 
-std::shared_ptr<Mesh> parse_mesh(Object const &obj) {
-	auto mesh = std::make_shared<Mesh>();
-	mesh->name = expect_string(obj, "name", "MESH");
-	mesh->topology = expect_string(obj, "topology", "MESH");
-	mesh->count = to_u32(expect_number(obj, "count", "MESH"), "MESH.count");
+Mesh parse_mesh(Object const &obj) {
+	Mesh mesh;
+	mesh.name = expect_string(obj, "name", "MESH");
+	mesh.topology = expect_string(obj, "topology", "MESH");
+	mesh.count = to_u32(expect_number(obj, "count", "MESH"), "MESH.count");
 	if (auto it = obj.find("indices"); it != obj.end()) {
-		mesh->indices = parse_data_stream(it->second, "MESH.indices", false, false);
+		mesh.indices = parse_data_stream(it->second, "MESH.indices", false, false);
 	}
 	auto it = obj.find("attributes");
 	if (it == obj.end()) fail("MESH: missing 'attributes'");
 	auto const &attrs = expect_object(it->second, "MESH.attributes");
 	for (auto const &entry : attrs) {
-		mesh->attributes.emplace(entry.first, parse_data_stream(entry.second, describe("MESH.attributes", entry.first), true, true));
+		mesh.attributes.emplace(entry.first, parse_data_stream(entry.second, describe("MESH.attributes", entry.first), true, true));
 	}
-	if (mesh->attributes.empty()) fail("MESH: attributes must not be empty");
-	mesh->material = optional_string(obj, "material");
+	if (mesh.attributes.empty()) fail("MESH: attributes must not be empty");
+	mesh.material = optional_string(obj, "material");
 	return mesh;
 }
 
-std::shared_ptr<Camera> parse_camera(Object const &obj) {
-	auto cam = std::make_shared<Camera>();
-	cam->name = expect_string(obj, "name", "CAMERA");
+Camera parse_camera(Object const &obj) {
+	Camera cam;
+	cam.name = expect_string(obj, "name", "CAMERA");
 	if (auto it = obj.find("perspective"); it != obj.end()) {
 		Camera::Perspective p;
 		auto const &per = expect_object(it->second, "CAMERA.perspective");
@@ -252,83 +252,83 @@ std::shared_ptr<Camera> parse_camera(Object const &obj) {
 		p.vfov = expect_number(per, "vfov", "CAMERA.perspective");
 		p.near = expect_number(per, "near", "CAMERA.perspective");
 		p.far = optional_number(per, "far");
-		cam->perspective = p;
+		cam.perspective = p;
 	}
-	if (!cam->perspective) fail("CAMERA: must specify projection");
+	if (!cam.perspective) fail("CAMERA: must specify projection");
 	return cam;
 }
 
-std::shared_ptr<Driver> parse_driver(Object const &obj) {
-	auto driver = std::make_shared<Driver>();
-	driver->name = expect_string(obj, "name", "DRIVER");
-	driver->node = expect_string(obj, "node", "DRIVER");
-	driver->channel = expect_string(obj, "channel", "DRIVER");
-	driver->interpolation = optional_string(obj, "interpolation").value_or("LINEAR");
+Driver parse_driver(Object const &obj) {
+	Driver driver;
+	driver.name = expect_string(obj, "name", "DRIVER");
+	driver.node = expect_string(obj, "node", "DRIVER");
+	driver.channel = expect_string(obj, "channel", "DRIVER");
+	driver.interpolation = optional_string(obj, "interpolation").value_or("LINEAR");
 	{
 		auto it = obj.find("times");
 		if (it == obj.end()) fail("DRIVER: missing 'times'");
-		driver->times = parse_number_array(it->second, "DRIVER.times");
+		driver.times = parse_number_array(it->second, "DRIVER.times");
 	}
 	{
 		auto it = obj.find("values");
 		if (it == obj.end()) fail("DRIVER: missing 'values'");
-		driver->values = parse_number_array(it->second, "DRIVER.values");
+		driver.values = parse_number_array(it->second, "DRIVER.values");
 	}
-	if (driver->channel == "translation" || driver->channel == "scale") {
-		if (driver->values.size() != driver->times.size() * 3) fail("DRIVER: channel expects 3D values");
-	} else if (driver->channel == "rotation") {
-		if (driver->values.size() != driver->times.size() * 4) fail("DRIVER: rotation channel expects 4D values");
+	if (driver.channel == "translation" || driver.channel == "scale") {
+		if (driver.values.size() != driver.times.size() * 3) fail("DRIVER: channel expects 3D values");
+	} else if (driver.channel == "rotation") {
+		if (driver.values.size() != driver.times.size() * 4) fail("DRIVER: rotation channel expects 4D values");
 	}
 	return driver;
 }
 
-std::shared_ptr<Material> parse_material(Object const &obj) {
-	auto mat = std::make_shared<Material>();
-	mat->name = expect_string(obj, "name", "MATERIAL");
+Material parse_material(Object const &obj) {
+	Material mat;
+	mat.name = expect_string(obj, "name", "MATERIAL");
 	if (auto it = obj.find("normalMap"); it != obj.end()) {
-		mat->normal_map = parse_texture(it->second, "MATERIAL.normalMap");
+		mat.normal_map = parse_texture(it->second, "MATERIAL.normalMap");
 	}
 	if (auto it = obj.find("displacementMap"); it != obj.end()) {
-		mat->displacement_map = parse_texture(it->second, "MATERIAL.displacementMap");
+		mat.displacement_map = parse_texture(it->second, "MATERIAL.displacementMap");
 	}
 	size_t shading_count = 0;
 	if (auto it = obj.find("pbr"); it != obj.end()) {
-		mat->pbr = parse_pbr(it->second, "MATERIAL.pbr");
+		mat.pbr = parse_pbr(it->second, "MATERIAL.pbr");
 		++shading_count;
 	}
 	if (auto it = obj.find("lambertian"); it != obj.end()) {
-		mat->lambertian = parse_lambertian(it->second, "MATERIAL.lambertian");
+		mat.lambertian = parse_lambertian(it->second, "MATERIAL.lambertian");
 		++shading_count;
 	}
 	if (auto it = obj.find("mirror"); it != obj.end()) {
 		expect_object(it->second, "MATERIAL.mirror");
-		mat->mirror = true;
+		mat.mirror = true;
 		++shading_count;
 	}
 	if (auto it = obj.find("environment"); it != obj.end()) {
 		expect_object(it->second, "MATERIAL.environment");
-		mat->environment = true;
+		mat.environment = true;
 		++shading_count;
 	}
 	if (shading_count != 1) fail("MATERIAL: exactly one shading model required");
 	return mat;
 }
 
-std::shared_ptr<Environment> parse_environment(Object const &obj) {
-	auto env = std::make_shared<Environment>();
-	env->name = expect_string(obj, "name", "ENVIRONMENT");
+Environment parse_environment(Object const &obj) {
+	Environment env;
+	env.name = expect_string(obj, "name", "ENVIRONMENT");
 	auto it = obj.find("radiance");
 	if (it == obj.end()) fail("ENVIRONMENT: missing 'radiance'");
-	env->radiance = parse_texture(it->second, "ENVIRONMENT.radiance");
+	env.radiance = parse_texture(it->second, "ENVIRONMENT.radiance");
 	return env;
 }
 
-std::shared_ptr<Light> parse_light(Object const &obj) {
-	auto light = std::make_shared<Light>();
-	light->name = expect_string(obj, "name", "LIGHT");
-	light->tint = vec_or_default<3>(obj, "tint", {1.0, 1.0, 1.0}, "LIGHT.tint");
+Light parse_light(Object const &obj) {
+	Light light;
+	light.name = expect_string(obj, "name", "LIGHT");
+	light.tint = vec_or_default<3>(obj, "tint", {1.0, 1.0, 1.0}, "LIGHT.tint");
 	if (auto n = optional_number(obj, "shadow")) {
-		light->shadow = to_u32(*n, "LIGHT.shadow");
+		light.shadow = to_u32(*n, "LIGHT.shadow");
 	}
 	size_t kind = 0;
 	if (auto it = obj.find("sun"); it != obj.end()) {
@@ -336,7 +336,7 @@ std::shared_ptr<Light> parse_light(Object const &obj) {
 		Light::Sun sun;
 		sun.angle = expect_number(sun_obj, "angle", "LIGHT.sun");
 		sun.strength = expect_number(sun_obj, "strength", "LIGHT.sun");
-		light->sun = sun;
+		light.sun = sun;
 		++kind;
 	}
 	if (auto it = obj.find("sphere"); it != obj.end()) {
@@ -345,7 +345,7 @@ std::shared_ptr<Light> parse_light(Object const &obj) {
 		sphere.radius = expect_number(sphere_obj, "radius", "LIGHT.sphere");
 		sphere.power = expect_number(sphere_obj, "power", "LIGHT.sphere");
 		sphere.limit = optional_number(sphere_obj, "limit");
-		light->sphere = sphere;
+		light.sphere = sphere;
 		++kind;
 	}
 	if (auto it = obj.find("spot"); it != obj.end()) {
@@ -356,7 +356,7 @@ std::shared_ptr<Light> parse_light(Object const &obj) {
 		spot.limit = optional_number(spot_obj, "limit");
 		spot.fov = expect_number(spot_obj, "fov", "LIGHT.spot");
 		spot.blend = expect_number(spot_obj, "blend", "LIGHT.spot");
-		light->spot = spot;
+		light.spot = spot;
 		++kind;
 	}
 	if (kind != 1) fail("LIGHT: exactly one light definition required");
@@ -374,12 +374,12 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 
 	bool scene_set = false;
 	std::unordered_map< std::string, std::shared_ptr<Node> > node_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Mesh> > mesh_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Camera> > camera_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Driver> > driver_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Material> > material_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Environment> > environment_lookup;
-	std::unordered_map< std::string, std::shared_ptr<Light> > light_lookup;
+	std::unordered_map< std::string, size_t > mesh_lookup;  // mesh name -> index in doc->meshes
+	std::unordered_map< std::string, size_t > camera_lookup;
+	std::unordered_map< std::string, size_t > driver_lookup;  // driver name -> index in doc->drivers
+	std::unordered_map< std::string, size_t > material_lookup;  // material name -> index in doc->materials
+	std::unordered_map< std::string, size_t > environment_lookup;  // environment name -> index in doc->environments
+	std::unordered_map< std::string, size_t > light_lookup;  // light name -> index in doc->lights
 
 	for (size_t i = 1; i < arr_opt->size(); ++i) {
 		auto const &entry = (*arr_opt)[i];
@@ -396,41 +396,41 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 				fail(describe("NODE", std::string("duplicate name '") + node_ptr->name + "'"));
 			}
 		} else if (type == "MESH") {
-			auto mesh_ptr = parse_mesh(obj);
-			doc->meshes.push_back(mesh_ptr);
-			if (!mesh_lookup.emplace(mesh_ptr->name, mesh_ptr).second) {
-				fail(describe("MESH", std::string("duplicate name '") + mesh_ptr->name + "'"));
+			auto mesh = parse_mesh(obj);
+			if (!mesh_lookup.emplace(mesh.name, doc->meshes.size()).second) {
+				fail(describe("MESH", std::string("duplicate name '") + mesh.name + "'"));
 			}
+			doc->meshes.push_back(mesh);
 		} else if (type == "CAMERA") {
-			auto cam_ptr = parse_camera(obj);
-			doc->cameras.push_back(cam_ptr);
-			if (!camera_lookup.emplace(cam_ptr->name, cam_ptr).second) {
-				fail(describe("CAMERA", std::string("duplicate name '") + cam_ptr->name + "'"));
+			auto cam = parse_camera(obj);
+			if (!camera_lookup.emplace(cam.name, doc->cameras.size()).second) {
+				fail(describe("CAMERA", std::string("duplicate name '") + cam.name + "'"));
 			}
+			doc->cameras.push_back(cam);
 		} else if (type == "DRIVER") {
-			auto driver_ptr = parse_driver(obj);
-			doc->drivers.push_back(driver_ptr);
-			if (!driver_lookup.emplace(driver_ptr->name, driver_ptr).second) {
-				fail(describe("DRIVER", std::string("duplicate name '") + driver_ptr->name + "'"));
+			auto driver = parse_driver(obj);
+			if (!driver_lookup.emplace(driver.name, doc->drivers.size()).second) {
+				fail(describe("DRIVER", std::string("duplicate name '") + driver.name + "'"));
 			}
+			doc->drivers.push_back(driver);
 		} else if (type == "MATERIAL") {
-			auto mat_ptr = parse_material(obj);
-			doc->materials.push_back(mat_ptr);
-			if (!material_lookup.emplace(mat_ptr->name, mat_ptr).second) {
-				fail(describe("MATERIAL", std::string("duplicate name '") + mat_ptr->name + "'"));
+			auto mat = parse_material(obj);
+			if (!material_lookup.emplace(mat.name, doc->materials.size()).second) {
+				fail(describe("MATERIAL", std::string("duplicate name '") + mat.name + "'"));
 			}
+			doc->materials.push_back(mat);
 		} else if (type == "ENVIRONMENT") {
-			auto env_ptr = parse_environment(obj);
-			doc->environments.push_back(env_ptr);
-			if (!environment_lookup.emplace(env_ptr->name, env_ptr).second) {
-				fail(describe("ENVIRONMENT", std::string("duplicate name '") + env_ptr->name + "'"));
+			auto env = parse_environment(obj);
+			if (!environment_lookup.emplace(env.name, doc->environments.size()).second) {
+				fail(describe("ENVIRONMENT", std::string("duplicate name '") + env.name + "'"));
 			}
+			doc->environments.push_back(env);
 		} else if (type == "LIGHT") {
-			auto light_ptr = parse_light(obj);
-			doc->lights.push_back(light_ptr);
-			if (!light_lookup.emplace(light_ptr->name, light_ptr).second) {
-				fail(describe("LIGHT", std::string("duplicate name '") + light_ptr->name + "'"));
+			auto light = parse_light(obj);
+			if (!light_lookup.emplace(light.name, doc->lights.size()).second) {
+				fail(describe("LIGHT", std::string("duplicate name '") + light.name + "'"));
 			}
+			doc->lights.push_back(light);
 		} else {
 			fail(describe("object", std::string("unknown type '") + type + "'"));
 		}
@@ -472,12 +472,12 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 				if (mit == mesh_lookup.end()) {
 					fail(describe("NODE.mesh", std::string("unknown mesh '") + *node->mesh + "'"));
 				}
-				auto mesh = mit->second;
-				if (mesh->parent && mesh->parent != node) {
-					fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
+				auto &mesh = doc->meshes[mit->second];
+				if (mesh.parent && mesh.parent != node) {
+					fail(describe("MESH", std::string("'") + mesh.name + "' referenced by multiple nodes"));
 				}
-				mesh->parent = node;
-				std::cout << "Mesh name: " << mesh->name << std::endl;
+				mesh.parent = node;
+				std::cout << "Mesh name: " << mesh.name << std::endl;
 			}
 
 			if (node->camera) {
@@ -485,11 +485,11 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 				if (cit == camera_lookup.end()) {
 					fail(describe("NODE.camera", std::string("unknown camera '") + *node->camera + "'"));
 				}
-				auto camera = cit->second;
-				if (camera->parent && camera->parent != node) {
-					fail(describe("CAMERA", std::string("'") + camera->name + "' referenced by multiple nodes"));
+				auto &camera = doc->cameras[cit->second];
+				if (camera.parent && camera.parent != node) {
+					fail(describe("CAMERA", std::string("'") + camera.name + "' referenced by multiple nodes"));
 				}
-				camera->parent = node;
+				camera.parent = node;
 			}
 
 			if (node->environment) {
@@ -497,11 +497,11 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 				if (eit == environment_lookup.end()) {
 					fail(describe("NODE.environment", std::string("unknown environment '") + *node->environment + "'"));
 				}
-				auto env = eit->second;
-				if (env->parent && env->parent != node) {
-					fail(describe("ENVIRONMENT", std::string("'") + env->name + "' referenced by multiple nodes"));
+				auto &env = doc->environments[eit->second];
+				if (env.parent && env.parent != node) {
+					fail(describe("ENVIRONMENT", std::string("'") + env.name + "' referenced by multiple nodes"));
 				}
-				env->parent = node;
+				env.parent = node;
 			}
 
 			if (node->light) {
@@ -509,11 +509,11 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 				if (lit == light_lookup.end()) {
 					fail(describe("NODE.light", std::string("unknown light '") + *node->light + "'"));
 				}
-				auto light = lit->second;
-				if (light->parent && light->parent != node) {
-					fail(describe("LIGHT", std::string("'") + light->name + "' referenced by multiple nodes"));
+				auto &light = doc->lights[lit->second];
+				if (light.parent && light.parent != node) {
+					fail(describe("LIGHT", std::string("'") + light.name + "' referenced by multiple nodes"));
 				}
-				light->parent = node;
+				light.parent = node;
 			}
 		}
 	}

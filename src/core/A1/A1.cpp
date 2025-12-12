@@ -231,17 +231,17 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		uint32_t vertex_offset = 0;
 		for (const auto &mesh : doc->meshes) {
 			try {
-				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, *mesh);
+				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
 				
 				ObjectVertices vertices;
 				vertices.first = vertex_offset;
-				vertices.count = mesh->count;
+				vertices.count = mesh.count;
 				object_vertices_list.push_back(vertices);
 
 				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
-				vertex_offset += mesh->count;
+				vertex_offset += mesh.count;
 			} catch (const std::exception &e) {
-				std::cerr << "Warning: Failed to load mesh '" << mesh->name << "': " << e.what() << std::endl;
+				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
 			}
 		}
 
@@ -436,8 +436,8 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	}
 
 	{ // init camera
-		if( !doc->cameras.empty() && doc->cameras[0]->parent != nullptr) {
-			const std::shared_ptr< s72::Node > camera_node = doc->cameras[0]->parent;
+		if( !doc->cameras.empty() && doc->cameras[0].parent != nullptr) {
+			const std::shared_ptr< s72::Node > camera_node = doc->cameras[0].parent;
 			camera_position =  BLENDER_TO_VULKAN_3 * camera_node->translation;
 
             glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
@@ -943,7 +943,7 @@ void A1::update(float dt) {
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
 			const auto& mesh = doc->meshes[i];
-			const std::shared_ptr< s72::Node > node = mesh->parent;
+			const std::shared_ptr< s72::Node > node = mesh.parent;
 			
 			glm::mat4 MODEL = glm::mat4(1.0f);
 			

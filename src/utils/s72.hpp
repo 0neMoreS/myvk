@@ -136,12 +136,12 @@ struct Light {
 struct Document {
 	Scene scene;
 	std::vector<std::shared_ptr<Node>> nodes;
-	std::vector<std::shared_ptr<Mesh>> meshes;
-	std::vector<std::shared_ptr<Camera>> cameras;
-	std::vector<std::shared_ptr<Driver>> drivers;
-	std::vector<std::shared_ptr<Material>> materials;
-	std::vector<std::shared_ptr<Environment>> environments;
-	std::vector<std::shared_ptr<Light>> lights;
+	std::vector<Mesh> meshes;
+	std::vector<Camera> cameras;
+	std::vector<Driver> drivers;
+	std::vector<Material> materials;
+	std::vector<Environment> environments;
+	std::vector<Light> lights;
 };
 
 std::shared_ptr<Document> load_file(const std::string &path);

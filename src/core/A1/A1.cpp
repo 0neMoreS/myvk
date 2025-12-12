@@ -231,17 +231,17 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		uint32_t vertex_offset = 0;
 		for (const auto &mesh : doc.meshes) {
 			try {
-				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
+				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, *mesh);
 				
 				ObjectVertices vertices;
 				vertices.first = vertex_offset;
-				vertices.count = mesh.count;
+				vertices.count = mesh->count;
 				object_vertices_list.push_back(vertices);
 
 				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
-				vertex_offset += mesh.count;
+				vertex_offset += mesh->count;
 			} catch (const std::exception &e) {
-				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
+				std::cerr << "Warning: Failed to load mesh '" << mesh->name << "': " << e.what() << std::endl;
 			}
 		}
 
@@ -259,64 +259,6 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
 		}
 	}
-
-	// { //create object vertices
-	// 	std::vector< Vertex > vertices;
-		
-	// 	{ //A [-1,1]x[-1,1]x{0} quadrilateral:
-	// 		plane_vertices.first = uint32_t(vertices.size());
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = -1.0f, .y = -1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 0.0f, .t = 0.0f },
-	// 		});
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 1.0f, .t = 0.0f },
-	// 		});
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 0.0f, .t = 1.0f },
-	// 		});
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = 1.0f, .y = 1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f },
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 1.0f, .t = 1.0f },
-	// 		});
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = -1.0f, .y = 1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 0.0f, .t = 1.0f },
-	// 		});
-	// 		vertices.emplace_back(Vertex{
-	// 			.Position{ .x = 1.0f, .y = -1.0f, .z = 0.0f },
-	// 			.Normal{ .x = 0.0f, .y = 0.0f, .z = -1.0f},
-	// 			.Tangent {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-	// 			.TexCoord{ .s = 1.0f, .t = 0.0f },
-	// 		});
-
-	// 		plane_vertices.count = uint32_t(vertices.size()) - plane_vertices.first;
-	// 	}
-
-	// 	size_t bytes = vertices.size() * sizeof(vertices[0]);
-
-	// 	object_vertices = rtg.helpers.create_buffer(
-	// 		bytes,
-	// 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-	// 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	// 		Helpers::Unmapped
-	// 	);
-
-	// 	//copy data to buffer:
-	// 	rtg.helpers.transfer_to_buffer(vertices.data(), bytes, object_vertices);
-	// }
 	
 	{ //make some textures
 		textures.reserve(2);
@@ -494,18 +436,19 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	}
 
 	{ // init camera
-		if( !doc.cameras.empty() && doc.cameras[0].parent != nullptr) {
-			const s72::Node* camera_node = doc.cameras[0].parent;
+		if( !doc.cameras.empty() && doc.cameras[0]->parent != nullptr) {
+			const std::shared_ptr< s72::Node > camera_node = doc.cameras[0]->parent;
 			camera_position =  BLENDER_TO_VULKAN_3 * camera_node->translation;
 
             glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
             glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
-			glm::mat4 rotation_matrix = BLENDER_TO_VULKAN_4 * blender_rotation_matrix;
-            
-            glm::vec3 forward = glm::normalize(glm::vec3(rotation_matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
-			
-            camera_theta = std::acos(-forward.y);
-            camera_phi = std::atan2(-forward.z, forward.x);
+			glm::vec3 blender_foraward = blender_rotation_matrix * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
+            glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_foraward;
+            camera_theta = std::acos(-camera_forward.y);
+			camera_phi = std::atan2(camera_forward.z, camera_forward.x);
+
+			glm::vec3 blender_up = blender_rotation_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			camera_up = BLENDER_TO_VULKAN_3 * blender_up;
 		}
 		else {
 			std::cout << "No camera found in the s72 file, using default camera position and orientation." << std::endl;
@@ -921,10 +864,10 @@ void A1::update(float dt) {
 	{ // Camera movement
 		// keyboard rotate
 		if(keys_down[GLFW_KEY_J]) {
-			camera_phi -= rotate_speed * dt;
+			camera_phi += rotate_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_L]) {
-			camera_phi += rotate_speed * dt;
+			camera_phi -= rotate_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_I]) {
 			camera_theta -= rotate_speed * dt;
@@ -938,8 +881,9 @@ void A1::update(float dt) {
 			-std::cos(camera_theta),
 			std::sin(camera_theta) * std::sin(camera_phi)
 		);
-		glm::vec3 right = glm::normalize(glm::cross(forward, up));
 
+		glm::vec3 right = glm::normalize(glm::cross(forward, camera_up));
+		// camera_up = glm::normalize(glm::cross(right, forward));
 		// keyboard movement
 		if (keys_down[GLFW_KEY_W]) {
 			camera_position += forward * move_speed * dt;
@@ -954,10 +898,10 @@ void A1::update(float dt) {
 			camera_position += right * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_Q]) {
-			camera_position += up * move_speed * dt;
+			camera_position += camera_up * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_E]) {
-			camera_position -= up * move_speed * dt;
+			camera_position -= camera_up * move_speed * dt;
 		}
 
 		// keyboard fov
@@ -969,7 +913,7 @@ void A1::update(float dt) {
 		}
 
 		// Update VIEW matrix
-		VIEW = glm::lookAtRH(camera_position, camera_position + forward, up);
+		VIEW = glm::lookAtRH(camera_position, camera_position + forward, camera_up);
 
 		// Update PERSPECTIVE matrix with current FOV
 		PERSPECTIVE = glm::perspectiveRH_ZO(camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), 0.1f, 1000.0f);
@@ -998,8 +942,8 @@ void A1::update(float dt) {
 		object_instances.clear();
 		for(uint32_t i = 0; i < doc.meshes.size(); ++i) 
 		{
-			const s72::Mesh& mesh = doc.meshes[i];
-			const s72::Node* node = mesh.parent;
+			const auto& mesh = doc.meshes[i];
+			const std::shared_ptr< s72::Node > node = mesh->parent;
 			
 			glm::mat4 MODEL = glm::mat4(1.0f);
 			
@@ -1011,13 +955,6 @@ void A1::update(float dt) {
 				glm::mat4 S = glm::scale(glm::mat4(1.0f), node->scale);
 				
 				MODEL = BLENDER_TO_VULKAN_4 * (T * R * S);
-
-			// 	std::cout << "Model matrix for mesh " << i << ": " << std::endl;
-			// std::cout << MODEL[0][0] << " " << MODEL[0][1] << " " << MODEL[0][2] << " " << MODEL[0][3] << std::endl;
-			// std::cout << MODEL[1][0] << " " << MODEL[1][1] << " " << MODEL[1][2] << " " << MODEL[1][3] << std::endl;
-			// std::cout << MODEL[2][0] << " " << MODEL[2][1] << " " << MODEL[2][2] << " " << MODEL[2][3] << std::endl;
-			// std::cout << MODEL[3][0] << " " << MODEL[3][1] << " " << MODEL[3][2] << " " << MODEL[3][3] << std::endl;	
-			
 			}
 
 			
@@ -1035,30 +972,6 @@ void A1::update(float dt) {
 			});
 		}
 	}
-
-	// { //make some objects:
-	// 	object_instances.clear();
-
-	// 	{ //plane translated +x by one unit:
-	// 		glm::mat4 WORLD_FROM_LOCAL{
-	// 			1.0f, 0.0f, 0.0f, 0.0f,
-	// 			0.0f, 1.0f, 0.0f, 0.0f,
-	// 			0.0f, 0.0f, 1.0f, 0.0f,
-	// 			1.0f, 0.0f, 0.0f, 1.0f,
-	// 		};
-
-	// 		object_instances.emplace_back(ObjectInstance{
-	// 			.vertices = plane_vertices,
-	// 			.transform{
-	// 				.PERSPECTIVE = PERSPECTIVE,
-	// 				.VIEW = VIEW,
-	// 				.MODEL = WORLD_FROM_LOCAL,
-	// 				.MODEL_NORMAL = WORLD_FROM_LOCAL,
-	// 			},
-	// 			.texture = 1,
-	// 		});
-	// 	}
-	// }
 }
 
 

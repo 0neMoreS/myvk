@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -28,7 +29,7 @@ struct Node {
 	glm::vec4 rotation{0.0, 0.0, 0.0, 1.0};
 	glm::vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
-	Node *parent = nullptr;
+	std::shared_ptr<Node> parent;
 	std::optional<std::string> mesh;
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
@@ -42,7 +43,7 @@ struct Mesh {
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
-	Node *parent = nullptr;
+	std::shared_ptr<Node> parent;
 };
 
 struct Camera {
@@ -55,7 +56,7 @@ struct Camera {
 
 	std::string name;
 	std::optional<Perspective> perspective;
-	Node *parent = nullptr;
+	std::shared_ptr<Node> parent;
 };
 
 struct Driver {
@@ -100,7 +101,7 @@ struct Material {
 struct Environment {
 	std::string name;
 	Texture radiance;
-	Node *parent = nullptr;
+	std::shared_ptr<Node> parent;
 };
 
 struct Light {
@@ -129,18 +130,18 @@ struct Light {
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;
 	std::optional<Spot> spot;
-	Node *parent = nullptr;
+	std::shared_ptr<Node> parent;
 };
 
 struct Document {
 	Scene scene;
-	std::vector<Node> nodes;
-	std::vector<Mesh> meshes;
-	std::vector<Camera> cameras;
-	std::vector<Driver> drivers;
-	std::vector<Material> materials;
-	std::vector<Environment> environments;
-	std::vector<Light> lights;
+	std::vector<std::shared_ptr<Node>> nodes;
+	std::vector<std::shared_ptr<Mesh>> meshes;
+	std::vector<std::shared_ptr<Camera>> cameras;
+	std::vector<std::shared_ptr<Driver>> drivers;
+	std::vector<std::shared_ptr<Material>> materials;
+	std::vector<std::shared_ptr<Environment>> environments;
+	std::vector<std::shared_ptr<Light>> lights;
 };
 
 Document load_file(const std::string &path);

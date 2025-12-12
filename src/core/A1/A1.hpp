@@ -101,9 +101,6 @@ struct A1 : RTG::Application {
 	};
 	std::vector<ObjectVertices> object_vertices_list;
 
-	ObjectVertices plane_vertices;
-	ObjectVertices torus_vertices;
-
 	std::vector< Helpers::AllocatedImage > textures;
 	std::vector< VkImageView > texture_views;
 	VkSampler texture_sampler = VK_NULL_HANDLE;
@@ -134,7 +131,7 @@ struct A1 : RTG::Application {
 
 	// Camera control
 	glm::vec3 camera_position{0.0f, 0.0f, -2.0f};
-	glm::vec3 up = glm::vec3{0.0f, -1.0f, 0.0f};
+	glm::vec3 camera_up = glm::vec3{0.0f, -1.0f, 0.0f};
 	float camera_theta = glm::radians(90.0f);
 	float camera_phi = glm::radians(90.0f);
 	float camera_fov = glm::radians(60.0f);

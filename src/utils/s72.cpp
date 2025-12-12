@@ -372,23 +372,14 @@ Document parse_document(sejp::value const &root) {
 
 	Document doc;
 
-	size_t cap = arr_opt->size() / 2;
-    doc.nodes.reserve(cap);
-    doc.meshes.reserve(cap);
-    doc.cameras.reserve(cap);
-    doc.drivers.reserve(cap);
-    doc.materials.reserve(cap);
-    doc.environments.reserve(cap);
-    doc.lights.reserve(cap);
-
 	bool scene_set = false;
-	std::unordered_map< std::string, Node * > node_lookup;
-	std::unordered_map< std::string, Mesh * > mesh_lookup;
-	std::unordered_map< std::string, Camera * > camera_lookup;
-	std::unordered_map< std::string, Driver * > driver_lookup;
-	std::unordered_map< std::string, Material * > material_lookup;
-	std::unordered_map< std::string, Environment * > environment_lookup;
-	std::unordered_map< std::string, Light * > light_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Node> > node_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Mesh> > mesh_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Camera> > camera_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Driver> > driver_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Material> > material_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Environment> > environment_lookup;
+	std::unordered_map< std::string, std::shared_ptr<Light> > light_lookup;
 
 	for (size_t i = 1; i < arr_opt->size(); ++i) {
 		auto const &entry = (*arr_opt)[i];
@@ -400,50 +391,50 @@ Document parse_document(sejp::value const &root) {
 			scene_set = true;
 		} else if (type == "NODE") {
 			Node n = parse_node(obj);
-			doc.nodes.emplace_back(std::move(n));
-            Node *node_ptr = &doc.nodes.back();
-            if (!node_lookup.emplace(node_ptr->name, node_ptr).second) {
-                fail(describe("NODE", std::string("duplicate name '") + node_ptr->name + "'"));
-            }
+			auto node_ptr = std::make_shared<Node>(std::move(n));
+			doc.nodes.push_back(node_ptr);
+			if (!node_lookup.emplace(node_ptr->name, node_ptr).second) {
+				fail(describe("NODE", std::string("duplicate name '") + node_ptr->name + "'"));
+			}
 		} else if (type == "MESH") {
 			Mesh m = parse_mesh(obj);
-			doc.meshes.emplace_back(std::move(m));
-			Mesh *mesh_ptr = &doc.meshes.back();
+			auto mesh_ptr = std::make_shared<Mesh>(std::move(m));
+			doc.meshes.push_back(mesh_ptr);
 			if (!mesh_lookup.emplace(mesh_ptr->name, mesh_ptr).second) {
 				fail(describe("MESH", std::string("duplicate name '") + mesh_ptr->name + "'"));
 			}
 		} else if (type == "CAMERA") {
 			Camera c = parse_camera(obj);
-			doc.cameras.emplace_back(std::move(c));
-			Camera *cam_ptr = &doc.cameras.back();
+			auto cam_ptr = std::make_shared<Camera>(std::move(c));
+			doc.cameras.push_back(cam_ptr);
 			if (!camera_lookup.emplace(cam_ptr->name, cam_ptr).second) {
 				fail(describe("CAMERA", std::string("duplicate name '") + cam_ptr->name + "'"));
 			}
 		} else if (type == "DRIVER") {
 			Driver d = parse_driver(obj);
-			doc.drivers.emplace_back(std::move(d));
-			Driver *driver_ptr = &doc.drivers.back();
+			auto driver_ptr = std::make_shared<Driver>(std::move(d));
+			doc.drivers.push_back(driver_ptr);
 			if (!driver_lookup.emplace(driver_ptr->name, driver_ptr).second) {
 				fail(describe("DRIVER", std::string("duplicate name '") + driver_ptr->name + "'"));
 			}
 		} else if (type == "MATERIAL") {
 			Material m = parse_material(obj);
-			doc.materials.emplace_back(std::move(m));
-			Material *mat_ptr = &doc.materials.back();
+			auto mat_ptr = std::make_shared<Material>(std::move(m));
+			doc.materials.push_back(mat_ptr);
 			if (!material_lookup.emplace(mat_ptr->name, mat_ptr).second) {
 				fail(describe("MATERIAL", std::string("duplicate name '") + mat_ptr->name + "'"));
 			}
 		} else if (type == "ENVIRONMENT") {
 			Environment e = parse_environment(obj);
-			doc.environments.emplace_back(std::move(e));
-			Environment *env_ptr = &doc.environments.back();
+			auto env_ptr = std::make_shared<Environment>(std::move(e));
+			doc.environments.push_back(env_ptr);
 			if (!environment_lookup.emplace(env_ptr->name, env_ptr).second) {
 				fail(describe("ENVIRONMENT", std::string("duplicate name '") + env_ptr->name + "'"));
 			}
 		} else if (type == "LIGHT") {
 			Light l = parse_light(obj);
-			doc.lights.emplace_back(std::move(l));
-			Light *light_ptr = &doc.lights.back();
+			auto light_ptr = std::make_shared<Light>(std::move(l));
+			doc.lights.push_back(light_ptr);
 			if (!light_lookup.emplace(light_ptr->name, light_ptr).second) {
 				fail(describe("LIGHT", std::string("duplicate name '") + light_ptr->name + "'"));
 			}
@@ -455,7 +446,7 @@ Document parse_document(sejp::value const &root) {
 
 	//BSF Build Tree
 	{	
-		std::queue< Node * > bfs_queue;
+		std::queue< std::shared_ptr<Node> > bfs_queue;
 		std::unordered_set< std::string > visited;
 
 		for (const auto &root_name : doc.scene.roots) {
@@ -468,7 +459,7 @@ Document parse_document(sejp::value const &root) {
 		}
 
 		while (!bfs_queue.empty()) {
-			Node *node = bfs_queue.front();
+			auto node = bfs_queue.front();
 			bfs_queue.pop();
 
 			for (auto const &child_name : node->children) {
@@ -476,12 +467,7 @@ Document parse_document(sejp::value const &root) {
 				if (it == node_lookup.end()) {
 					fail(describe("NODE.children", std::string("unknown child '") + child_name + "'"));
 				}
-				auto *child = it->second;
-				if (child->parent && child->parent != node) {
-					fail(describe("NODE", std::string("node '") + child_name + "' has multiple parents"));
-				}
-				child->parent = node;
-
+					auto child = it->second;
 				if (visited.find(child_name) == visited.end()) {
 					bfs_queue.push(child);
 					visited.insert(child_name);
@@ -493,7 +479,7 @@ Document parse_document(sejp::value const &root) {
 				if (mit == mesh_lookup.end()) {
 					fail(describe("NODE.mesh", std::string("unknown mesh '") + *node->mesh + "'"));
 				}
-				auto *mesh = mit->second;
+				auto mesh = mit->second;
 				if (mesh->parent && mesh->parent != node) {
 					fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
 				}
@@ -506,7 +492,7 @@ Document parse_document(sejp::value const &root) {
 				if (cit == camera_lookup.end()) {
 					fail(describe("NODE.camera", std::string("unknown camera '") + *node->camera + "'"));
 				}
-				auto *camera = cit->second;
+				auto camera = cit->second;
 				if (camera->parent && camera->parent != node) {
 					fail(describe("CAMERA", std::string("'") + camera->name + "' referenced by multiple nodes"));
 				}
@@ -518,7 +504,7 @@ Document parse_document(sejp::value const &root) {
 				if (eit == environment_lookup.end()) {
 					fail(describe("NODE.environment", std::string("unknown environment '") + *node->environment + "'"));
 				}
-				auto *env = eit->second;
+				auto env = eit->second;
 				if (env->parent && env->parent != node) {
 					fail(describe("ENVIRONMENT", std::string("'") + env->name + "' referenced by multiple nodes"));
 				}
@@ -530,7 +516,7 @@ Document parse_document(sejp::value const &root) {
 				if (lit == light_lookup.end()) {
 					fail(describe("NODE.light", std::string("unknown light '") + *node->light + "'"));
 				}
-				auto *light = lit->second;
+				auto light = lit->second;
 				if (light->parent && light->parent != node) {
 					fail(describe("LIGHT", std::string("'") + light->name + "' referenced by multiple nodes"));
 				}

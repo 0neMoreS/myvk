@@ -7,11 +7,13 @@
 #include <fstream>
 #include <limits>
 #include <map>
+#include <queue>
 #include <set>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <iostream>
 
 namespace s72 {
 namespace {
@@ -361,11 +363,8 @@ Light parse_light(Object const &obj) {
 	return light;
 }
 
-void ensure_unique(std::unordered_set< std::string > &names, std::string const &name, std::string_view ctx) {
-	if (!names.insert(name).second) fail(describe(ctx, std::string("duplicate name '") + name + "'"));
-}
-
 Document parse_document(sejp::value const &root) {
+	// Parse Root
 	auto arr_opt = root.as_array();
 	if (!arr_opt || arr_opt->empty()) fail("Root must be non-empty array");
 	auto first = (*arr_opt)[0].as_string();
@@ -373,13 +372,13 @@ Document parse_document(sejp::value const &root) {
 
 	Document doc;
 	bool scene_set = false;
-	std::unordered_set< std::string > node_names;
-	std::unordered_set< std::string > mesh_names;
-	std::unordered_set< std::string > camera_names;
-	std::unordered_set< std::string > driver_names;
-	std::unordered_set< std::string > material_names;
-	std::unordered_set< std::string > environment_names;
-	std::unordered_set< std::string > light_names;
+	std::unordered_map< std::string, Node * > node_lookup;
+	std::unordered_map< std::string, Mesh * > mesh_lookup;
+	std::unordered_map< std::string, Camera * > camera_lookup;
+	std::unordered_map< std::string, Driver * > driver_lookup;
+	std::unordered_map< std::string, Material * > material_lookup;
+	std::unordered_map< std::string, Environment * > environment_lookup;
+	std::unordered_map< std::string, Light * > light_lookup;
 
 	for (size_t i = 1; i < arr_opt->size(); ++i) {
 		auto const &entry = (*arr_opt)[i];
@@ -391,124 +390,144 @@ Document parse_document(sejp::value const &root) {
 			scene_set = true;
 		} else if (type == "NODE") {
 			Node n = parse_node(obj);
-			ensure_unique(node_names, n.name, "NODE");
-			doc.nodes.push_back(std::move(n));
+			doc.nodes.emplace_back(std::move(n));
+            Node *node_ptr = &doc.nodes.back();
+            if (!node_lookup.emplace(node_ptr->name, node_ptr).second) {
+                fail(describe("NODE", std::string("duplicate name '") + node_ptr->name + "'"));
+            }
 		} else if (type == "MESH") {
 			Mesh m = parse_mesh(obj);
-			ensure_unique(mesh_names, m.name, "MESH");
-			doc.meshes.push_back(std::move(m));
+			doc.meshes.emplace_back(std::move(m));
+			Mesh *mesh_ptr = &doc.meshes.back();
+			if (!mesh_lookup.emplace(mesh_ptr->name, mesh_ptr).second) {
+				fail(describe("MESH", std::string("duplicate name '") + mesh_ptr->name + "'"));
+			}
 		} else if (type == "CAMERA") {
 			Camera c = parse_camera(obj);
-			ensure_unique(camera_names, c.name, "CAMERA");
-			doc.cameras.push_back(std::move(c));
+			doc.cameras.emplace_back(std::move(c));
+			Camera *cam_ptr = &doc.cameras.back();
+			if (!camera_lookup.emplace(cam_ptr->name, cam_ptr).second) {
+				fail(describe("CAMERA", std::string("duplicate name '") + cam_ptr->name + "'"));
+			}
 		} else if (type == "DRIVER") {
 			Driver d = parse_driver(obj);
-			ensure_unique(driver_names, d.name, "DRIVER");
-			doc.drivers.push_back(std::move(d));
+			doc.drivers.emplace_back(std::move(d));
+			Driver *driver_ptr = &doc.drivers.back();
+			if (!driver_lookup.emplace(driver_ptr->name, driver_ptr).second) {
+				fail(describe("DRIVER", std::string("duplicate name '") + driver_ptr->name + "'"));
+			}
 		} else if (type == "MATERIAL") {
 			Material m = parse_material(obj);
-			ensure_unique(material_names, m.name, "MATERIAL");
-			doc.materials.push_back(std::move(m));
+			doc.materials.emplace_back(std::move(m));
+			Material *mat_ptr = &doc.materials.back();
+			if (!material_lookup.emplace(mat_ptr->name, mat_ptr).second) {
+				fail(describe("MATERIAL", std::string("duplicate name '") + mat_ptr->name + "'"));
+			}
 		} else if (type == "ENVIRONMENT") {
 			Environment e = parse_environment(obj);
-			ensure_unique(environment_names, e.name, "ENVIRONMENT");
-			doc.environments.push_back(std::move(e));
+			doc.environments.emplace_back(std::move(e));
+			Environment *env_ptr = &doc.environments.back();
+			if (!environment_lookup.emplace(env_ptr->name, env_ptr).second) {
+				fail(describe("ENVIRONMENT", std::string("duplicate name '") + env_ptr->name + "'"));
+			}
 		} else if (type == "LIGHT") {
 			Light l = parse_light(obj);
-			ensure_unique(light_names, l.name, "LIGHT");
-			doc.lights.push_back(std::move(l));
+			doc.lights.emplace_back(std::move(l));
+			Light *light_ptr = &doc.lights.back();
+			if (!light_lookup.emplace(light_ptr->name, light_ptr).second) {
+				fail(describe("LIGHT", std::string("duplicate name '") + light_ptr->name + "'"));
+			}
 		} else {
 			fail(describe("object", std::string("unknown type '") + type + "'"));
 		}
 	}
 	if (!scene_set) fail("File must contain exactly one SCENE");
 
-	std::unordered_map< std::string, Node * > node_lookup;
-	for (auto &node : doc.nodes) {
-		node_lookup.emplace(node.name, &node);
-	}
+	//BSF Build Tree
+	{	
+		std::queue< Node * > bfs_queue;
+		std::unordered_set< std::string > visited;
 
-	std::unordered_map< std::string, Mesh * > mesh_lookup;
-	for (auto &mesh : doc.meshes) {
-		mesh_lookup.emplace(mesh.name, &mesh);
-	}
-
-	std::unordered_map< std::string, Camera * > camera_lookup;
-	for (auto &camera : doc.cameras) {
-		camera_lookup.emplace(camera.name, &camera);
-	}
-
-	std::unordered_map< std::string, Environment * > environment_lookup;
-	for (auto &env : doc.environments) {
-		environment_lookup.emplace(env.name, &env);
-	}
-
-	std::unordered_map< std::string, Light * > light_lookup;
-	for (auto &light : doc.lights) {
-		light_lookup.emplace(light.name, &light);
-	}
-
-	for (auto &node : doc.nodes) {
-		for (auto const &child_name : node.children) {
-			auto it = node_lookup.find(child_name);
+		for (const auto &root_name : doc.scene.roots) {
+			auto it = node_lookup.find(root_name);
 			if (it == node_lookup.end()) {
-				fail(describe("NODE.children", std::string("unknown child '") + child_name + "'"));
+				fail(describe("SCENE.roots", std::string("unknown root '") + root_name + "'"));
 			}
-			auto *child = it->second;
-			if (child->parent && child->parent != &node) {
-				fail(describe("NODE", std::string("node '") + child_name + "' has multiple parents"));
-			}
-			child->parent = &node;
+			bfs_queue.push(it->second);
+			visited.insert(root_name);
 		}
 
-		if (node.mesh) {
-			auto mit = mesh_lookup.find(*node.mesh);
-			if (mit == mesh_lookup.end()) {
-				fail(describe("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'"));
-			}
-			auto *mesh = mit->second;
-			if (mesh->parent && mesh->parent != &node) {
-				fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
-			}
-			mesh->parent = &node;
-		}
+		while (!bfs_queue.empty()) {
+			Node *node = bfs_queue.front();
+			bfs_queue.pop();
 
-		if (node.camera) {
-			auto cit = camera_lookup.find(*node.camera);
-			if (cit == camera_lookup.end()) {
-				fail(describe("NODE.camera", std::string("unknown camera '") + *node.camera + "'"));
-			}
-			auto *camera = cit->second;
-			if (camera->parent && camera->parent != &node) {
-				fail(describe("CAMERA", std::string("'") + camera->name + "' referenced by multiple nodes"));
-			}
-			camera->parent = &node;
-		}
+			for (auto const &child_name : node->children) {
+				auto it = node_lookup.find(child_name);
+				if (it == node_lookup.end()) {
+					fail(describe("NODE.children", std::string("unknown child '") + child_name + "'"));
+				}
+				auto *child = it->second;
+				if (child->parent && child->parent != node) {
+					fail(describe("NODE", std::string("node '") + child_name + "' has multiple parents"));
+				}
+				child->parent = node;
 
-		if (node.environment) {
-			auto eit = environment_lookup.find(*node.environment);
-			if (eit == environment_lookup.end()) {
-				fail(describe("NODE.environment", std::string("unknown environment '") + *node.environment + "'"));
+				if (visited.find(child_name) == visited.end()) {
+					bfs_queue.push(child);
+					visited.insert(child_name);
+				}
 			}
-			auto *env = eit->second;
-			if (env->parent && env->parent != &node) {
-				fail(describe("ENVIRONMENT", std::string("'") + env->name + "' referenced by multiple nodes"));
-			}
-			env->parent = &node;
-		}
 
-		if (node.light) {
-			auto lit = light_lookup.find(*node.light);
-			if (lit == light_lookup.end()) {
-				fail(describe("NODE.light", std::string("unknown light '") + *node.light + "'"));
+			if (node->mesh) {
+				auto mit = mesh_lookup.find(*node->mesh);
+				if (mit == mesh_lookup.end()) {
+					fail(describe("NODE.mesh", std::string("unknown mesh '") + *node->mesh + "'"));
+				}
+				auto *mesh = mit->second;
+				if (mesh->parent && mesh->parent != node) {
+					fail(describe("MESH", std::string("'") + mesh->name + "' referenced by multiple nodes"));
+				}
+				mesh->parent = node;
 			}
-			auto *light = lit->second;
-			if (light->parent && light->parent != &node) {
-				fail(describe("LIGHT", std::string("'") + light->name + "' referenced by multiple nodes"));
+
+			if (node->camera) {
+				auto cit = camera_lookup.find(*node->camera);
+				if (cit == camera_lookup.end()) {
+					fail(describe("NODE.camera", std::string("unknown camera '") + *node->camera + "'"));
+				}
+				auto *camera = cit->second;
+				if (camera->parent && camera->parent != node) {
+					fail(describe("CAMERA", std::string("'") + camera->name + "' referenced by multiple nodes"));
+				}
+				camera->parent = node;
 			}
-			light->parent = &node;
+
+			if (node->environment) {
+				auto eit = environment_lookup.find(*node->environment);
+				if (eit == environment_lookup.end()) {
+					fail(describe("NODE.environment", std::string("unknown environment '") + *node->environment + "'"));
+				}
+				auto *env = eit->second;
+				if (env->parent && env->parent != node) {
+					fail(describe("ENVIRONMENT", std::string("'") + env->name + "' referenced by multiple nodes"));
+				}
+				env->parent = node;
+			}
+
+			if (node->light) {
+				auto lit = light_lookup.find(*node->light);
+				if (lit == light_lookup.end()) {
+					fail(describe("NODE.light", std::string("unknown light '") + *node->light + "'"));
+				}
+				auto *light = lit->second;
+				if (light->parent && light->parent != node) {
+					fail(describe("LIGHT", std::string("'") + light->name + "' referenced by multiple nodes"));
+				}
+				light->parent = node;
+			}
 		}
 	}
+	
 	return doc;
 }
 

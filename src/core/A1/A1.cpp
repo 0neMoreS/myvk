@@ -507,6 +507,9 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
             camera_theta = std::acos(-forward.y);
             camera_phi = std::atan2(-forward.z, forward.x);
 		}
+		else {
+			std::cout << "No camera found in the s72 file, using default camera position and orientation." << std::endl;
+		}
 	}
 }
 

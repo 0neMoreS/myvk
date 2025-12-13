@@ -5,9 +5,6 @@
 
 #include "A1.hpp"
 
-#include "VK.hpp"
-#include "refsol.hpp"
-
 #include <GLFW/glfw3.h>
 
 #include <array>
@@ -336,23 +333,8 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
 		vkUpdateDescriptorSets( rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr );
 	}
 
-	{ // init camera
-		for(auto &camera : doc->cameras) {
-			for(auto &transform : camera.transforms) {
-				glm::mat3 blender_rotation = glm::mat3(transform);
-				glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f};
-				glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_forward;
-
-				cameras.emplace_back(A1::Camera {
-					.camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]},
-					.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
-					.camera_theta = std::acos(-camera_forward.y),
-					.camera_phi = std::atan2(camera_forward.z, camera_forward.x),
-					.camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
-				});
-			}
-		}
-	}
+	// init camera
+	camera_manager.initialize_cameras(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
 
 A1::~A1() {
@@ -716,7 +698,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		VK( vkEndCommandBuffer(workspace.command_buffer) );
 	}
 
-	{//submit `workspace.command buffer` for the GPU to run:
+	{ //submit `workspace.command buffer` for the GPU to run:
 		std::array< VkSemaphore, 1 > wait_semaphores{
 			render_params.image_available
 		};
@@ -747,67 +729,6 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	{ // Camera movement
-		auto &active_camera = cameras[active_camera_index];
-		// keyboard rotate
-		if(keys_down[GLFW_KEY_J]) {
-			active_camera.camera_phi += rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_L]) {
-			active_camera.camera_phi -= rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_I]) {
-			active_camera.camera_theta -= rotate_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_K]) {
-			active_camera.camera_theta += rotate_speed * dt;
-		}
-
-		glm::vec3 forward = glm::vec3(
-			std::sin(active_camera.camera_theta) * std::cos(active_camera.camera_phi),
-			-std::cos(active_camera.camera_theta),
-			std::sin(active_camera.camera_theta) * std::sin(active_camera.camera_phi)
-		);
-
-		glm::vec3 right = glm::normalize(glm::cross(forward, active_camera.camera_up));
-		// camera_up = glm::normalize(glm::cross(right, forward));
-		// keyboard movement
-		if (keys_down[GLFW_KEY_W]) {
-			active_camera.camera_position += forward * move_speed * dt;
-		}
-		if (keys_down[GLFW_KEY_S]) {
-			active_camera.camera_position -= forward * move_speed * dt;
-		}
-		if (keys_down[GLFW_KEY_A]) {
-			active_camera.camera_position -= right * move_speed * dt;
-		}
-		if (keys_down[GLFW_KEY_D]) {
-			active_camera.camera_position += right * move_speed * dt;
-		}
-		if (keys_down[GLFW_KEY_Q]) {
-			active_camera.camera_position += active_camera.camera_up * move_speed * dt;
-		}
-		if (keys_down[GLFW_KEY_E]) {
-			active_camera.camera_position -= active_camera.camera_up * move_speed * dt;
-		}
-
-		// keyboard fov
-		if(keys_down[GLFW_KEY_R]) {
-			active_camera.camera_fov += fov_speed * dt;
-		}
-		if(keys_down[GLFW_KEY_F]) {
-			active_camera.camera_fov -= fov_speed * dt;
-		}
-
-		active_camera.camera_fov = glm::clamp(active_camera.camera_fov, 0.0f, glm::radians(120.0f));
-
-		// Update VIEW matrix
-		VIEW = glm::lookAtRH(active_camera.camera_position, active_camera.camera_position + forward, active_camera.camera_up);
-		// Update PERSPECTIVE matrix with current FOV
-		PERSPECTIVE = glm::perspectiveRH_ZO(active_camera.camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), 0.1f, 1000.0f);
-		PERSPECTIVE[1][1] *= -1.0f; // flip Y for Vulkan
-	}
-	
 	{ //static sun and sky:
 		world.SKY_DIRECTION.x = 0.0f;
 		world.SKY_DIRECTION.y = 0.0f;
@@ -826,8 +747,14 @@ void A1::update(float dt) {
 		world.SUN_ENERGY.b = 0.9f;
 	}
 
+	// Update camera
+	camera_manager.update(dt, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+
 	{
 		object_instances.clear();
+		glm::mat4 PERSPECTIVE = camera_manager.get_perspective();
+		glm::mat4 VIEW = camera_manager.get_view();
+
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
 			const auto& mesh = doc->meshes[i];
@@ -853,28 +780,5 @@ void A1::update(float dt) {
 
 
 void A1::on_input(InputEvent const &event) {
-	if (event.type == InputEvent::KeyDown) {
-		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
-			keys_down[event.key.key] = true;
-		}
-
-		// change active camera
-		if (event.key.key == GLFW_KEY_TAB) {
-            active_camera_index = (active_camera_index + 1) % cameras.size();
-        }
-	} else if (event.type == InputEvent::KeyUp) {
-		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
-			keys_down[event.key.key] = false;
-		}
-	} else if (event.type == InputEvent::MouseMotion) {
-		// float dx = event.motion.x - last_mouse_x;
-		// float dy = event.motion.y - last_mouse_y;
-
-		// const float sensitivity = 0.0005f;
-		// camera_phi += dx * sensitivity;
-		// camera_theta += dy * sensitivity;
-		
-		// last_mouse_x = event.motion.x;
-		// last_mouse_y = event.motion.y;
-	}
+	camera_manager.on_input(event);
 }

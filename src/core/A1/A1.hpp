@@ -9,6 +9,8 @@
 #include "Vertex.hpp"
 #include "S72Loader.hpp"
 #include "Texture2DLoader.hpp"
+#include "CameraManager.hpp"
+#include "VK.hpp"
 
 #include "RTG.hpp"
 
@@ -25,6 +27,7 @@ struct A1 : RTG::Application {
 	RTG &rtg;
 	std::shared_ptr<S72Loader::Document> doc;
 	const std::string s72_dir = "./external/s72/examples/";
+	CameraManager camera_manager;
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -128,28 +131,6 @@ struct A1 : RTG::Application {
 	virtual void on_input(InputEvent const &) override;
 
 	float time = 0.0f;
-
-	glm::mat4 PERSPECTIVE;
-	glm::mat4 VIEW;
-
-	// Camera
-	struct Camera {
-		glm::vec3 camera_position;
-		glm::vec3 camera_up;
-		float camera_theta;
-		float camera_phi;
-		float camera_fov;
-	};
-	std::vector<Camera> cameras;
-	size_t active_camera_index = 0;
-
-	// Camera Input
-	float last_mouse_x = 0.0f;
-	float last_mouse_y = 0.0f;
-	bool keys_down[GLFW_KEY_LAST + 1] = {};
-	const float move_speed = 4.0f;
-	const float fov_speed = 1.0f;
-	const float rotate_speed = 1.0f;
 
 	ObjectsPipeline::World world;
 

@@ -62,6 +62,7 @@ const main_objs = [
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
 	maek.CPP('./src/utils/loader/Texture2DLoader.cpp'),
+	maek.CPP('./src/utils/manager/CameraManager.cpp'),
 	maek.CPP('./src/utils/vulkan/RTG.cpp'),
 	maek.CPP('./src/utils/vulkan/Helpers.cpp'),
 	maek.CPP('./src/utils/vulkan/Vertex.cpp'),
@@ -95,6 +96,7 @@ function custom_flags_and_rules() {
 			`-I./src/core/A1`,
 			`-I./src/utils/general`,
 			`-I./src/utils/loader`,
+			`-I./src/utils/manager`,
 			`-I./src/utils/vulkan`,
 			`-I./external/stb`,
 		];

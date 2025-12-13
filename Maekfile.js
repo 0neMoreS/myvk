@@ -59,12 +59,12 @@ const main_objs = [
 	maek.CPP('./src/core/A1/A1.cpp'),
 	maek.CPP('./src/core/A1/A1-ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
 	// utility files
-	maek.CPP('./src/utils/RTG.cpp'),
-	maek.CPP('./src/utils/Helpers.cpp'),
-	maek.CPP('./src/utils/sejp.cpp'),
-	maek.CPP('./src/utils/s72.cpp'),
-	maek.CPP('./src/utils/Vertex.cpp'),
-	maek.CPP('./src/utils/TextureLoader.cpp'),
+	maek.CPP('./src/utils/general/sejp.cpp'),
+	maek.CPP('./src/utils/loader/S72Loader.cpp'),
+	maek.CPP('./src/utils/loader/TextureLoader2D.cpp'),
+	maek.CPP('./src/utils/vulkan/RTG.cpp'),
+	maek.CPP('./src/utils/vulkan/Helpers.cpp'),
+	maek.CPP('./src/utils/vulkan/Vertex.cpp'),
 	maek.CPP('./src/main.cpp'),
 ];
 
@@ -93,7 +93,9 @@ function custom_flags_and_rules() {
 			`-I${GLFW_DIR}/include`,
 			`-I./src/core/Tutorial`,
 			`-I./src/core/A1`,
-			`-I./src/utils`,
+			`-I./src/utils/general`,
+			`-I./src/utils/loader`,
+			`-I./src/utils/vulkan`,
 			`-I./external/stb`,
 		];
 

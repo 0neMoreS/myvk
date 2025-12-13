@@ -7,8 +7,8 @@
 #include <cmath>
 
 #include "Vertex.hpp"
-#include "s72.hpp"
-#include "TextureLoader.hpp"
+#include "S72Loader.hpp"
+#include "TextureLoader2D.hpp"
 
 #include "RTG.hpp"
 
@@ -23,7 +23,7 @@ struct A1 : RTG::Application {
 
 	//kept for use in destructor:
 	RTG &rtg;
-	std::shared_ptr<s72::Document> doc;
+	std::shared_ptr<S72Loader::Document> doc;
 	const std::string s72_dir = "./external/s72/examples";
 
 	//--------------------------------------------------------------------
@@ -103,7 +103,7 @@ struct A1 : RTG::Application {
 	};
 	std::vector<ObjectVertices> object_vertices_list;
 
-	std::vector< std::shared_ptr<TextureLoader::Texture> > textures;
+	std::vector< std::shared_ptr<TextureLoader2D::Texture> > textures;
 	// std::vector< Helpers::AllocatedImage > textures;
 	// std::vector< VkImageView > texture_views;
 	// VkSampler texture_sampler = VK_NULL_HANDLE;

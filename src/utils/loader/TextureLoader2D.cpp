@@ -1,4 +1,4 @@
-#include "TextureLoader.hpp"
+#include "TextureLoader2D.hpp"
 
 #include "VK.hpp"
 #include "RTG.hpp"
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <memory>
 
-namespace TextureLoader {
+namespace TextureLoader2D {
 
 namespace {
 
@@ -97,6 +97,7 @@ std::shared_ptr<Texture> load_image(
 	// Load image file using stb_image
 	int width, height, channels;
 	
+	stbi_set_flip_vertically_on_load(true);
 	// stbi_load will automatically convert to the desired number of channels
 	unsigned char *pixel_data = stbi_load(
 		filepath.c_str(),
@@ -186,4 +187,4 @@ void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg) {
 	}
 }
 
-} // namespace TextureLoader
+} // namespace TextureLoader2D

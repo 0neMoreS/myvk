@@ -4,11 +4,11 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../shaders/spv/objects.vert.inl"
+#include "../../shaders/spv/objects.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../shaders/spv/objects.frag.inl"
+#include "../../shaders/spv/objects.frag.inl"
 };
 
 void Tutorial::ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {

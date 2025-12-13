@@ -1,4 +1,4 @@
-#include "s72.hpp"
+#include "S72Loader.hpp"
 
 #include "sejp.hpp"
 
@@ -15,7 +15,7 @@
 #include <unordered_set>
 #include <iostream>
 
-namespace s72 {
+namespace S72Loader {
 namespace {
 
 using Object = std::map< std::string, sejp::value >;
@@ -569,4 +569,4 @@ std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &me
     return data;
 }
 
-} // namespace s72
+} // namespace S72Loader

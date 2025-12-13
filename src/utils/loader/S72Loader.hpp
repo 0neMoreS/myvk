@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace s72 {
+namespace S72Loader {
 
 struct DataStream {
 	std::string src;
@@ -154,4 +154,4 @@ std::shared_ptr<Document> load_string(const std::string &contents);
 // Returns interleaved vertex data as a vector of bytes
 std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh);
 
-} // namespace s72
+} // namespace S72Loader

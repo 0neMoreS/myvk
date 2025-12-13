@@ -5,7 +5,7 @@
 #include <string>
 #include <memory>
 
-namespace TextureLoader {
+namespace TextureLoader2D {
 
 struct Texture {
 	Helpers::AllocatedImage image;
@@ -28,4 +28,4 @@ std::shared_ptr<Texture> load_image(
 
 void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg);
 
-} // namespace TextureLoader
+} // namespace TextureLoader2D

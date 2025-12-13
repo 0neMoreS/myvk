@@ -4,11 +4,11 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../shaders/spv/background.vert.inl"
+#include "../../shaders/spv/background.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../shaders/spv/background.frag.inl"
+#include "../../shaders/spv/background.frag.inl"
 };
 
 void Tutorial::BackgroundPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {

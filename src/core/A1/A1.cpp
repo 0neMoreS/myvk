@@ -19,7 +19,7 @@
 A1::A1(RTG &rtg_) : A1(rtg_, "./external/s72/examples/origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(filename)) {
+A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_file(filename)) {
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -228,7 +228,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		uint32_t vertex_offset = 0;
 		for (const auto &mesh : doc->meshes) {
 			try {
-				std::vector<uint8_t> mesh_data = s72::load_mesh_data(s72_dir, mesh);
+				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(s72_dir, mesh);
 				
 				ObjectVertices vertices;
 				vertices.first = vertex_offset;
@@ -261,14 +261,14 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		textures.reserve(doc->meshes.size());
 		for (const auto &mesh : doc->meshes) {
 			if(mesh.material_index.has_value()) {
-				s72::Material const &material = doc->materials[mesh.material_index.value()];
+				S72Loader::Material const &material = doc->materials[mesh.material_index.value()];
 				if(material.lambertian.has_value() && material.lambertian.value().albedo_texture.has_value()) {
-					s72::Texture const &texture = material.lambertian.value().albedo_texture.value();
+					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
 					// TODO: handle other types and other formats of textures
 					std::string texture_path = s72_dir + "/" + texture.src;
-					// textures[mesh.material_index.value()] = TextureLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+					// textures[mesh.material_index.value()] = TextureLoader2D::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 					try {
-                        auto tex = TextureLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+                        auto tex = TextureLoader2D::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
                         textures.emplace_back(tex);
                     } catch (const std::exception &e) {
                         std::cerr << "Warning: Failed to load texture '" << texture_path << "': " << e.what() << std::endl;
@@ -346,7 +346,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 
 	{ // init camera
 		if( !doc->cameras.empty() && doc->cameras[0].parent.has_value()) {
-			const s72::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
+			const S72Loader::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
 			camera_position =  BLENDER_TO_VULKAN_3 * camera_node.translation;
 
             glm::quat blender_rotation = glm::quat(camera_node.rotation.w, camera_node.rotation.x, camera_node.rotation.y, camera_node.rotation.z);
@@ -389,7 +389,7 @@ A1::~A1() {
 	// texture_views.clear();
 
 	for(auto &texture : textures) {
-		TextureLoader::destroy_texture(texture, rtg);
+		TextureLoader2D::destroy_texture(texture, rtg);
 	}
 	textures.clear();
 
@@ -851,7 +851,7 @@ void A1::update(float dt) {
 			glm::mat4 MODEL = glm::mat4(1.0f);
 			
 			if (mesh.parent.has_value()) {
-				const s72::Node &node = doc->nodes[*mesh.parent];
+				const S72Loader::Node &node = doc->nodes[*mesh.parent];
 				glm::quat q(node.rotation.w, node.rotation.x, node.rotation.y, node.rotation.z);
 				
 				glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);

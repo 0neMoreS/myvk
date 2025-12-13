@@ -4,11 +4,11 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../shaders/spv/A1-load.vert.inl"
+#include "../../shaders/spv/A1-load.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../shaders/spv/A1-load.frag.inl"
+#include "../../shaders/spv/A1-load.frag.inl"
 };
 
 void A1::ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {

@@ -150,7 +150,7 @@ struct A1 : RTG::Application {
 	struct ObjectInstance {
 		ObjectVertices vertices;
 		ObjectsPipeline::Transform transform;
-		uint32_t texture = 0;
+		size_t texture = 0;
 	};
 	std::vector< ObjectInstance > object_instances;
 

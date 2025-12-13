@@ -258,21 +258,21 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_
 	}
 
 	{ // make some textures
-		textures.reserve(doc->meshes.size());
+		textures.resize(doc->materials.size());
 		for (const auto &mesh : doc->meshes) {
 			if(mesh.material_index.has_value()) {
 				S72Loader::Material const &material = doc->materials[mesh.material_index.value()];
-				if(material.lambertian.has_value() && material.lambertian.value().albedo_texture.has_value()) {
-					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
-					// TODO: handle other types and other formats of textures
-					std::string texture_path = s72_dir + "/" + texture.src;
-					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
-					try {
-                        auto tex = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
-                        textures.emplace_back(tex);
-                    } catch (const std::exception &e) {
-                        std::cerr << "Warning: Failed to load texture '" << texture_path << "': " << e.what() << std::endl;
-                    }
+				if(material.lambertian.has_value()) {
+					if(material.lambertian.value().albedo_texture.has_value()){
+						S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
+						// TODO: handle other types and other formats of textures
+						std::string texture_path = s72_dir + "/" + texture.src;
+						// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+						textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+					}
+					else if(material.lambertian.value().albedo_value.has_value()) {
+						textures[mesh.material_index.value()] = Texture2DLoader::create_rgb_texture(rtg.helpers, material.lambertian.value().albedo_value.value());
+					}
 				}
 				else {
 					std::cerr << "Warning: Material '" << material.name << "' has no texture." << std::endl;
@@ -872,7 +872,7 @@ void A1::update(float dt) {
 					.MODEL = MODEL,
 					.MODEL_NORMAL = MODEL_NORMAL,
 				},
-				.texture = 0,
+				.texture = mesh.material_index.value_or(0),
 			});
 		}
 	}

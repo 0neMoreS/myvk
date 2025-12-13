@@ -4,6 +4,7 @@
 
 #include <string>
 #include <memory>
+#include <glm/glm.hpp>
 
 namespace Texture2DLoader {
 
@@ -24,6 +25,12 @@ std::shared_ptr<Texture> load_image(
 	const std::string &filepath,
 	int force_channels = 4,
 	VkFilter filter = VK_FILTER_LINEAR
+);
+
+std::shared_ptr<Texture> create_rgb_texture(
+    Helpers &helpers,
+    const glm::vec3 &color,
+    VkFilter filter = VK_FILTER_LINEAR
 );
 
 void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg);

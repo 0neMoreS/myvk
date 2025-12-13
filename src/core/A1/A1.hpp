@@ -24,7 +24,7 @@ struct A1 : RTG::Application {
 	//kept for use in destructor:
 	RTG &rtg;
 	std::shared_ptr<S72Loader::Document> doc;
-	const std::string s72_dir = "./external/s72/examples";
+	const std::string s72_dir = "./external/s72/examples/";
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -132,12 +132,18 @@ struct A1 : RTG::Application {
 	glm::mat4 PERSPECTIVE;
 	glm::mat4 VIEW;
 
-	// Camera control
-	glm::vec3 camera_position{0.0f, 0.0f, -2.0f};
-	glm::vec3 camera_up = glm::vec3{0.0f, -1.0f, 0.0f};
-	float camera_theta = glm::radians(90.0f);
-	float camera_phi = glm::radians(90.0f);
-	float camera_fov = glm::radians(60.0f);
+	// Camera
+	struct Camera {
+		glm::vec3 camera_position;
+		glm::vec3 camera_up;
+		float camera_theta;
+		float camera_phi;
+		float camera_fov;
+	};
+	std::vector<Camera> cameras;
+	size_t active_camera_index = 0;
+
+	// Camera Input
 	float last_mouse_x = 0.0f;
 	float last_mouse_y = 0.0f;
 	bool keys_down[GLFW_KEY_LAST + 1] = {};

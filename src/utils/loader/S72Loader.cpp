@@ -426,94 +426,109 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 	}
 	if (!scene_set) S72_ERROR("", "File must contain exactly one SCENE");
 
-	//BFS Build Tree
+	//BFS Build Tree with Transform Matrices (supporting multiple parent paths)
 	{	
-		std::queue< size_t > bfs_queue;
-		std::unordered_set< std::string > visited;
+        std::queue< size_t > bfs_queue;
+        std::unordered_set< size_t > visited;  // Track processed nodes
 
-		for (const auto &root_name : doc->scene.roots) {
-			auto it = node_lookup.find(root_name);
-			if (it == node_lookup.end()) {
-				S72_ERROR("SCENE.roots", std::string("unknown root '") + root_name + "'");
-			}
-			bfs_queue.push(it->second);
-			visited.insert(root_name);
-		}
+        // Initialize root nodes with identity transform
+        for (const auto &root_name : doc->scene.roots) {
+            auto it = node_lookup.find(root_name);
+            if (it == node_lookup.end()) {
+                S72_ERROR("SCENE.roots", std::string("unknown root '") + root_name + "'");
+            }
+            size_t root_index = it->second;
+            doc->nodes[root_index].transforms.push_back(glm::mat4(1.0f));  // Identity matrix
+            bfs_queue.push(root_index);
+            visited.insert(root_index);
+        }
 
-		while (!bfs_queue.empty()) {
-			size_t node_index = bfs_queue.front();
-			bfs_queue.pop();
-			Node &node = doc->nodes[node_index];
+        while (!bfs_queue.empty()) {
+            auto node_index = bfs_queue.front();
+            bfs_queue.pop();
+            Node &node = doc->nodes[node_index];
 
-			for (auto const &child_name : node.children) {
-				auto it = node_lookup.find(child_name);
-				if (it == node_lookup.end()) {
-					S72_ERROR("NODE.children", std::string("unknown child '") + child_name + "'");
-				}
-				size_t child_index = it->second;
-				if (visited.find(child_name) == visited.end()) {
-					bfs_queue.push(child_index);
-					visited.insert(child_name);
-				}
-			}
+            // Compute the local TRS matrix for this node
+            glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);
+            glm::mat4 R = glm::mat4_cast(glm::quat(node.rotation.w, node.rotation.x, node.rotation.y, node.rotation.z));
+            glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
+            glm::mat4 local_transform = T * R * S;
 
-			if (node.mesh) {
-				auto mit = mesh_lookup.find(*node.mesh);
-				if (mit == mesh_lookup.end()) {
-					S72_ERROR("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'");
-				}
-				auto &mesh = doc->meshes[mit->second];
-				if (mesh.parent && *mesh.parent != node_index) {
-					S72_ERROR("MESH", std::string("'") + mesh.name + "' referenced by multiple nodes");
-				}
-				mesh.parent = node_index;
+            // Process children nodes - pass cumulative transform to each child
+            for (auto const &child_name : node.children) {
+                auto it = node_lookup.find(child_name);
+                if (it == node_lookup.end()) {
+                    S72_ERROR("NODE.children", std::string("unknown child '") + child_name + "'");
+                }
+                size_t child_index = it->second;
+                auto &child_node = doc->nodes[child_index];
+                
+                // Compute the cumulative transform
+                for (const auto& parent_transform : node.transforms) {
+                    child_node.transforms.push_back(parent_transform * local_transform);
+                }
+                
+                // Only enqueue if not yet visited
+                if (visited.find(child_index) == visited.end()) {
+                    bfs_queue.push(child_index);
+                    visited.insert(child_index);
+                }
+            }
 
-				if (mesh.material) {
-					auto it = material_lookup.find(mesh.material.value());
-					if (it == material_lookup.end()) {
-						S72_ERROR("MESH.material", std::string("unknown material '") + mesh.material.value() + "'");
-					}
-					mesh.material_index = it->second;
-				}
-			}
+            // Push cumulative transform to leaf nodes
+            if (node.mesh) {
+                auto mit = mesh_lookup.find(*node.mesh);
+                if (mit == mesh_lookup.end()) {
+                    S72_ERROR("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'");
+                }
+                auto &mesh = doc->meshes[mit->second];
+                for (const auto& node_transform : node.transforms) {
+                    mesh.transforms.push_back(node_transform * local_transform);
+                }
 
-			if (node.camera) {
-				auto cit = camera_lookup.find(*node.camera);
-				if (cit == camera_lookup.end()) {
-					S72_ERROR("NODE.camera", std::string("unknown camera '") + *node.camera + "'");
-				}
-				auto &camera = doc->cameras[cit->second];
-				if (camera.parent && *camera.parent != node_index) {
-					S72_ERROR("CAMERA", std::string("'") + camera.name + "' referenced by multiple nodes");
-				}
-				camera.parent = node_index;
-			}
+                if (mesh.material) {
+                    auto it = material_lookup.find(mesh.material.value());
+                    if (it == material_lookup.end()) {
+                        S72_ERROR("MESH.material", std::string("unknown material '") + mesh.material.value() + "'");
+                    }
+                    mesh.material_index = it->second;
+                }
+            }
 
-			if (node.environment) {
-				auto eit = environment_lookup.find(*node.environment);
-				if (eit == environment_lookup.end()) {
-					S72_ERROR("NODE.environment", std::string("unknown environment '") + *node.environment + "'");
-				}
-				auto &env = doc->environments[eit->second];
-				if (env.parent && *env.parent != node_index) {
-					S72_ERROR("ENVIRONMENT", std::string("'") + env.name + "' referenced by multiple nodes");
-				}
-				env.parent = node_index;
-			}
+            if (node.camera) {
+                auto cit = camera_lookup.find(*node.camera);
+                if (cit == camera_lookup.end()) {
+                    S72_ERROR("NODE.camera", std::string("unknown camera '") + *node.camera + "'");
+                }
+                auto &camera = doc->cameras[cit->second];
+                for (const auto& node_transform : node.transforms) {
+                    camera.transforms.push_back(node_transform * local_transform);
+                }
+            }
 
-			if (node.light) {
-				auto lit = light_lookup.find(*node.light);
-				if (lit == light_lookup.end()) {
-					S72_ERROR("NODE.light", std::string("unknown light '") + *node.light + "'");
-				}
-				auto &light = doc->lights[lit->second];
-				if (light.parent && *light.parent != node_index) {
-					S72_ERROR("LIGHT", std::string("'") + light.name + "' referenced by multiple nodes");
-				}
-				light.parent = node_index;
-			}
-		}
-	}
+            if (node.environment) {
+                auto eit = environment_lookup.find(*node.environment);
+                if (eit == environment_lookup.end()) {
+                    S72_ERROR("NODE.environment", std::string("unknown environment '") + *node.environment + "'");
+                }
+                auto &env = doc->environments[eit->second];
+                for (const auto& node_transform : node.transforms) {
+                    env.transforms.push_back(node_transform * local_transform);
+                }
+            }
+
+            if (node.light) {
+                auto lit = light_lookup.find(*node.light);
+                if (lit == light_lookup.end()) {
+                    S72_ERROR("NODE.light", std::string("unknown light '") + *node.light + "'");
+                }
+                auto &light = doc->lights[lit->second];
+                for (const auto& node_transform : node.transforms) {
+                    light.transforms.push_back(node_transform * local_transform);
+                }
+            }
+        }
+    }
 	
 	return doc;
 }

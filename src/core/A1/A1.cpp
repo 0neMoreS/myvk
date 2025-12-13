@@ -16,10 +16,11 @@
 #include <cstring>
 #include <iostream>
 
-A1::A1(RTG &rtg_) : A1(rtg_, "./external/s72/examples/origin-check.s72") {
+A1::A1(RTG &rtg_) : A1(rtg_, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_file(filename)) {
+A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
+	doc = S72Loader::load_file(s72_dir + filename);
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -266,7 +267,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_
 					if(material.lambertian.value().albedo_texture.has_value()){
 						S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
 						// TODO: handle other types and other formats of textures
-						std::string texture_path = s72_dir + "/" + texture.src;
+						std::string texture_path = s72_dir + texture.src;
 						// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 						textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 					}
@@ -345,20 +346,35 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_
 	}
 
 	{ // init camera
-		if( !doc->cameras.empty() && doc->cameras[0].parent.has_value()) {
-			const S72Loader::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
-			camera_position =  BLENDER_TO_VULKAN_3 * camera_node.translation;
+		for(auto &camera : doc->cameras) {
+			for(auto &transform : camera.transforms) {
+				glm::mat3 blender_rotation = glm::mat3(transform);
+				glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f};
+				glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_forward;
 
-            glm::quat blender_rotation = glm::quat(camera_node.rotation.w, camera_node.rotation.x, camera_node.rotation.y, camera_node.rotation.z);
-            glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
-			glm::vec3 blender_foraward = blender_rotation_matrix * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
-            glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_foraward;
-            camera_theta = std::acos(-camera_forward.y);
-			camera_phi = std::atan2(camera_forward.z, camera_forward.x);
-
-			glm::vec3 blender_up = blender_rotation_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-			camera_up = BLENDER_TO_VULKAN_3 * blender_up;
+				cameras.emplace_back(A1::Camera {
+					.camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]},
+					.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
+					.camera_theta = std::acos(-camera_forward.y),
+					.camera_phi = std::atan2(camera_forward.z, camera_forward.x),
+					.camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
+				});
+			}
 		}
+		// if( !doc->cameras.empty() && !doc->cameras[0].transforms.empty()) {
+		// 	const S72Loader::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
+		// 	camera_position =  BLENDER_TO_VULKAN_3 * camera_node.translation;
+
+        //     glm::quat blender_rotation = glm::quat(camera_node.rotation.w, camera_node.rotation.x, camera_node.rotation.y, camera_node.rotation.z);
+        //     glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
+		// 	glm::vec3 blender_foraward = blender_rotation_matrix * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
+        //     glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_foraward;
+        //     camera_theta = std::acos(-camera_forward.y);
+		// 	camera_phi = std::atan2(camera_forward.z, camera_forward.x);
+
+		// 	glm::vec3 blender_up = blender_rotation_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+		// 	camera_up = BLENDER_TO_VULKAN_3 * blender_up;
+		// }
 	}
 }
 
@@ -766,61 +782,66 @@ void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
 	{ // Camera movement
+		auto &active_camera = cameras[active_camera_index];
 		// keyboard rotate
 		if(keys_down[GLFW_KEY_J]) {
-			camera_phi += rotate_speed * dt;
+			active_camera.camera_phi += rotate_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_L]) {
-			camera_phi -= rotate_speed * dt;
+			active_camera.camera_phi -= rotate_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_I]) {
-			camera_theta -= rotate_speed * dt;
+			active_camera.camera_theta -= rotate_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_K]) {
-			camera_theta += rotate_speed * dt;
+			active_camera.camera_theta += rotate_speed * dt;
 		}
 
 		glm::vec3 forward = glm::vec3(
-			std::sin(camera_theta) * std::cos(camera_phi),
-			-std::cos(camera_theta),
-			std::sin(camera_theta) * std::sin(camera_phi)
+			std::sin(active_camera.camera_theta) * std::cos(active_camera.camera_phi),
+			-std::cos(active_camera.camera_theta),
+			std::sin(active_camera.camera_theta) * std::sin(active_camera.camera_phi)
 		);
 
-		glm::vec3 right = glm::normalize(glm::cross(forward, camera_up));
+		glm::vec3 right = glm::normalize(glm::cross(forward, active_camera.camera_up));
 		// camera_up = glm::normalize(glm::cross(right, forward));
 		// keyboard movement
 		if (keys_down[GLFW_KEY_W]) {
-			camera_position += forward * move_speed * dt;
+			active_camera.camera_position += forward * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_S]) {
-			camera_position -= forward * move_speed * dt;
+			active_camera.camera_position -= forward * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_A]) {
-			camera_position -= right * move_speed * dt;
+			active_camera.camera_position -= right * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_D]) {
-			camera_position += right * move_speed * dt;
+			active_camera.camera_position += right * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_Q]) {
-			camera_position += camera_up * move_speed * dt;
+			active_camera.camera_position += active_camera.camera_up * move_speed * dt;
 		}
 		if (keys_down[GLFW_KEY_E]) {
-			camera_position -= camera_up * move_speed * dt;
+			active_camera.camera_position -= active_camera.camera_up * move_speed * dt;
 		}
 
 		// keyboard fov
 		if(keys_down[GLFW_KEY_R]) {
-			camera_fov += fov_speed * dt;
+			active_camera.camera_fov += fov_speed * dt;
 		}
 		if(keys_down[GLFW_KEY_F]) {
-			camera_fov -= fov_speed * dt;
+			active_camera.camera_fov -= fov_speed * dt;
+		}
+
+		// change active camera
+		if(keys_down[GLFW_KEY_TAB]) {
+			active_camera_index = (active_camera_index + 1) % cameras.size();
 		}
 
 		// Update VIEW matrix
-		VIEW = glm::lookAtRH(camera_position, camera_position + forward, camera_up);
-
+		VIEW = glm::lookAtRH(active_camera.camera_position, active_camera.camera_position + forward, active_camera.camera_up);
 		// Update PERSPECTIVE matrix with current FOV
-		PERSPECTIVE = glm::perspectiveRH_ZO(camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), 0.1f, 1000.0f);
+		PERSPECTIVE = glm::perspectiveRH_ZO(active_camera.camera_fov, rtg.swapchain_extent.width / float(rtg.swapchain_extent.height), 0.1f, 1000.0f);
 		PERSPECTIVE[1][1] *= -1.0f; // flip Y for Vulkan
 	}
 	
@@ -847,42 +868,29 @@ void A1::update(float dt) {
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
 			const auto& mesh = doc->meshes[i];
-			
-			glm::mat4 MODEL = glm::mat4(1.0f);
-			
-			if (mesh.parent.has_value()) {
-				const S72Loader::Node &node = doc->nodes[*mesh.parent];
-				glm::quat q(node.rotation.w, node.rotation.x, node.rotation.y, node.rotation.z);
-				
-				glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);
-				glm::mat4 R = glm::mat4_cast(q);
-				glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
-				
-				MODEL = BLENDER_TO_VULKAN_4 * (T * R * S);
+
+			for(auto &transform : mesh.transforms){
+				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
+				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+
+				object_instances.emplace_back(ObjectInstance{
+					.vertices = object_vertices_list[i],
+					.transform{
+						.PERSPECTIVE = PERSPECTIVE,
+						.VIEW = VIEW,
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.texture = mesh.material_index.value_or(0),
+				});
 			}
-
-			
-			glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-
-			object_instances.emplace_back(ObjectInstance{
-				.vertices = object_vertices_list[i],
-				.transform{
-					.PERSPECTIVE = PERSPECTIVE,
-					.VIEW = VIEW,
-					.MODEL = MODEL,
-					.MODEL_NORMAL = MODEL_NORMAL,
-				},
-				.texture = mesh.material_index.value_or(0),
-			});
 		}
 	}
 }
 
 
 void A1::on_input(InputEvent const &event) {
-	if (event.type == InputEvent::MouseWheel) {
-		camera_fov -= event.wheel.y * fov_speed;
-	} else if (event.type == InputEvent::KeyDown) {
+	if (event.type == InputEvent::KeyDown) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = true;
 		}

@@ -8,6 +8,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <concepts>
 #include <vector>
 
 namespace S72Loader {
@@ -30,7 +34,7 @@ struct Node {
 	glm::vec4 rotation{0.0, 0.0, 0.0, 1.0};
 	glm::vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
-	std::optional<size_t> parent;
+	std::vector<glm::mat4> transforms; // store all the transforms from parents
 	std::optional<std::string> mesh;
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
@@ -44,7 +48,7 @@ struct Mesh {
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
-	std::optional<size_t> parent;
+	std::vector<glm::mat4> transforms;
 	std::optional<size_t> material_index;
 };
 
@@ -58,7 +62,7 @@ struct Camera {
 
 	std::string name;
 	std::optional<Perspective> perspective;
-	std::optional<size_t> parent;
+	std::vector<glm::mat4> transforms;
 };
 
 struct Driver {
@@ -103,7 +107,7 @@ struct Material {
 struct Environment {
 	std::string name;
 	Texture radiance;
-	std::optional<size_t> parent;
+	std::vector<glm::mat4> transforms;
 };
 
 struct Light {
@@ -132,7 +136,7 @@ struct Light {
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;
 	std::optional<Spot> spot;
-	std::optional<size_t> parent;
+	std::vector<glm::mat4> transforms;
 };
 
 struct Document {
@@ -149,9 +153,6 @@ struct Document {
 std::shared_ptr<Document> load_file(const std::string &path);
 std::shared_ptr<Document> load_string(const std::string &contents);
 
-
-// Load binary mesh data from b72 files according to mesh attributes
-// Returns interleaved vertex data as a vector of bytes
 std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh);
 
 } // namespace S72Loader

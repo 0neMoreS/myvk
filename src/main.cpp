@@ -41,7 +41,8 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		A1 application(rtg);
+		A1 application(rtg, "sg-Articulation.s72");
+		// A1 application(rtg);
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

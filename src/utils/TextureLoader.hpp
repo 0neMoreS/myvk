@@ -26,6 +26,6 @@ std::shared_ptr<Texture> load_image(
 	VkFilter filter = VK_FILTER_LINEAR
 );
 
-void destroy_texture(const std::shared_ptr<Texture> &texture, VkDevice device);
+void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg);
 
 } // namespace TextureLoader

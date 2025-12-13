@@ -119,10 +119,6 @@ std::shared_ptr<Texture> load_image(
 		channels = force_channels;
 	}
 
-	std::cout << "Loaded image: " << filepath << std::endl;
-	std::cout << "  Dimensions: " << width << "x" << height << std::endl;
-	std::cout << "  Channels: " << channels << std::endl;
-
 	try {
 		// Determine format from channel count
 		VkFormat format = channel_count_to_format(channels);
@@ -169,25 +165,25 @@ std::shared_ptr<Texture> load_png(
 	VkFilter filter
 ) {
 	// Use load_image with force_channels = 4 for RGBA
-    std::cout << "Loading PNG: " << filepath << std::endl;
 	return load_image(helpers, filepath, 4, filter);
 }
 
-void destroy_texture(const std::shared_ptr<Texture> &texture, VkDevice device) {
+void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg) {
 	if (!texture) return;
 
-	// Destroy sampler
 	if (texture->sampler != VK_NULL_HANDLE) {
-		vkDestroySampler(device, texture->sampler, nullptr);
+		vkDestroySampler(rtg.helpers.rtg.device, texture->sampler, nullptr);
+		texture->sampler = VK_NULL_HANDLE;
 	}
 
-	// Destroy image view
 	if (texture->image_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(device, texture->image_view, nullptr);
+		vkDestroyImageView(rtg.helpers.rtg.device, texture->image_view, nullptr);
+		texture->image_view = VK_NULL_HANDLE;
 	}
 
-	// Note: The AllocatedImage will be destroyed automatically when the shared_ptr is destroyed
-	// through the destructor of the Texture struct
+	if (texture->image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(texture->image));
+	}
 }
 
 } // namespace TextureLoader

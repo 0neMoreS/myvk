@@ -16,7 +16,7 @@
 #include <cstring>
 #include <iostream>
 
-A1::A1(RTG &rtg_) : A1(rtg_, s72_dir + "/origin-check.s72") {
+A1::A1(RTG &rtg_) : A1(rtg_, "./external/s72/examples/origin-check.s72") {
 }
 
 A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(filename)) {
@@ -258,10 +258,8 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	}
 
 	{ // make some textures
-		std::cout << "Loading textures..." << std::endl;
 		textures.reserve(doc->meshes.size());
 		for (const auto &mesh : doc->meshes) {
-			std::cout << "Mesh '" << mesh.name << "' has material index " << mesh.material_index.value_or(-1) << std::endl;
 			if(mesh.material_index.has_value()) {
 				s72::Material const &material = doc->materials[mesh.material_index.value()];
 				if(material.lambertian.has_value() && material.lambertian.value().albedo_texture.has_value()) {
@@ -391,7 +389,7 @@ A1::~A1() {
 	// texture_views.clear();
 
 	for(auto &texture : textures) {
-		TextureLoader::destroy_texture(texture, rtg.device);
+		TextureLoader::destroy_texture(texture, rtg);
 	}
 	textures.clear();
 
@@ -602,8 +600,6 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						uint32_t(writes.size()), writes.data(), //descriptorWrites count, data
 						0, nullptr //descriptorCopies count, data
 					);
-
-					std::cout << "Re-allocated object transforms buffers to " << new_bytes << " bytes." << std::endl;
 				}
 
 				assert(workspace.Transforms_src.size == workspace.Transforms.size);

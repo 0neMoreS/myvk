@@ -61,7 +61,7 @@ const main_objs = [
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
-	maek.CPP('./src/utils/loader/TextureLoader2D.cpp'),
+	maek.CPP('./src/utils/loader/Texture2DLoader.cpp'),
 	maek.CPP('./src/utils/vulkan/RTG.cpp'),
 	maek.CPP('./src/utils/vulkan/Helpers.cpp'),
 	maek.CPP('./src/utils/vulkan/Vertex.cpp'),

@@ -266,9 +266,9 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(S72Loader::load_
 					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
 					// TODO: handle other types and other formats of textures
 					std::string texture_path = s72_dir + "/" + texture.src;
-					// textures[mesh.material_index.value()] = TextureLoader2D::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 					try {
-                        auto tex = TextureLoader2D::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+                        auto tex = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
                         textures.emplace_back(tex);
                     } catch (const std::exception &e) {
                         std::cerr << "Warning: Failed to load texture '" << texture_path << "': " << e.what() << std::endl;
@@ -389,7 +389,7 @@ A1::~A1() {
 	// texture_views.clear();
 
 	for(auto &texture : textures) {
-		TextureLoader2D::destroy_texture(texture, rtg);
+		Texture2DLoader::destroy_texture(texture, rtg);
 	}
 	textures.clear();
 

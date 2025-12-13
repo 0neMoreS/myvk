@@ -8,7 +8,7 @@
 
 #include "Vertex.hpp"
 #include "S72Loader.hpp"
-#include "TextureLoader2D.hpp"
+#include "Texture2DLoader.hpp"
 
 #include "RTG.hpp"
 
@@ -103,7 +103,7 @@ struct A1 : RTG::Application {
 	};
 	std::vector<ObjectVertices> object_vertices_list;
 
-	std::vector< std::shared_ptr<TextureLoader2D::Texture> > textures;
+	std::vector< std::shared_ptr<Texture2DLoader::Texture> > textures;
 	// std::vector< Helpers::AllocatedImage > textures;
 	// std::vector< VkImageView > texture_views;
 	// VkSampler texture_sampler = VK_NULL_HANDLE;

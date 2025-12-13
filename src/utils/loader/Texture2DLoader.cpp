@@ -1,4 +1,4 @@
-#include "TextureLoader2D.hpp"
+#include "Texture2DLoader.hpp"
 
 #include "VK.hpp"
 #include "RTG.hpp"
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <memory>
 
-namespace TextureLoader2D {
+namespace Texture2DLoader {
 
 namespace {
 
@@ -187,4 +187,4 @@ void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg) {
 	}
 }
 
-} // namespace TextureLoader2D
+} // namespace Texture2DLoader

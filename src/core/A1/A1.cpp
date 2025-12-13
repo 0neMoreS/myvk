@@ -436,11 +436,11 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	}
 
 	{ // init camera
-		if( !doc->cameras.empty() && doc->cameras[0].parent != nullptr) {
-			const std::shared_ptr< s72::Node > camera_node = doc->cameras[0].parent;
-			camera_position =  BLENDER_TO_VULKAN_3 * camera_node->translation;
+		if( !doc->cameras.empty() && doc->cameras[0].parent.has_value()) {
+			const s72::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
+			camera_position =  BLENDER_TO_VULKAN_3 * camera_node.translation;
 
-            glm::quat blender_rotation = glm::quat(camera_node->rotation.w, camera_node->rotation.x, camera_node->rotation.y, camera_node->rotation.z);
+            glm::quat blender_rotation = glm::quat(camera_node.rotation.w, camera_node.rotation.x, camera_node.rotation.y, camera_node.rotation.z);
             glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
 			glm::vec3 blender_foraward = blender_rotation_matrix * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
             glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_foraward;
@@ -943,16 +943,16 @@ void A1::update(float dt) {
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
 			const auto& mesh = doc->meshes[i];
-			const std::shared_ptr< s72::Node > node = mesh.parent;
 			
 			glm::mat4 MODEL = glm::mat4(1.0f);
 			
-			if (node) {
-				glm::quat q(node->rotation.w, node->rotation.x, node->rotation.y, node->rotation.z);
+			if (mesh.parent.has_value()) {
+				const s72::Node &node = doc->nodes[*mesh.parent];
+				glm::quat q(node.rotation.w, node.rotation.x, node.rotation.y, node.rotation.z);
 				
-				glm::mat4 T = glm::translate(glm::mat4(1.0f), node->translation);
+				glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);
 				glm::mat4 R = glm::mat4_cast(q);
-				glm::mat4 S = glm::scale(glm::mat4(1.0f), node->scale);
+				glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
 				
 				MODEL = BLENDER_TO_VULKAN_4 * (T * R * S);
 			}

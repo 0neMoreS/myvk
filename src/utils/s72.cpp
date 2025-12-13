@@ -20,28 +20,17 @@ namespace {
 
 using Object = std::map< std::string, sejp::value >;
 
-[[noreturn]] void fail(std::string_view msg) {
-	throw std::runtime_error(std::string(msg));
-}
-
-std::string describe(std::string_view ctx, std::string_view detail) {
-	std::string out(ctx);
-	if (!out.empty()) out.append(": ");
-	out.append(detail);
-	return out;
-}
-
 Object const expect_object(sejp::value const &v, std::string_view ctx) {
 	auto obj = v.as_object();
-	if (!obj) fail(describe(ctx, "expected object"));
+	if (!obj) S72_ERROR(ctx, "expected object");
 	return obj.value();
 }
 
 std::string expect_string(Object const &obj, std::string_view key, std::string_view ctx) {
 	auto it = obj.find(std::string(key));
-	if (it == obj.end()) fail(describe(ctx, std::string("missing '") + std::string(key) + "'"));
+	if (it == obj.end()) S72_ERROR(ctx, std::string("missing '") + std::string(key) + "'");
 	auto s = it->second.as_string();
-	if (!s) fail(describe(ctx, std::string("'") + std::string(key) + "' must be string"));
+	if (!s) S72_ERROR(ctx, std::string("'") + std::string(key) + "' must be string");
 	return *s;
 }
 
@@ -49,15 +38,15 @@ std::optional< std::string > optional_string(Object const &obj, std::string_view
 	auto it = obj.find(std::string(key));
 	if (it == obj.end()) return std::nullopt;
 	auto s = it->second.as_string();
-	if (!s) fail(describe(key, "must be string"));
+	if (!s) S72_ERROR(key, "must be string");
 	return *s;
 }
 
 float expect_number(Object const &obj, std::string_view key, std::string_view ctx) {
 	auto it = obj.find(std::string(key));
-	if (it == obj.end()) fail(describe(ctx, std::string("missing '") + std::string(key) + "'"));
+	if (it == obj.end()) S72_ERROR(ctx, std::string("missing '") + std::string(key) + "'");
 	auto n = it->second.as_number();
-	if (!n) fail(describe(ctx, std::string("'") + std::string(key) + "' must be number"));
+	if (!n) S72_ERROR(ctx, std::string("'") + std::string(key) + "' must be number");
 	return *n;
 }
 
@@ -65,7 +54,7 @@ std::optional< float > optional_number(Object const &obj, std::string_view key) 
 	auto it = obj.find(std::string(key));
 	if (it == obj.end()) return std::nullopt;
 	auto n = it->second.as_number();
-	if (!n) fail(describe(key, "must be number"));
+	if (!n) S72_ERROR(key, "must be number");
 	return *n;
 }
 
@@ -73,7 +62,7 @@ uint32_t to_u32(float value, std::string_view ctx) {
 	float integral = 0.0;
 	float frac = std::modf(value, &integral);
 	if (frac != 0.0 || integral < 0.0 || integral > float(std::numeric_limits< uint32_t >::max())) {
-		fail(describe(ctx, "expected unsigned 32-bit integer"));
+		S72_ERROR(ctx, "expected unsigned 32-bit integer");
 	}
 	return static_cast< uint32_t >(integral);
 }
@@ -81,11 +70,11 @@ uint32_t to_u32(float value, std::string_view ctx) {
 template< size_t N >
 glm::vec<N, float> parse_vec(sejp::value const &v, std::string_view ctx) {
 	auto arr = v.as_array();
-	if (!arr || arr->size() != N) fail(describe(ctx, "expected array of correct length"));
+	if (!arr || arr->size() != N) S72_ERROR(ctx, "expected array of correct length");
 	glm::vec<N, float, glm::defaultp> out{};
 	for (size_t i = 0; i < N; ++i) {
 		auto n = (*arr)[i].as_number();
-		if (!n) fail(describe(ctx, "vector elements must be numbers"));
+		if (!n) S72_ERROR(ctx, "vector elements must be numbers");
 		out[i] = *n;
 	}
 	return out;
@@ -100,12 +89,12 @@ glm::vec<N, float> vec_or_default(Object const &obj, std::string_view key, glm::
 
 std::vector< float > parse_number_array(sejp::value const &v, std::string_view ctx) {
 	auto arr = v.as_array();
-	if (!arr) fail(describe(ctx, "expected array"));
+	if (!arr) S72_ERROR(ctx, "expected array");
 	std::vector< float > out;
 	out.reserve(arr->size());
 	for (auto const &entry : *arr) {
 		auto n = entry.as_number();
-		if (!n) fail(describe(ctx, "array entries must be numbers"));
+		if (!n) S72_ERROR(ctx, "array entries must be numbers");
 		out.push_back(*n);
 	}
 	return out;
@@ -113,12 +102,12 @@ std::vector< float > parse_number_array(sejp::value const &v, std::string_view c
 
 std::vector< std::string > parse_string_array(sejp::value const &v, std::string_view ctx) {
 	auto arr = v.as_array();
-	if (!arr) fail(describe(ctx, "expected array"));
+	if (!arr) S72_ERROR(ctx, "expected array");
 	std::vector< std::string > out;
 	out.reserve(arr->size());
 	for (auto const &entry : *arr) {
 		auto s = entry.as_string();
-		if (!s) fail(describe(ctx, "array entries must be strings"));
+		if (!s) S72_ERROR(ctx, "array entries must be strings");
 		out.push_back(*s);
 	}
 	return out;
@@ -140,9 +129,9 @@ Material::PBR parse_pbr(sejp::value const &v, std::string_view ctx) {
 	if (it != obj.end()) {
 		auto arr = it->second.as_array();
 		if (arr) {
-			p.albedo_value = parse_vec<3>(it->second, describe(ctx, "albedo"));
+			p.albedo_value = parse_vec<3>(it->second, std::string(ctx) + ".albedo");
 		} else {
-			p.albedo_texture = parse_texture(it->second, describe(ctx, "albedo"));
+			p.albedo_texture = parse_texture(it->second, std::string(ctx) + ".albedo");
 		}
 	}
 	it = obj.find("roughness");
@@ -151,7 +140,7 @@ Material::PBR parse_pbr(sejp::value const &v, std::string_view ctx) {
 		if (n) {
 			p.roughness_value = *n;
 		} else {
-			p.roughness_texture = parse_texture(it->second, describe(ctx, "roughness"));
+			p.roughness_texture = parse_texture(it->second, std::string(ctx) + ".roughness");
 		}
 	}
 	it = obj.find("metalness");
@@ -160,7 +149,7 @@ Material::PBR parse_pbr(sejp::value const &v, std::string_view ctx) {
 		if (n) {
 			p.metalness_value = *n;
 		} else {
-			p.metalness_texture = parse_texture(it->second, describe(ctx, "metalness"));
+			p.metalness_texture = parse_texture(it->second, std::string(ctx) + ".metalness");
 		}
 	}
 	return p;
@@ -173,9 +162,9 @@ Material::Lambertian parse_lambertian(sejp::value const &v, std::string_view ctx
 	if (it != obj.end()) {
 		auto arr = it->second.as_array();
 		if (arr) {
-			m.albedo_value = parse_vec<3>(it->second, describe(ctx, "albedo"));
+			m.albedo_value = parse_vec<3>(it->second, std::string(ctx) + ".albedo");
 		} else {
-			m.albedo_texture = parse_texture(it->second, describe(ctx, "albedo"));
+			m.albedo_texture = parse_texture(it->second, std::string(ctx) + ".albedo");
 		}
 	}
 	return m;
@@ -188,10 +177,10 @@ DataStream parse_data_stream(sejp::value const &v, std::string_view ctx, bool al
 	ds.offset = to_u32(expect_number(obj, "offset", ctx), ctx);
 	auto stride_number = optional_number(obj, "stride");
 	if (stride_number) {
-		if (!allow_stride) fail(describe(ctx, "stride not allowed here"));
+		if (!allow_stride) S72_ERROR(ctx, "stride not allowed here");
 		ds.stride = to_u32(*stride_number, ctx);
 	} else if (require_stride) {
-		fail(describe(ctx, "missing 'stride'"));
+		S72_ERROR(ctx, "missing 'stride'");
 	}
 	ds.format = expect_string(obj, "format", ctx);
 	return ds;
@@ -207,19 +196,19 @@ Scene parse_scene(Object const &obj) {
 	return scene;
 }
 
-std::shared_ptr<Node> parse_node(Object const &obj) {
-	auto node = std::make_shared<Node>();
-	node->name = expect_string(obj, "name", "NODE");
-	node->translation = vec_or_default<3>(obj, "translation", {0.0, 0.0, 0.0}, "NODE.translation");
-	node->rotation = vec_or_default<4>(obj, "rotation", {0.0, 0.0, 0.0, 1.0}, "NODE.rotation");
-	node->scale = vec_or_default<3>(obj, "scale", {1.0, 1.0, 1.0}, "NODE.scale");
+Node parse_node(Object const &obj) {
+	Node node;
+	node.name = expect_string(obj, "name", "NODE");
+	node.translation = vec_or_default<3>(obj, "translation", {0.0, 0.0, 0.0}, "NODE.translation");
+	node.rotation = vec_or_default<4>(obj, "rotation", {0.0, 0.0, 0.0, 1.0}, "NODE.rotation");
+	node.scale = vec_or_default<3>(obj, "scale", {1.0, 1.0, 1.0}, "NODE.scale");
 	if (auto it = obj.find("children"); it != obj.end()) {
-		node->children = parse_string_array(it->second, "NODE.children");
+		node.children = parse_string_array(it->second, "NODE.children");
 	}
-	node->mesh = optional_string(obj, "mesh");
-	node->camera = optional_string(obj, "camera");
-	node->environment = optional_string(obj, "environment");
-	node->light = optional_string(obj, "light");
+	node.mesh = optional_string(obj, "mesh");
+	node.camera = optional_string(obj, "camera");
+	node.environment = optional_string(obj, "environment");
+	node.light = optional_string(obj, "light");
 	return node;
 }
 
@@ -232,12 +221,12 @@ Mesh parse_mesh(Object const &obj) {
 		mesh.indices = parse_data_stream(it->second, "MESH.indices", false, false);
 	}
 	auto it = obj.find("attributes");
-	if (it == obj.end()) fail("MESH: missing 'attributes'");
+	if (it == obj.end()) S72_ERROR("", "MESH: missing 'attributes'");
 	auto const &attrs = expect_object(it->second, "MESH.attributes");
 	for (auto const &entry : attrs) {
-		mesh.attributes.emplace(entry.first, parse_data_stream(entry.second, describe("MESH.attributes", entry.first), true, true));
+		mesh.attributes.emplace(entry.first, parse_data_stream(entry.second, "MESH.attributes." + entry.first, true, true));
 	}
-	if (mesh.attributes.empty()) fail("MESH: attributes must not be empty");
+	if (mesh.attributes.empty()) S72_ERROR("", "MESH: attributes must not be empty");
 	mesh.material = optional_string(obj, "material");
 	return mesh;
 }
@@ -254,7 +243,7 @@ Camera parse_camera(Object const &obj) {
 		p.far = optional_number(per, "far");
 		cam.perspective = p;
 	}
-	if (!cam.perspective) fail("CAMERA: must specify projection");
+	if (!cam.perspective) S72_ERROR("", "CAMERA: must specify projection");
 	return cam;
 }
 
@@ -266,18 +255,18 @@ Driver parse_driver(Object const &obj) {
 	driver.interpolation = optional_string(obj, "interpolation").value_or("LINEAR");
 	{
 		auto it = obj.find("times");
-		if (it == obj.end()) fail("DRIVER: missing 'times'");
+		if (it == obj.end()) S72_ERROR("", "DRIVER: missing 'times'");
 		driver.times = parse_number_array(it->second, "DRIVER.times");
 	}
 	{
 		auto it = obj.find("values");
-		if (it == obj.end()) fail("DRIVER: missing 'values'");
+		if (it == obj.end()) S72_ERROR("", "DRIVER: missing 'values'");
 		driver.values = parse_number_array(it->second, "DRIVER.values");
 	}
 	if (driver.channel == "translation" || driver.channel == "scale") {
-		if (driver.values.size() != driver.times.size() * 3) fail("DRIVER: channel expects 3D values");
+		if (driver.values.size() != driver.times.size() * 3) S72_ERROR("", "DRIVER: channel expects 3D values");
 	} else if (driver.channel == "rotation") {
-		if (driver.values.size() != driver.times.size() * 4) fail("DRIVER: rotation channel expects 4D values");
+		if (driver.values.size() != driver.times.size() * 4) S72_ERROR("", "DRIVER: rotation channel expects 4D values");
 	}
 	return driver;
 }
@@ -310,7 +299,7 @@ Material parse_material(Object const &obj) {
 		mat.environment = true;
 		++shading_count;
 	}
-	if (shading_count != 1) fail("MATERIAL: exactly one shading model required");
+	if (shading_count != 1) S72_ERROR("", "MATERIAL: exactly one shading model required");
 	return mat;
 }
 
@@ -318,7 +307,7 @@ Environment parse_environment(Object const &obj) {
 	Environment env;
 	env.name = expect_string(obj, "name", "ENVIRONMENT");
 	auto it = obj.find("radiance");
-	if (it == obj.end()) fail("ENVIRONMENT: missing 'radiance'");
+	if (it == obj.end()) S72_ERROR("", "ENVIRONMENT: missing 'radiance'");
 	env.radiance = parse_texture(it->second, "ENVIRONMENT.radiance");
 	return env;
 }
@@ -359,21 +348,21 @@ Light parse_light(Object const &obj) {
 		light.spot = spot;
 		++kind;
 	}
-	if (kind != 1) fail("LIGHT: exactly one light definition required");
+	if (kind != 1) S72_ERROR("", "LIGHT: exactly one light definition required");
 	return light;
 }
 
 std::shared_ptr<Document> parse_document(sejp::value const &root) {
 	// Parse Root
 	auto arr_opt = root.as_array();
-	if (!arr_opt || arr_opt->empty()) fail("Root must be non-empty array");
+	if (!arr_opt || arr_opt->empty()) S72_ERROR("", "Root must be non-empty array");
 	auto first = (*arr_opt)[0].as_string();
-	if (!first || *first != "s72-v2") fail("First entry must be 's72-v2'");
+	if (!first || *first != "s72-v2") S72_ERROR("", "First entry must be 's72-v2'");
 
 	auto doc = std::make_shared<Document>();
 
 	bool scene_set = false;
-	std::unordered_map< std::string, std::shared_ptr<Node> > node_lookup;
+	std::unordered_map< std::string, size_t > node_lookup;  // node name -> index in doc->nodes
 	std::unordered_map< std::string, size_t > mesh_lookup;  // mesh name -> index in doc->meshes
 	std::unordered_map< std::string, size_t > camera_lookup;
 	std::unordered_map< std::string, size_t > driver_lookup;  // driver name -> index in doc->drivers
@@ -386,134 +375,135 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 		auto const &obj = expect_object(entry, "object");
 		std::string type = expect_string(obj, "type", "object");
 		if (type == "SCENE") {
-			if (scene_set) fail("Multiple SCENE objects not allowed");
+			if (scene_set) S72_ERROR("", "Multiple SCENE objects not allowed");
 			doc->scene = parse_scene(obj);
 			scene_set = true;
 		} else if (type == "NODE") {
-			auto node_ptr = parse_node(obj);
-			doc->nodes.push_back(node_ptr);
-			if (!node_lookup.emplace(node_ptr->name, node_ptr).second) {
-				fail(describe("NODE", std::string("duplicate name '") + node_ptr->name + "'"));
+			Node node = parse_node(obj);
+			if (!node_lookup.emplace(node.name, doc->nodes.size()).second) {
+				S72_ERROR("NODE", std::string("duplicate name '") + node.name + "'");
 			}
+			doc->nodes.push_back(std::move(node));
 		} else if (type == "MESH") {
 			auto mesh = parse_mesh(obj);
 			if (!mesh_lookup.emplace(mesh.name, doc->meshes.size()).second) {
-				fail(describe("MESH", std::string("duplicate name '") + mesh.name + "'"));
+				S72_ERROR("MESH", std::string("duplicate name '") + mesh.name + "'");
 			}
-			doc->meshes.push_back(mesh);
+			doc->meshes.push_back(std::move(mesh));
 		} else if (type == "CAMERA") {
 			auto cam = parse_camera(obj);
 			if (!camera_lookup.emplace(cam.name, doc->cameras.size()).second) {
-				fail(describe("CAMERA", std::string("duplicate name '") + cam.name + "'"));
+				S72_ERROR("CAMERA", std::string("duplicate name '") + cam.name + "'");
 			}
-			doc->cameras.push_back(cam);
+			doc->cameras.push_back(std::move(cam));
 		} else if (type == "DRIVER") {
 			auto driver = parse_driver(obj);
 			if (!driver_lookup.emplace(driver.name, doc->drivers.size()).second) {
-				fail(describe("DRIVER", std::string("duplicate name '") + driver.name + "'"));
+				S72_ERROR("DRIVER", std::string("duplicate name '") + driver.name + "'");
 			}
-			doc->drivers.push_back(driver);
+			doc->drivers.push_back(std::move(driver));
 		} else if (type == "MATERIAL") {
 			auto mat = parse_material(obj);
 			if (!material_lookup.emplace(mat.name, doc->materials.size()).second) {
-				fail(describe("MATERIAL", std::string("duplicate name '") + mat.name + "'"));
+				S72_ERROR("MATERIAL", std::string("duplicate name '") + mat.name + "'");
 			}
-			doc->materials.push_back(mat);
+			doc->materials.push_back(std::move(mat));
 		} else if (type == "ENVIRONMENT") {
 			auto env = parse_environment(obj);
 			if (!environment_lookup.emplace(env.name, doc->environments.size()).second) {
-				fail(describe("ENVIRONMENT", std::string("duplicate name '") + env.name + "'"));
+				S72_ERROR("ENVIRONMENT", std::string("duplicate name '") + env.name + "'");
 			}
-			doc->environments.push_back(env);
+			doc->environments.push_back(std::move(env));
 		} else if (type == "LIGHT") {
 			auto light = parse_light(obj);
 			if (!light_lookup.emplace(light.name, doc->lights.size()).second) {
-				fail(describe("LIGHT", std::string("duplicate name '") + light.name + "'"));
+				S72_ERROR("LIGHT", std::string("duplicate name '") + light.name + "'");
 			}
-			doc->lights.push_back(light);
+			doc->lights.push_back(std::move(light));
 		} else {
-			fail(describe("object", std::string("unknown type '") + type + "'"));
+			S72_ERROR("object", std::string("unknown type '") + type + "'");
 		}
 	}
-	if (!scene_set) fail("File must contain exactly one SCENE");
+	if (!scene_set) S72_ERROR("", "File must contain exactly one SCENE");
 
-	//BSF Build Tree
+	//BFS Build Tree
 	{	
-		std::queue< std::shared_ptr<Node> > bfs_queue;
+		std::queue< size_t > bfs_queue;
 		std::unordered_set< std::string > visited;
 
 		for (const auto &root_name : doc->scene.roots) {
 			auto it = node_lookup.find(root_name);
 			if (it == node_lookup.end()) {
-				fail(describe("SCENE.roots", std::string("unknown root '") + root_name + "'"));
+				S72_ERROR("SCENE.roots", std::string("unknown root '") + root_name + "'");
 			}
 			bfs_queue.push(it->second);
 			visited.insert(root_name);
 		}
 
 		while (!bfs_queue.empty()) {
-			auto node = bfs_queue.front();
+			size_t node_index = bfs_queue.front();
 			bfs_queue.pop();
+			Node &node = doc->nodes[node_index];
 
-			for (auto const &child_name : node->children) {
+			for (auto const &child_name : node.children) {
 				auto it = node_lookup.find(child_name);
 				if (it == node_lookup.end()) {
-					fail(describe("NODE.children", std::string("unknown child '") + child_name + "'"));
+					S72_ERROR("NODE.children", std::string("unknown child '") + child_name + "'");
 				}
-					auto child = it->second;
+				size_t child_index = it->second;
 				if (visited.find(child_name) == visited.end()) {
-					bfs_queue.push(child);
+					bfs_queue.push(child_index);
 					visited.insert(child_name);
 				}
 			}
 
-			if (node->mesh) {
-				auto mit = mesh_lookup.find(*node->mesh);
+			if (node.mesh) {
+				auto mit = mesh_lookup.find(*node.mesh);
 				if (mit == mesh_lookup.end()) {
-					fail(describe("NODE.mesh", std::string("unknown mesh '") + *node->mesh + "'"));
+					S72_ERROR("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'");
 				}
 				auto &mesh = doc->meshes[mit->second];
-				if (mesh.parent && mesh.parent != node) {
-					fail(describe("MESH", std::string("'") + mesh.name + "' referenced by multiple nodes"));
+				if (mesh.parent && *mesh.parent != node_index) {
+					S72_ERROR("MESH", std::string("'") + mesh.name + "' referenced by multiple nodes");
 				}
-				mesh.parent = node;
+				mesh.parent = node_index;
 				std::cout << "Mesh name: " << mesh.name << std::endl;
 			}
 
-			if (node->camera) {
-				auto cit = camera_lookup.find(*node->camera);
+			if (node.camera) {
+				auto cit = camera_lookup.find(*node.camera);
 				if (cit == camera_lookup.end()) {
-					fail(describe("NODE.camera", std::string("unknown camera '") + *node->camera + "'"));
+					S72_ERROR("NODE.camera", std::string("unknown camera '") + *node.camera + "'");
 				}
 				auto &camera = doc->cameras[cit->second];
-				if (camera.parent && camera.parent != node) {
-					fail(describe("CAMERA", std::string("'") + camera.name + "' referenced by multiple nodes"));
+				if (camera.parent && *camera.parent != node_index) {
+					S72_ERROR("CAMERA", std::string("'") + camera.name + "' referenced by multiple nodes");
 				}
-				camera.parent = node;
+				camera.parent = node_index;
 			}
 
-			if (node->environment) {
-				auto eit = environment_lookup.find(*node->environment);
+			if (node.environment) {
+				auto eit = environment_lookup.find(*node.environment);
 				if (eit == environment_lookup.end()) {
-					fail(describe("NODE.environment", std::string("unknown environment '") + *node->environment + "'"));
+					S72_ERROR("NODE.environment", std::string("unknown environment '") + *node.environment + "'");
 				}
 				auto &env = doc->environments[eit->second];
-				if (env.parent && env.parent != node) {
-					fail(describe("ENVIRONMENT", std::string("'") + env.name + "' referenced by multiple nodes"));
+				if (env.parent && *env.parent != node_index) {
+					S72_ERROR("ENVIRONMENT", std::string("'") + env.name + "' referenced by multiple nodes");
 				}
-				env.parent = node;
+				env.parent = node_index;
 			}
 
-			if (node->light) {
-				auto lit = light_lookup.find(*node->light);
+			if (node.light) {
+				auto lit = light_lookup.find(*node.light);
 				if (lit == light_lookup.end()) {
-					fail(describe("NODE.light", std::string("unknown light '") + *node->light + "'"));
+					S72_ERROR("NODE.light", std::string("unknown light '") + *node.light + "'");
 				}
 				auto &light = doc->lights[lit->second];
-				if (light.parent && light.parent != node) {
-					fail(describe("LIGHT", std::string("'") + light.name + "' referenced by multiple nodes"));
+				if (light.parent && *light.parent != node_index) {
+					S72_ERROR("LIGHT", std::string("'") + light.name + "' referenced by multiple nodes");
 				}
-				light.parent = node;
+				light.parent = node_index;
 			}
 		}
 	}

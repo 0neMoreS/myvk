@@ -1,5 +1,7 @@
 #pragma once
 
+#include "VK.hpp"
+
 #include <array>
 #include <cstdint>
 #include <map>
@@ -7,7 +9,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-#include <glm/glm.hpp>
 
 namespace s72 {
 
@@ -29,7 +30,7 @@ struct Node {
 	glm::vec4 rotation{0.0, 0.0, 0.0, 1.0};
 	glm::vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
-	std::shared_ptr<Node> parent;
+	std::optional<size_t> parent;
 	std::optional<std::string> mesh;
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
@@ -43,7 +44,7 @@ struct Mesh {
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
-	std::shared_ptr<Node> parent;
+	std::optional<size_t> parent;
 };
 
 struct Camera {
@@ -56,7 +57,7 @@ struct Camera {
 
 	std::string name;
 	std::optional<Perspective> perspective;
-	std::shared_ptr<Node> parent;
+	std::optional<size_t> parent;
 };
 
 struct Driver {
@@ -101,7 +102,7 @@ struct Material {
 struct Environment {
 	std::string name;
 	Texture radiance;
-	std::shared_ptr<Node> parent;
+	std::optional<size_t> parent;
 };
 
 struct Light {
@@ -130,12 +131,12 @@ struct Light {
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;
 	std::optional<Spot> spot;
-	std::shared_ptr<Node> parent;
+	std::optional<size_t> parent;
 };
 
 struct Document {
 	Scene scene;
-	std::vector<std::shared_ptr<Node>> nodes;
+	std::vector<Node> nodes;
 	std::vector<Mesh> meshes;
 	std::vector<Camera> cameras;
 	std::vector<Driver> drivers;

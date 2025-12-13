@@ -2,12 +2,22 @@
 
 #include <vulkan/vk_enum_string_helper.h>
 
+#include <glm/glm.hpp>
+
 #include <stdexcept>
 
 #define VK( FN ) \
 	if (VkResult result = FN; result != VK_SUCCESS) { \
 		throw std::runtime_error("Call '" #FN "' returned " + std::to_string(result) + " [" + std::string(string_VkResult(result)) + "]." ); \
 	}
+
+// Unified error handling macro - prints to stderr and throws exception
+#define S72_ERROR(ctx, msg) \
+	do { \
+		std::string error_msg = std::string(ctx).empty() ? std::string(msg) : (std::string(ctx) + ": " + std::string(msg)); \
+		std::cerr << "\033[1;31m[S72 ERROR]\033[0m " << error_msg << std::endl; \
+		throw std::runtime_error(error_msg); \
+	} while(0)
 
 // Coordinate system conversion matrix: Blender → Vulkan
 static const glm::mat3 BLENDER_TO_VULKAN_3 = glm::mat3(

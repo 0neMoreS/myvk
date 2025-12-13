@@ -36,6 +36,21 @@ struct A1 : RTG::Application {
 
 	//Pipelines:
 
+	struct BackgroundPipeline {
+		//no descriptor set layouts
+
+		//no push constants
+
+		VkPipelineLayout layout = VK_NULL_HANDLE;
+
+		//no vertex bindings
+		
+		VkPipeline handle = VK_NULL_HANDLE;
+
+		void create(RTG &, VkRenderPass render_pass, uint32_t subpass);
+		void destroy(RTG &);
+	} background_pipeline;
+
 	struct ObjectsPipeline {
 		//descriptor set layouts:
 		
@@ -147,7 +162,7 @@ struct A1 : RTG::Application {
 	float last_mouse_x = 0.0f;
 	float last_mouse_y = 0.0f;
 	bool keys_down[GLFW_KEY_LAST + 1] = {};
-	const float move_speed = 2.0f;
+	const float move_speed = 4.0f;
 	const float fov_speed = 1.0f;
 	const float rotate_speed = 1.0f;
 

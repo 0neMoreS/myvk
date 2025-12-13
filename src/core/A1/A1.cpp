@@ -259,28 +259,19 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
 	}
 
 	{ // make some textures
-		textures.resize(doc->materials.size());
-		for (const auto &mesh : doc->meshes) {
-			if(mesh.material_index.has_value()) {
-				S72Loader::Material const &material = doc->materials[mesh.material_index.value()];
-				if(material.lambertian.has_value()) {
-					if(material.lambertian.value().albedo_texture.has_value()){
-						S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
-						// TODO: handle other types and other formats of textures
-						std::string texture_path = s72_dir + texture.src;
-						// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
-						textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
-					}
-					else if(material.lambertian.value().albedo_value.has_value()) {
-						textures[mesh.material_index.value()] = Texture2DLoader::create_rgb_texture(rtg.helpers, material.lambertian.value().albedo_value.value());
-					}
+		textures.reserve(doc->materials.size());
+		for(const auto &material : doc->materials) {
+			if(material.lambertian.has_value()) {
+				if(material.lambertian.value().albedo_texture.has_value()){
+					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
+					// TODO: handle other types and other formats of textures
+					std::string texture_path = s72_dir + texture.src;
+					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+					textures.emplace_back(Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR));
 				}
-				else {
-					std::cerr << "Warning: Material '" << material.name << "' has no texture." << std::endl;
+				else if(material.lambertian.value().albedo_value.has_value()) {
+					textures.emplace_back(Texture2DLoader::create_rgb_texture(rtg.helpers, material.lambertian.value().albedo_value.value()));
 				}
-			}
-			else {
-				std::cerr << "Warning: Mesh '" << mesh.name << "' has no material." << std::endl;
 			}
 		}
 	}
@@ -361,20 +352,6 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
 				});
 			}
 		}
-		// if( !doc->cameras.empty() && !doc->cameras[0].transforms.empty()) {
-		// 	const S72Loader::Node &camera_node = doc->nodes[*doc->cameras[0].parent];
-		// 	camera_position =  BLENDER_TO_VULKAN_3 * camera_node.translation;
-
-        //     glm::quat blender_rotation = glm::quat(camera_node.rotation.w, camera_node.rotation.x, camera_node.rotation.y, camera_node.rotation.z);
-        //     glm::mat4 blender_rotation_matrix = glm::mat4_cast(blender_rotation);
-		// 	glm::vec3 blender_foraward = blender_rotation_matrix * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
-        //     glm::vec3 camera_forward = BLENDER_TO_VULKAN_3 * blender_foraward;
-        //     camera_theta = std::acos(-camera_forward.y);
-		// 	camera_phi = std::atan2(camera_forward.z, camera_forward.x);
-
-		// 	glm::vec3 blender_up = blender_rotation_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-		// 	camera_up = BLENDER_TO_VULKAN_3 * blender_up;
-		// }
 	}
 }
 
@@ -392,17 +369,6 @@ A1::~A1() {
 		//this also frees the descriptor sets allocated from the pool:
 		texture_descriptors.clear();
 	}
-
-	// if (texture_sampler) {
-	// 	vkDestroySampler(rtg.device, texture_sampler, nullptr);
-	// 	texture_sampler = VK_NULL_HANDLE;
-	// }
-
-	// for (VkImageView &view : texture_views) {
-	// 	vkDestroyImageView(rtg.device, view, nullptr);
-	// 	view = VK_NULL_HANDLE;
-	// }
-	// texture_views.clear();
 
 	for(auto &texture : textures) {
 		Texture2DLoader::destroy_texture(texture, rtg);
@@ -660,7 +626,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		//render pass
 		{
 			std::array< VkClearValue, 2 > clear_values{
-				VkClearValue{ .color{ .float32{1.0f, 0.0f, 1.0f, 1.0f} } },
+				VkClearValue{ .color{ .float32{63.0f / 255.0f, 63.0f / 255.0f, 63.0f / 255.0f, 1.0f} } },
 				VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
 			};
 			
@@ -833,10 +799,7 @@ void A1::update(float dt) {
 			active_camera.camera_fov -= fov_speed * dt;
 		}
 
-		// change active camera
-		if(keys_down[GLFW_KEY_TAB]) {
-			active_camera_index = (active_camera_index + 1) % cameras.size();
-		}
+		active_camera.camera_fov = glm::clamp(active_camera.camera_fov, 0.0f, glm::radians(120.0f));
 
 		// Update VIEW matrix
 		VIEW = glm::lookAtRH(active_camera.camera_position, active_camera.camera_position + forward, active_camera.camera_up);
@@ -894,6 +857,11 @@ void A1::on_input(InputEvent const &event) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = true;
 		}
+
+		// change active camera
+		if (event.key.key == GLFW_KEY_TAB) {
+            active_camera_index = (active_camera_index + 1) % cameras.size();
+        }
 	} else if (event.type == InputEvent::KeyUp) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = false;

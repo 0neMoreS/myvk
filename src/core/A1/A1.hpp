@@ -30,26 +30,11 @@ struct A1 : RTG::Application {
 	//Resources that last the lifetime of the application:
 
 	//chosen format for depth buffer:
-	VkFormat depth_format{};
+	VkFormat depth_format;
 	//Render passes describe how pipelines write to images:
 	VkRenderPass render_pass = VK_NULL_HANDLE;
 
 	//Pipelines:
-
-	struct BackgroundPipeline {
-		//no descriptor set layouts
-
-		//no push constants
-
-		VkPipelineLayout layout = VK_NULL_HANDLE;
-
-		//no vertex bindings
-		
-		VkPipeline handle = VK_NULL_HANDLE;
-
-		void create(RTG &, VkRenderPass render_pass, uint32_t subpass);
-		void destroy(RTG &);
-	} background_pipeline;
 
 	struct ObjectsPipeline {
 		//descriptor set layouts:

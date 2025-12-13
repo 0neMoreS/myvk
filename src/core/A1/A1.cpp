@@ -16,7 +16,7 @@
 #include <cstring>
 #include <iostream>
 
-A1::A1(RTG &rtg_) : A1(rtg_, "./external/s72/examples/origin-check.s72") {
+A1::A1(RTG &rtg_) : A1(rtg_, s72_dir + "/origin-check.s72") {
 }
 
 A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(filename)) {
@@ -224,9 +224,6 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 	{ //create object vertices
 		std::vector< uint8_t > all_vertices;
 
-		// Get the directory containing the s72 file
-		std::string s72_dir = "./external/s72/examples";
-
 		// Load vertices from all meshes in the document
 		uint32_t vertex_offset = 0;
 		for (const auto &mesh : doc->meshes) {
@@ -259,120 +256,34 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
 		}
 	}
-	
-	{ //make some textures
-		textures.reserve(2);
 
-		{ //texture 0 will be a dark grey / light grey checkerboard with a red square at the origin.
-			//actually make the texture:
-			uint32_t size = 128;
-			std::vector< uint32_t > data;
-			data.reserve(size * size);
-			for (uint32_t y = 0; y < size; ++y) {
-				float fy = (y + 0.5f) / float(size);
-				for (uint32_t x = 0; x < size; ++x) {
-					float fx = (x + 0.5f) / float(size);
-					//highlight the origin:
-					if      (fx < 0.05f && fy < 0.05f) data.emplace_back(0xff0000ff); //red
-					else if ( (fx < 0.5f) == (fy < 0.5f)) data.emplace_back(0xff444444); //dark grey
-					else data.emplace_back(0xffbbbbbb); //light grey
+	{ // make some textures
+		std::cout << "Loading textures..." << std::endl;
+		textures.reserve(doc->meshes.size());
+		for (const auto &mesh : doc->meshes) {
+			std::cout << "Mesh '" << mesh.name << "' has material index " << mesh.material_index.value_or(-1) << std::endl;
+			if(mesh.material_index.has_value()) {
+				s72::Material const &material = doc->materials[mesh.material_index.value()];
+				if(material.lambertian.has_value() && material.lambertian.value().albedo_texture.has_value()) {
+					s72::Texture const &texture = material.lambertian.value().albedo_texture.value();
+					// TODO: handle other types and other formats of textures
+					std::string texture_path = s72_dir + "/" + texture.src;
+					// textures[mesh.material_index.value()] = TextureLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+					try {
+                        auto tex = TextureLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+                        textures.emplace_back(tex);
+                    } catch (const std::exception &e) {
+                        std::cerr << "Warning: Failed to load texture '" << texture_path << "': " << e.what() << std::endl;
+                    }
+				}
+				else {
+					std::cerr << "Warning: Material '" << material.name << "' has no texture." << std::endl;
 				}
 			}
-			assert(data.size() == size*size);
-
-			//make a place for the texture to live on the GPU:
-			textures.emplace_back(rtg.helpers.create_image(
-				VkExtent2D{ .width = size , .height = size }, //size of image
-				VK_FORMAT_R8G8B8A8_UNORM, //how to interpret image data (in this case, linearly-encoded 8-bit RGBA)
-				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, //will sample and upload
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //should be device-local
-				Helpers::Unmapped
-			));
-
-			//transfer data:
-			rtg.helpers.transfer_to_image(data.data(), sizeof(data[0]) * data.size(), textures.back());
-		}
-
-		{ //texture 1 will be a classic 'xor' texture:
-			//actually make the texture:
-			uint32_t size = 256;
-			std::vector< uint32_t > data;
-			data.reserve(size * size);
-			for (uint32_t y = 0; y < size; ++y) {
-				for (uint32_t x = 0; x < size; ++x) {
-					uint8_t r = uint8_t(x) ^ uint8_t(y);
-					uint8_t g = uint8_t(x + 128) ^ uint8_t(y);
-					uint8_t b = uint8_t(x) ^ uint8_t(y + 27);
-					uint8_t a = 0xff;
-					data.emplace_back( uint32_t(r) | (uint32_t(g) << 8) | (uint32_t(b) << 16) | (uint32_t(a) << 24) );
-				}
+			else {
+				std::cerr << "Warning: Mesh '" << mesh.name << "' has no material." << std::endl;
 			}
-			assert(data.size() == size*size);
-
-			//make a place for the texture to live on the GPU:
-			textures.emplace_back(rtg.helpers.create_image(
-				VkExtent2D{ .width = size , .height = size }, //size of image
-				VK_FORMAT_R8G8B8A8_SRGB, //how to interpret image data (in this case, SRGB-encoded 8-bit RGBA)
-				VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, //will sample and upload
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //should be device-local
-				Helpers::Unmapped
-			));
-
-			//transfer data:
-			rtg.helpers.transfer_to_image(data.data(), sizeof(data[0]) * data.size(), textures.back());
 		}
-	}
-
-	{ //make image views for the textures
-		texture_views.reserve(textures.size());
-		for (Helpers::AllocatedImage const &image : textures) {
-			VkImageViewCreateInfo create_info{
-				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				.flags = 0,
-				.image = image.handle,
-				.viewType = VK_IMAGE_VIEW_TYPE_2D,
-				.format = image.format,
-				// .components sets swizzling and is fine when zero-initialized
-				.subresourceRange{
-					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-					.baseMipLevel = 0,
-					.levelCount = 1,
-					.baseArrayLayer = 0,
-					.layerCount = 1,
-				},
-			};
-
-			VkImageView image_view = VK_NULL_HANDLE;
-			VK( vkCreateImageView(rtg.device, &create_info, nullptr, &image_view) );
-
-			texture_views.emplace_back(image_view);
-		}
-		assert(texture_views.size() == textures.size());
-	}
-
-	{ // make a sampler for the textures
-		VkSamplerCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.flags = 0,
-			.magFilter = VK_FILTER_NEAREST,
-			.minFilter = VK_FILTER_NEAREST,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.mipLodBias = 0.0f,
-			.anisotropyEnable = VK_FALSE,
-			.maxAnisotropy = 0.0f, //doesn't matter if anisotropy isn't enabled
-			.compareEnable = VK_FALSE,
-			.compareOp = VK_COMPARE_OP_ALWAYS, //doesn't matter if compare isn't enabled
-			.minLod = 0.0f,
-			.maxLod = 0.0f,
-			.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-			.unnormalizedCoordinates = VK_FALSE,
-		};
-		VK( vkCreateSampler(rtg.device, &create_info, nullptr, &texture_sampler) );
 	}
 		
 	{ // create the texture descriptor pool
@@ -413,12 +324,12 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 		std::vector< VkDescriptorImageInfo > infos(textures.size());
 		std::vector< VkWriteDescriptorSet > writes(textures.size());
 
-		for (Helpers::AllocatedImage const &image : textures) {
-			size_t i = &image - &textures[0];
+		for (auto const &texture : textures) {
+			size_t i = &texture - &textures[0];
 			
 			infos[i] = VkDescriptorImageInfo{
-				.sampler = texture_sampler,
-				.imageView = texture_views[i],
+				.sampler = texture->sampler,
+				.imageView = texture->image_view,
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			};
 			writes[i] = VkWriteDescriptorSet{
@@ -450,9 +361,6 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_), doc(s72::load_file(f
 			glm::vec3 blender_up = blender_rotation_matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 			camera_up = BLENDER_TO_VULKAN_3 * blender_up;
 		}
-		else {
-			std::cout << "No camera found in the s72 file, using default camera position and orientation." << std::endl;
-		}
 	}
 }
 
@@ -471,19 +379,19 @@ A1::~A1() {
 		texture_descriptors.clear();
 	}
 
-	if (texture_sampler) {
-		vkDestroySampler(rtg.device, texture_sampler, nullptr);
-		texture_sampler = VK_NULL_HANDLE;
-	}
+	// if (texture_sampler) {
+	// 	vkDestroySampler(rtg.device, texture_sampler, nullptr);
+	// 	texture_sampler = VK_NULL_HANDLE;
+	// }
 
-	for (VkImageView &view : texture_views) {
-		vkDestroyImageView(rtg.device, view, nullptr);
-		view = VK_NULL_HANDLE;
-	}
-	texture_views.clear();
+	// for (VkImageView &view : texture_views) {
+	// 	vkDestroyImageView(rtg.device, view, nullptr);
+	// 	view = VK_NULL_HANDLE;
+	// }
+	// texture_views.clear();
 
-	for (auto &texture : textures) {
-		rtg.helpers.destroy_image(std::move(texture));
+	for(auto &texture : textures) {
+		TextureLoader::destroy_texture(texture, rtg.device);
 	}
 	textures.clear();
 

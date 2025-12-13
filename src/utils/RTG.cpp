@@ -1,8 +1,3 @@
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#endif
-#include <stb_image.h>
-
 #include "RTG.hpp"
 
 #include "VK.hpp"

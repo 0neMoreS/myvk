@@ -64,6 +64,7 @@ const main_objs = [
 	maek.CPP('./src/utils/sejp.cpp'),
 	maek.CPP('./src/utils/s72.cpp'),
 	maek.CPP('./src/utils/Vertex.cpp'),
+	maek.CPP('./src/utils/TextureLoader.cpp'),
 	maek.CPP('./src/main.cpp'),
 ];
 

@@ -8,6 +8,7 @@
 
 #include "Vertex.hpp"
 #include "s72.hpp"
+#include "TextureLoader.hpp"
 
 #include "RTG.hpp"
 
@@ -23,6 +24,7 @@ struct A1 : RTG::Application {
 	//kept for use in destructor:
 	RTG &rtg;
 	std::shared_ptr<s72::Document> doc;
+	const std::string s72_dir = "./external/s72/examples";
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -101,9 +103,10 @@ struct A1 : RTG::Application {
 	};
 	std::vector<ObjectVertices> object_vertices_list;
 
-	std::vector< Helpers::AllocatedImage > textures;
-	std::vector< VkImageView > texture_views;
-	VkSampler texture_sampler = VK_NULL_HANDLE;
+	std::vector< std::shared_ptr<TextureLoader::Texture> > textures;
+	// std::vector< Helpers::AllocatedImage > textures;
+	// std::vector< VkImageView > texture_views;
+	// VkSampler texture_sampler = VK_NULL_HANDLE;
 	VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
 	std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote, te
 

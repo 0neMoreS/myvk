@@ -45,6 +45,7 @@ struct Mesh {
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
 	std::optional<size_t> parent;
+	std::optional<size_t> material_index;
 };
 
 struct Camera {
@@ -147,6 +148,7 @@ struct Document {
 
 std::shared_ptr<Document> load_file(const std::string &path);
 std::shared_ptr<Document> load_string(const std::string &contents);
+
 
 // Load binary mesh data from b72 files according to mesh attributes
 // Returns interleaved vertex data as a vector of bytes

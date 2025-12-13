@@ -467,7 +467,14 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 					S72_ERROR("MESH", std::string("'") + mesh.name + "' referenced by multiple nodes");
 				}
 				mesh.parent = node_index;
-				std::cout << "Mesh name: " << mesh.name << std::endl;
+
+				if (mesh.material) {
+					auto it = material_lookup.find(mesh.material.value());
+					if (it == material_lookup.end()) {
+						S72_ERROR("MESH.material", std::string("unknown material '") + mesh.material.value() + "'");
+					}
+					mesh.material_index = it->second;
+				}
 			}
 
 			if (node.camera) {

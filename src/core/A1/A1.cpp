@@ -16,7 +16,7 @@
 A1::A1(RTG &rtg_) : A1(rtg_, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, doc{S72Loader::load_file(s72_dir + filename)}, camera_manager{}, workspace_manager{rtg, objects_pipeline.descriptor_types} {
+A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, doc{S72Loader::load_file(s72_dir + filename)}, camera_manager{}, workspace_manager{} {
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -108,7 +108,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, doc{S72Loader::load_
 
 	// create workspace
 	workspace_manager.create(rtg, objects_pipeline.descriptor_configs, uint32_t(objects_pipeline.descriptor_configs.size()));
-	workspace_manager.update_workspace_buffer_pairs(rtg, 0);
+	workspace_manager.update_all_descriptors(rtg, objects_pipeline.descriptor_configs, 0, objects_pipeline.descriptor_configs[0].size);
 
 	{ //create object vertices
 		std::vector< uint8_t > all_vertices;
@@ -358,91 +358,43 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		VK( vkBeginCommandBuffer(workspace.command_buffer, &begin_info) );
 
 		{ //upload world info:
-			assert(workspace.World_src.size == sizeof(world));
+			assert(workspace.buffer_pairs[0].host.size == sizeof(world));
 
 			//host-side copy into World_src:
-			memcpy(workspace.World_src.allocation.data(), &world, sizeof(world));
+			memcpy(workspace.buffer_pairs[0].host.allocation.data(), &world, sizeof(world));
 
 			//add device-side copy from World_src -> World:
-			assert(workspace.World_src.size == workspace.World.size);
+			assert(workspace.buffer_pairs[0].host.size == workspace.buffer_pairs[0].device.size);
 			VkBufferCopy copy_region{
 				.srcOffset = 0,
 				.dstOffset = 0,
-				.size = workspace.World_src.size,
+				.size = workspace.buffer_pairs[0].host.size,
 			};
-			vkCmdCopyBuffer(workspace.command_buffer, workspace.World_src.handle, workspace.World.handle, 1, &copy_region);
+			vkCmdCopyBuffer(workspace.command_buffer, workspace.buffer_pairs[0].host.handle, workspace.buffer_pairs[0].device.handle, 1, &copy_region);
 		}
 
 		{
 			if (!object_instances.empty()) { //upload object transforms:
 				size_t needed_bytes = object_instances.size() * sizeof(ObjectsPipeline::Transform);
-				if (workspace.Transforms_src.handle == VK_NULL_HANDLE || workspace.Transforms_src.size < needed_bytes) {
+				if (workspace.buffer_pairs[1].host.handle == VK_NULL_HANDLE || workspace.buffer_pairs[1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					if (workspace.Transforms_src.handle) {
-						rtg.helpers.destroy_buffer(std::move(workspace.Transforms_src));
-					}
-					if (workspace.Transforms.handle) {
-						rtg.helpers.destroy_buffer(std::move(workspace.Transforms));
-					}
-					workspace.Transforms_src = rtg.helpers.create_buffer(
-						new_bytes,
-						VK_BUFFER_USAGE_TRANSFER_SRC_BIT, //going to have GPU copy from this memory
-						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, //host-visible memory, coherent (no special sync needed)
-						Helpers::Mapped //get a pointer to the memory
-					);
-					workspace.Transforms = rtg.helpers.create_buffer(
-						new_bytes,
-						VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, //going to use as storage buffer, also going to have GPU into this memory
-						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //GPU-local memory
-						Helpers::Unmapped //don't get a pointer to the memory
-					);
-
-					//update the descriptor set:
-					VkDescriptorBufferInfo Transforms_info{
-						.buffer = workspace.Transforms.handle,
-						.offset = 0,
-						.range = workspace.Transforms.size,
-					};
-
-					std::array< VkWriteDescriptorSet, 1 > writes{
-						VkWriteDescriptorSet{
-							.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-							.dstSet = workspace.Transforms_descriptors,
-							.dstBinding = 0,
-							.dstArrayElement = 0,
-							.descriptorCount = 1,
-							.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-							.pBufferInfo = &Transforms_info,
-						},
-					};
-
-					vkUpdateDescriptorSets(
-						rtg.device,
-						uint32_t(writes.size()), writes.data(), //descriptorWrites count, data
-						0, nullptr //descriptorCopies count, data
-					);
+					workspace.update_descriptor(rtg, objects_pipeline.descriptor_configs, 1, new_bytes);
 				}
 
-				assert(workspace.Transforms_src.size == workspace.Transforms.size);
-				assert(workspace.Transforms_src.size >= needed_bytes);
+				assert(workspace.buffer_pairs[1].host.size == workspace.buffer_pairs[1].device.size);
+				assert(workspace.buffer_pairs[1].host.size >= needed_bytes);
 
 				{ //copy transforms into Transforms_src:
-					assert(workspace.Transforms_src.allocation.mapped);
-					ObjectsPipeline::Transform *out = reinterpret_cast< ObjectsPipeline::Transform * >(workspace.Transforms_src.allocation.data()); // Strict aliasing violation, but it doesn't matter
+					assert(workspace.buffer_pairs[1].host.allocation.mapped);
+					ObjectsPipeline::Transform *out = reinterpret_cast< ObjectsPipeline::Transform * >(workspace.buffer_pairs[1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
 					for (ObjectInstance const &inst : object_instances) {
 						*out = inst.transform;
 						++out;
 					}
 				}
 
-				//device-side copy from Transforms_src -> Transforms:
-				VkBufferCopy copy_region{
-					.srcOffset = 0,
-					.dstOffset = 0,
-					.size = needed_bytes,
-				};
-				vkCmdCopyBuffer(workspace.command_buffer, workspace.Transforms_src.handle, workspace.Transforms.handle, 1, &copy_region);
+				workspace.copy_buffer(rtg, objects_pipeline.descriptor_configs, 1, needed_bytes);
 			}
 		}
 

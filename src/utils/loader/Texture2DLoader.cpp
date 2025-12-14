@@ -194,7 +194,7 @@ std::shared_ptr<Texture> create_rgb_texture(
     return texture;
 }
 
-void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg) {
+void destroy(const std::shared_ptr<Texture> &texture, RTG& rtg) {
 	if (!texture) return;
 
 	if (texture->sampler != VK_NULL_HANDLE) {

@@ -10,6 +10,7 @@
 #include "S72Loader.hpp"
 #include "Texture2DLoader.hpp"
 #include "CameraManager.hpp"
+#include "WorkspaceManager.hpp"
 #include "VK.hpp"
 
 #include "RTG.hpp"
@@ -84,15 +85,14 @@ struct A1 : RTG::Application {
 	struct Workspace {
 		VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
 
-		//location for ObjectsPipeline::World data: (streamed to GPU per-frame)
-		Helpers::AllocatedBuffer World_src; //host coherent; mapped
-		Helpers::AllocatedBuffer World; //device-local
-		VkDescriptorSet World_descriptors; //references World
+		struct BufferPair{
+			Helpers::AllocatedBuffer host; //host coherent; mapped
+			Helpers::AllocatedBuffer device; //device-local
+			VkDescriptorSet descriptor; //references World
+		};
 
-		//location for ObjectsPipeline::Transforms data: (streamed to GPU per-frame)
-		Helpers::AllocatedBuffer Transforms_src; //host coherent; mapped
-		Helpers::AllocatedBuffer Transforms; //device-local
-		VkDescriptorSet Transforms_descriptors; //references Transforms
+		BufferPair world; //for the World descriptor set
+		BufferPair transforms; //for the Transform descriptor set
 	};
 	std::vector< Workspace > workspaces;
 

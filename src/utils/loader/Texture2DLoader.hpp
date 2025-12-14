@@ -33,6 +33,6 @@ std::shared_ptr<Texture> create_rgb_texture(
     VkFilter filter = VK_FILTER_LINEAR
 );
 
-void destroy_texture(const std::shared_ptr<Texture> &texture, RTG& rtg);
+void destroy(const std::shared_ptr<Texture> &texture, RTG& rtg);
 
 } // namespace Texture2DLoader

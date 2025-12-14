@@ -334,7 +334,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
 	}
 
 	// init camera
-	camera_manager.initialize_cameras(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.initialize(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
 
 A1::~A1() {
@@ -353,7 +353,7 @@ A1::~A1() {
 	}
 
 	for(auto &texture : textures) {
-		Texture2DLoader::destroy_texture(texture, rtg);
+		Texture2DLoader::destroy(texture, rtg);
 	}
 	textures.clear();
 

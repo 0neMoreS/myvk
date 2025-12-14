@@ -3,6 +3,7 @@
 #include "RTG.hpp"
 #include "Helpers.hpp"
 #include "VK.hpp"
+#include "Pipeline.hpp"
 
 class WorkspaceManager {
     public:
@@ -20,24 +21,25 @@ class WorkspaceManager {
             WorkspaceManager &manager;
 
             Workspace(WorkspaceManager &manager) : manager(manager) {}
-            ~Workspace();
+            ~Workspace() = default;
 
-            void initialize_buffer_pair(VkDeviceSize buffer_size, VkDescriptorSetLayout descriptor_set_layout);
-            void update_buffer_pair(uint32_t index);
+            void create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs);
+            void destroy(RTG& rtg);
+
+            void update_buffer_pair(RTG& rtg, uint32_t index);
         };
+        
+        WorkspaceManager() = default;
+        ~WorkspaceManager() = default;
 
-        WorkspaceManager(RTG &rtg, VkCommandPool command_pool, VkDescriptorPool descriptor_pool, size_t size) : rtg(rtg), command_pool(command_pool), descriptor_pool(descriptor_pool) {
-            for(size_t i = 0; i < size; ++i){
-                workspaces.push_back(Workspace(*this));
-            }
-        }
+        void create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t num_workspaces);  
+        void destroy(RTG& rtg);
 
-        ~WorkspaceManager();
+        void update_workspace_buffer_pairs(RTG& rtg, uint32_t index);
 
         std::vector<Workspace> workspaces;
     
     private:
-        RTG &rtg; //for buffer creation.
         VkCommandPool command_pool = VK_NULL_HANDLE; //for command buffers; reset at the start of every render.
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE; //for descriptor sets; reset at the start of every render.
 };

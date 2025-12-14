@@ -11,6 +11,7 @@
 #include "Texture2DLoader.hpp"
 #include "CameraManager.hpp"
 #include "WorkspaceManager.hpp"
+#include "Pipeline.hpp"
 #include "VK.hpp"
 
 #include "RTG.hpp"
@@ -27,8 +28,10 @@ struct A1 : RTG::Application {
 	//kept for use in destructor:
 	RTG &rtg;
 	std::shared_ptr<S72Loader::Document> doc;
-	const std::string s72_dir = "./external/s72/examples/";
 	CameraManager camera_manager;
+	WorkspaceManager workspace_manager;
+
+	const std::string s72_dir = "./external/s72/examples/";
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -40,7 +43,7 @@ struct A1 : RTG::Application {
 
 	//Pipelines:
 
-	struct ObjectsPipeline {
+	struct ObjectsPipeline : Pipeline {
 		//descriptor set layouts:
 		
 		VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
@@ -66,35 +69,9 @@ struct A1 : RTG::Application {
 		static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
 
 		//no push constants
-
-		VkPipelineLayout layout = VK_NULL_HANDLE;
-			
-		VkPipeline handle = VK_NULL_HANDLE;
-
-		void create(RTG &, VkRenderPass render_pass, uint32_t subpass);
-		void destroy(RTG &);
+		void create(RTG &, VkRenderPass render_pass, uint32_t subpass) override;
+		void destroy(RTG &) override;
 	} objects_pipeline;
-
-	//pools from which per-workspace things are allocated:
-	VkCommandPool command_pool = VK_NULL_HANDLE;
-	VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-	
-	//STEPX: Add descriptor pool here.
-
-	//workspaces hold per-render resources:
-	struct Workspace {
-		VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
-
-		struct BufferPair{
-			Helpers::AllocatedBuffer host; //host coherent; mapped
-			Helpers::AllocatedBuffer device; //device-local
-			VkDescriptorSet descriptor; //references World
-		};
-
-		BufferPair world; //for the World descriptor set
-		BufferPair transforms; //for the Transform descriptor set
-	};
-	std::vector< Workspace > workspaces;
 
 	//-------------------------------------------------------------------
 	//static scene resources:

@@ -16,8 +16,7 @@
 A1::A1(RTG &rtg_) : A1(rtg_, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
-	doc = S72Loader::load_file(s72_dir + filename);
+A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, doc{S72Loader::load_file(s72_dir + filename)}, camera_manager{}, workspace_manager{rtg, objects_pipeline.descriptor_types} {
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -105,119 +104,11 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg(rtg_) {
 		VK( vkCreateRenderPass(rtg.device, &create_info, nullptr, &render_pass) );
 	}
 
-	{ //create command pool
-		VkCommandPoolCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-			.queueFamilyIndex = rtg.graphics_queue_family.value(),
-		};
-		VK( vkCreateCommandPool(rtg.device, &create_info, nullptr, &command_pool) );
-	}
-
 	objects_pipeline.create(rtg, render_pass, 0);
 
-	{ //create descriptor pool:
-		uint32_t per_workspace = uint32_t(rtg.workspaces.size()); //for easier-to-read counting
-
-		std::array< VkDescriptorPoolSize, 2> pool_sizes{
-			VkDescriptorPoolSize{
-				.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount = 2 * per_workspace, //one descriptor per set, one set per workspace
-			},
-			VkDescriptorPoolSize{
-				.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1 * per_workspace, //one descriptor per set, one set per workspace
-			},
-		};
-		
-		VkDescriptorPoolCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-			.flags = 0, //because CREATE_FREE_DESCRIPTOR_SET_BIT isn't included, *can't* free individual descriptors allocated from this pool
-			.maxSets = 3 * per_workspace, //one set per workspace
-			.poolSizeCount = uint32_t(pool_sizes.size()),
-			.pPoolSizes = pool_sizes.data(),
-		};
-
-		VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &descriptor_pool) );
-	}
-
-	workspaces.resize(rtg.workspaces.size());
-	for (Workspace &workspace : workspaces) {
-		{ //allocate command buffer:
-			VkCommandBufferAllocateInfo alloc_info{
-				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-				.commandPool = command_pool,
-				.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-				.commandBufferCount = 1,
-			};
-			VK( vkAllocateCommandBuffers(rtg.device, &alloc_info, &workspace.command_buffer) );
-		}
-
-		workspace.World_src = rtg.helpers.create_buffer(
-			sizeof(ObjectsPipeline::World),
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			Helpers::Mapped
-		);
-		workspace.World = rtg.helpers.create_buffer(
-			sizeof(ObjectsPipeline::World),
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped
-		);
-
-		{ //allocate descriptor set for World descriptor
-			VkDescriptorSetAllocateInfo alloc_info{
-				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-				.descriptorPool = descriptor_pool,
-				.descriptorSetCount = 1,
-				.pSetLayouts = &objects_pipeline.set0_World,
-			};
-
-			VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &workspace.World_descriptors) );
-			//NOTE: will actually fill in this descriptor set just a bit lower
-		}
-
-		{ //allocate descriptor set for Transforms descriptor
-			VkDescriptorSetAllocateInfo alloc_info{
-				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-				.descriptorPool = descriptor_pool,
-				.descriptorSetCount = 1,
-				.pSetLayouts = &objects_pipeline.set1_Transforms,
-			};
-
-			VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &workspace.Transforms_descriptors) );
-			//NOTE: will fill in this descriptor set in render when buffers are [re-]allocated
-		}
-
-		{ //point descriptor to World buffer:
-			VkDescriptorBufferInfo World_info{
-				.buffer = workspace.World.handle,
-				.offset = 0,
-				.range = workspace.World.size,
-			};
-
-			std::array< VkWriteDescriptorSet, 1 > writes{
-				VkWriteDescriptorSet{
-					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = workspace.World_descriptors,
-					.dstBinding = 0,
-					.dstArrayElement = 0,
-					.descriptorCount = 1,
-					.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-					.pBufferInfo = &World_info,
-				},
-			};
-
-			vkUpdateDescriptorSets(
-				rtg.device, //device
-				uint32_t(writes.size()), //descriptorWriteCount
-				writes.data(), //pDescriptorWrites
-				0, //descriptorCopyCount
-				nullptr //pDescriptorCopies
-			);
-		}
-	}
+	// create workspace
+	workspace_manager.create(rtg, objects_pipeline.descriptor_configs, uint32_t(objects_pipeline.descriptor_configs.size()));
+	workspace_manager.update_workspace_buffer_pairs(rtg, 0);
 
 	{ //create object vertices
 		std::vector< uint8_t > all_vertices;
@@ -363,42 +254,9 @@ A1::~A1() {
 		destroy_framebuffers();
 	}
 
-	for (Workspace &workspace : workspaces) {
-		if (workspace.command_buffer != VK_NULL_HANDLE) {
-			vkFreeCommandBuffers(rtg.device, command_pool, 1, &workspace.command_buffer);
-			workspace.command_buffer = VK_NULL_HANDLE;
-		}
-
-		if (workspace.World_src.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.World_src));
-		}
-		if (workspace.World.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.World));
-		}
-		//World_descriptors freed when pool is destroyed.
-
-		if (workspace.Transforms_src.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.Transforms_src));
-		}
-		if (workspace.Transforms.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.Transforms));
-		}
-		//Transforms_descriptors freed when pool is destroyed.
-	}
-	workspaces.clear();
-
-	if (descriptor_pool) {
-		vkDestroyDescriptorPool(rtg.device, descriptor_pool, nullptr);
-		descriptor_pool = nullptr;
-		//(this also frees the descriptor sets allocated from the pool)
-	}
-
 	objects_pipeline.destroy(rtg);
 
-	if (command_pool != VK_NULL_HANDLE) {
-		vkDestroyCommandPool(rtg.device, command_pool, nullptr);
-		command_pool = VK_NULL_HANDLE;
-	}
+	workspace_manager.destroy(rtg);
 
 	if (render_pass != VK_NULL_HANDLE) {
 		vkDestroyRenderPass(rtg.device, render_pass, nullptr);
@@ -481,11 +339,11 @@ void A1::destroy_framebuffers() {
 void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	//assert that parameters are valid:
 	assert(&rtg == &rtg_);
-	assert(render_params.workspace_index < workspaces.size());
+	assert(render_params.workspace_index < workspace_manager.workspaces.size());
 	assert(render_params.image_index < swapchain_framebuffers.size());
 
 	//get more convenient names for the current workspace and target framebuffer:
-	Workspace &workspace = workspaces[render_params.workspace_index];
+	WorkspaceManager::Workspace &workspace = workspace_manager.workspaces[render_params.workspace_index];
 	VkFramebuffer framebuffer = swapchain_framebuffers[render_params.image_index];
 
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
@@ -658,8 +516,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						{ //bind Transforms descriptor set:
 							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.World_descriptors, //0: World
-								workspace.Transforms_descriptors, //1: Transforms
+								workspace.buffer_pairs[0].descriptor, //0: World
+								workspace.buffer_pairs[1].descriptor, //1: Transforms
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer

@@ -5,6 +5,8 @@
 #include "VK.hpp"
 #include "Pipeline.hpp"
 
+#include <iostream>
+
 class WorkspaceManager {
     private:
         VkCommandPool command_pool = VK_NULL_HANDLE; //for command buffers; reset at the start of every render.
@@ -21,6 +23,7 @@ class WorkspaceManager {
                 VkDescriptorSet descriptor; //references World
 
                 BufferPair() = default;
+                ~BufferPair();
                 BufferPair(BufferPair&& other) noexcept;
                 BufferPair& operator=(BufferPair&& other) noexcept;
             };
@@ -35,13 +38,13 @@ class WorkspaceManager {
             void update_descriptor(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
 
             Workspace(WorkspaceManager &manager) : manager(&manager) {}
-            ~Workspace() = default;
+            ~Workspace();
             Workspace(Workspace&& other) noexcept;
             Workspace& operator=(Workspace&& other) noexcept;
         };
 
         WorkspaceManager() = default;
-        ~WorkspaceManager() = default;
+        ~WorkspaceManager();
 
         void create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t num_workspaces);  
         void destroy(RTG& rtg);

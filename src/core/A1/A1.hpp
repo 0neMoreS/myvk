@@ -11,6 +11,7 @@
 #include "Texture2DLoader.hpp"
 #include "CameraManager.hpp"
 #include "WorkspaceManager.hpp"
+#include "RenderPassManager.hpp"
 #include "Pipeline.hpp"
 #include "VK.hpp"
 
@@ -30,16 +31,12 @@ struct A1 : RTG::Application {
 	std::shared_ptr<S72Loader::Document> doc;
 	CameraManager camera_manager;
 	WorkspaceManager workspace_manager;
+	RenderPassManager render_pass_manager;
 
 	const std::string s72_dir = "./external/s72/examples/";
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
-
-	//chosen format for depth buffer:
-	VkFormat depth_format;
-	//Render passes describe how pipelines write to images:
-	VkRenderPass render_pass = VK_NULL_HANDLE;
 
 	//Pipelines:
 

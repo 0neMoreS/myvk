@@ -5,7 +5,6 @@ const std::unordered_map<VkDescriptorType, VkBufferUsageFlagBits> WorkspaceManag
     {VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT}
 }};
 
-// Move constructor
 WorkspaceManager::Workspace::BufferPair::BufferPair(BufferPair&& other) noexcept
     : host(std::move(other.host)),
     device(std::move(other.device)),
@@ -13,7 +12,6 @@ WorkspaceManager::Workspace::BufferPair::BufferPair(BufferPair&& other) noexcept
     other.descriptor = VK_NULL_HANDLE;
 }
 
-// Move assignment
 WorkspaceManager::Workspace::BufferPair& WorkspaceManager::Workspace::BufferPair::operator=(BufferPair&& other) noexcept {
     if (this != &other) {
         host = std::move(other.host);
@@ -24,7 +22,12 @@ WorkspaceManager::Workspace::BufferPair& WorkspaceManager::Workspace::BufferPair
     return *this;
 }
 
-// movable (constructor only; assignment deleted due to reference member)
+WorkspaceManager::Workspace::BufferPair::~BufferPair() {
+    if (descriptor != VK_NULL_HANDLE) {
+        std::cerr << "[WorkspaceManager] Descriptor not properly destroyed" << std::endl;
+    }
+}
+
 WorkspaceManager::Workspace::Workspace(Workspace&& other) noexcept
     : command_buffer(std::move(other.command_buffer)),
         buffer_pairs(std::move(other.buffer_pairs)),
@@ -42,6 +45,12 @@ WorkspaceManager::Workspace& WorkspaceManager::Workspace::operator=(Workspace&& 
     }
     return *this;
 };
+
+WorkspaceManager::Workspace::~Workspace() {
+    if (command_buffer != VK_NULL_HANDLE) {
+        std::cerr << "[WorkspaceManager] command_buffer not properly destroyed" << std::endl;
+    }
+}
 
 void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs) {
     { // allocate one command buffer per workspace
@@ -150,6 +159,12 @@ void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, std::vector<DescriptorCo
             .size = size,
         };
     vkCmdCopyBuffer(command_buffer, buffer_pair.host.handle, buffer_pair.device.handle, 1, &copy_region);
+}
+
+WorkspaceManager::~WorkspaceManager() {
+    if(command_pool != VK_NULL_HANDLE || descriptor_pool != VK_NULL_HANDLE) {
+        std::cerr << "[WorkspaceManager] command_pool or descriptor_pool not properly destroyed" << std::endl;
+    }
 }
 
 void WorkspaceManager::create(RTG &rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t num_workspaces) {

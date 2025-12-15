@@ -16,7 +16,8 @@
 A1::A1(RTG &rtg_) : A1(rtg_, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, doc{S72Loader::load_file(s72_dir + filename)}, camera_manager{}, workspace_manager{} {
+A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, camera_manager{}, workspace_manager{} {
+	doc = S72Loader::load_file(s72_dir + filename);
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(

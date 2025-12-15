@@ -20,31 +20,13 @@ class WorkspaceManager {
                 Helpers::AllocatedBuffer device; //device-local
                 VkDescriptorSet descriptor; //references World
 
-                // Default constructor
                 BufferPair() = default;
-
-                // Move constructor
-                BufferPair(BufferPair&& other) noexcept
-                    : host(std::move(other.host)),
-                    device(std::move(other.device)),
-                    descriptor(other.descriptor) {
-                    other.descriptor = VK_NULL_HANDLE;
-                }
-
-                // Move assignment
-                BufferPair& operator=(BufferPair&& other) noexcept {
-                    if (this != &other) {
-                        host = std::move(other.host);
-                        device = std::move(other.device);
-                        descriptor = other.descriptor;
-                        other.descriptor = VK_NULL_HANDLE;
-                    }
-                    return *this;
-                }
+                BufferPair(BufferPair&& other) noexcept;
+                BufferPair& operator=(BufferPair&& other) noexcept;
             };
 
             std::vector<BufferPair> buffer_pairs;
-            WorkspaceManager &manager;
+            WorkspaceManager *manager = nullptr;
 
             void create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs);
             void destroy(RTG& rtg);
@@ -52,17 +34,10 @@ class WorkspaceManager {
             void copy_buffer(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
             void update_descriptor(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
 
-            Workspace(WorkspaceManager &manager) : manager(manager) {}
+            Workspace(WorkspaceManager &manager) : manager(&manager) {}
             ~Workspace() = default;
-
-            // movable (constructor only; assignment deleted due to reference member)
-            Workspace(Workspace&& other) noexcept
-                : command_buffer(other.command_buffer),
-                  buffer_pairs(std::move(other.buffer_pairs)),
-                  manager(other.manager) {
-                other.command_buffer = VK_NULL_HANDLE;
-            }
-            Workspace& operator=(Workspace&& other) noexcept = delete;
+            Workspace(Workspace&& other) noexcept;
+            Workspace& operator=(Workspace&& other) noexcept;
         };
 
         WorkspaceManager() = default;
@@ -75,4 +50,6 @@ class WorkspaceManager {
         void update_all_descriptors(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
 
         std::vector<Workspace> workspaces;
+
+        static const std::unordered_map<VkDescriptorType, VkBufferUsageFlagBits> descriptor_type_to_buffer_usage;
 };

@@ -1,10 +1,53 @@
 #include "WorkspaceManager.hpp"
 
+const std::unordered_map<VkDescriptorType, VkBufferUsageFlagBits> WorkspaceManager::descriptor_type_to_buffer_usage{{
+    {VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VkBufferUsageFlagBits::VK_BUFFER_USAGE_STORAGE_BUFFER_BIT},
+    {VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT}
+}};
+
+// Move constructor
+WorkspaceManager::Workspace::BufferPair::BufferPair(BufferPair&& other) noexcept
+    : host(std::move(other.host)),
+    device(std::move(other.device)),
+    descriptor(std::move(other.descriptor)) {
+    other.descriptor = VK_NULL_HANDLE;
+}
+
+// Move assignment
+WorkspaceManager::Workspace::BufferPair& WorkspaceManager::Workspace::BufferPair::operator=(BufferPair&& other) noexcept {
+    if (this != &other) {
+        host = std::move(other.host);
+        device = std::move(other.device);
+        descriptor = std::move(other.descriptor);
+        other.descriptor = VK_NULL_HANDLE;
+    }
+    return *this;
+}
+
+// movable (constructor only; assignment deleted due to reference member)
+WorkspaceManager::Workspace::Workspace(Workspace&& other) noexcept
+    : command_buffer(std::move(other.command_buffer)),
+        buffer_pairs(std::move(other.buffer_pairs)),
+        manager(std::move(other.manager)) {
+    other.command_buffer = VK_NULL_HANDLE;
+}
+
+WorkspaceManager::Workspace& WorkspaceManager::Workspace::operator=(Workspace&& other) noexcept {
+    if (this != &other) {
+        command_buffer = std::move(other.command_buffer);
+        buffer_pairs = std::move(other.buffer_pairs);
+        manager = std::move(other.manager);
+        other.manager = nullptr;
+        other.command_buffer = VK_NULL_HANDLE;
+    }
+    return *this;
+};
+
 void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs) {
     { // allocate one command buffer per workspace
         VkCommandBufferAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool =  manager.command_pool,
+            .commandPool =  manager->command_pool,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .commandBufferCount = 1,
         };
@@ -21,7 +64,7 @@ void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<DescriptorConfig>
 void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     for (auto& buffer_pair : buffer_pairs) {
         if (command_buffer != VK_NULL_HANDLE) {
-			vkFreeCommandBuffers(rtg.device, manager.command_pool, 1, &command_buffer);
+			vkFreeCommandBuffers(rtg.device, manager->command_pool, 1, &command_buffer);
 			command_buffer = VK_NULL_HANDLE;
 		}
         if (buffer_pair.host.handle != VK_NULL_HANDLE) {
@@ -53,7 +96,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Descri
     );
     buffer_pair.device = rtg.helpers.create_buffer(
         size,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        WorkspaceManager::descriptor_type_to_buffer_usage.at(config.type) | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped
     );
@@ -61,7 +104,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Descri
     { //allocate descriptor set for descriptor
         VkDescriptorSetAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = manager.descriptor_pool,
+            .descriptorPool = manager->descriptor_pool,
             .descriptorSetCount = 1,
             .pSetLayouts = &config.set_layout,
         };
@@ -83,7 +126,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Descri
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorType = config.type,
                 .pBufferInfo = &buffer_info,
             },
         };

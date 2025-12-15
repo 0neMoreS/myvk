@@ -65,6 +65,7 @@ const main_objs = [
 	maek.CPP('./src/utils/manager/CameraManager.cpp'),
 	maek.CPP('./src/utils/manager/RenderPassManager.cpp'),
 	maek.CPP('./src/utils/manager/SceneManager.cpp'),
+	maek.CPP('./src/utils/manager/TextureManager.cpp'),
 	maek.CPP('./src/utils/manager/WorkspaceManager.cpp'),
 	maek.CPP('./src/utils/vulkan/RTG.cpp'),
 	maek.CPP('./src/utils/vulkan/Helpers.cpp'),

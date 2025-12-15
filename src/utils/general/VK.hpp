@@ -49,3 +49,10 @@ static const glm::mat4 VULKAN_TO_BLENDER_4 = glm::mat4(
 
 static std::string s72_dir = "./external/s72/examples/";
 
+enum TextureSlot {
+        Diffuse = 0,
+        Normal = 1,
+        Roughness = 2,
+        Metallic = 3
+};
+

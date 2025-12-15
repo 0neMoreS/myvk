@@ -40,7 +40,7 @@ WorkspaceManager::Workspace& WorkspaceManager::Workspace::operator=(Workspace&& 
     return *this;
 };
 
-void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs) {
+void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs) {
     { // allocate one command buffer per workspace
         VkCommandBufferAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -74,7 +74,7 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     }
 }
 
-void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
+void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
     auto& buffer_pair = buffer_pairs[index];
     auto& config = pipeline_configs[index];
 
@@ -104,7 +104,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Descri
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = manager->descriptor_pool,
             .descriptorSetCount = 1,
-            .pSetLayouts = &config.set_layout,
+            .pSetLayouts = &config.layout,
         };
 
         VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &buffer_pair.descriptor) );
@@ -139,7 +139,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, std::vector<Descri
     }
 }
 
-void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size){
+void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size){
     auto &buffer_pair = buffer_pairs[index];
 
     VkBufferCopy copy_region{
@@ -185,7 +185,7 @@ WorkspaceManager::~WorkspaceManager() {
     }
 }
 
-void WorkspaceManager::create(RTG &rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t num_workspaces) {
+void WorkspaceManager::create(RTG &rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs, uint32_t num_workspaces) {
     { //create command pool
 		VkCommandPoolCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -243,13 +243,13 @@ void WorkspaceManager::destroy(RTG &rtg) {
     }
 }
 
-void WorkspaceManager::update_all_descriptors(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
+void WorkspaceManager::update_all_descriptors(RTG& rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
         workspace.update_descriptor(rtg, pipeline_configs, index, size);
     }
 }
 
-void WorkspaceManager::copy_all_buffers(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
+void WorkspaceManager::copy_all_buffers(RTG& rtg, std::vector<Pipeline::BlockDescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
         workspace.copy_buffer(rtg, pipeline_configs, index, size);
     }

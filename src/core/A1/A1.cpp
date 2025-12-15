@@ -22,97 +22,21 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	camera_manager{}, 
 	workspace_manager{}, 
 	render_pass_manager{}, 
+	objects_pipeline{},
 	scene_manager{},
-	objects_pipeline{}
+	texture_manager{}
 {
 	render_pass_manager.create(rtg);
 
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 
 	workspace_manager.create(rtg, objects_pipeline.block_descriptor_configs, uint32_t(objects_pipeline.block_descriptor_configs.size()));
-	workspace_manager.update_all_descriptors(rtg, objects_pipeline.block_descriptor_configs, 0, objects_pipeline.block_descriptor_configs[0].size);
+	workspace_manager.update_all_descriptors(rtg, objects_pipeline.block_descriptor_configs, 0, sizeof(world));
 
 	scene_manager.create(rtg, doc);
 
-	{ // make some textures
-		textures.reserve(doc->materials.size());
-		for(const auto &material : doc->materials) {
-			if(material.lambertian.has_value()) {
-				if(material.lambertian.value().albedo_texture.has_value()){
-					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
-					// TODO: handle other types and other formats of textures
-					std::string texture_path = s72_dir + texture.src;
-					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
-					textures.emplace_back(Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR));
-				}
-				else if(material.lambertian.value().albedo_value.has_value()) {
-					textures.emplace_back(Texture2DLoader::create_rgb_texture(rtg.helpers, material.lambertian.value().albedo_value.value()));
-				}
-			}
-		}
-	}
-		
-	{ // create the texture descriptor pool
-		uint32_t per_texture = uint32_t(textures.size()); //for easier-to-read counting
+	texture_manager.create(rtg, doc, objects_pipeline.texture_descriptor_configs);
 
-		std::array< VkDescriptorPoolSize, 1> pool_sizes{
-			VkDescriptorPoolSize{
-				.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.descriptorCount = 1 * 1 * per_texture, //one descriptor per set, one set per texture
-			},
-		};
-		
-		VkDescriptorPoolCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-			.flags = 0, //because CREATE_FREE_DESCRIPTOR_SET_BIT isn't included, *can't* free individual descriptors allocated from this pool
-			.maxSets = 1 * per_texture, //one set per texture
-			.poolSizeCount = uint32_t(pool_sizes.size()),
-			.pPoolSizes = pool_sizes.data(),
-		};
-
-		VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &texture_descriptor_pool) );
-	}
-
-	{ //allocate and write the texture descriptor sets
-
-		//allocate the descriptors (using the same alloc_info):
-		VkDescriptorSetAllocateInfo alloc_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = texture_descriptor_pool,
-			.descriptorSetCount = 1,
-			.pSetLayouts = &objects_pipeline.set2_TEXTURE,
-		};
-		texture_descriptors.assign(textures.size(), VK_NULL_HANDLE);
-		for (VkDescriptorSet &descriptor_set : texture_descriptors) {
-			VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &descriptor_set) );
-		}
-
-		std::vector< VkDescriptorImageInfo > infos(textures.size());
-		std::vector< VkWriteDescriptorSet > writes(textures.size());
-
-		for (auto const &texture : textures) {
-			size_t i = &texture - &textures[0];
-			
-			infos[i] = VkDescriptorImageInfo{
-				.sampler = texture->sampler,
-				.imageView = texture->image_view,
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			};
-			writes[i] = VkWriteDescriptorSet{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = texture_descriptors[i],
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &infos[i],
-			};
-		}
-
-		vkUpdateDescriptorSets( rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr );
-	}
-
-	// init camera
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
 
@@ -123,18 +47,7 @@ A1::~A1() {
 		std::cerr << "Failed to vkDeviceWaitIdle in A1::~A1 [" << string_VkResult(result) << "]; continuing anyway." << std::endl;
 	}
 
-	if (texture_descriptor_pool) {
-		vkDestroyDescriptorPool(rtg.device, texture_descriptor_pool, nullptr);
-		texture_descriptor_pool = nullptr;
-
-		//this also frees the descriptor sets allocated from the pool:
-		texture_descriptors.clear();
-	}
-
-	for(auto &texture : textures) {
-		Texture2DLoader::destroy(texture, rtg);
-	}
-	textures.clear();
+	texture_manager.destroy(rtg);
 
 	scene_manager.destroy(rtg);
 
@@ -367,7 +280,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 								objects_pipeline.layout, //pipeline layout
 								2, //second set
-								1, &texture_descriptors[inst.texture], //descriptor sets count, ptr
+								1, &texture_manager.descriptor_sets[0][inst.texture], //descriptor sets count, ptr //TODO
 								0, nullptr //dynamic offsets count, ptr
 							);
 

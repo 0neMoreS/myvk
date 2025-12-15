@@ -45,13 +45,6 @@ struct A1 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	// std::vector< std::shared_ptr<Texture2DLoader::Texture> > textures;
-	// std::vector< Helpers::AllocatedImage > textures;
-	// std::vector< VkImageView > texture_views;
-	// VkSampler texture_sampler = VK_NULL_HANDLE;
-	// VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
-	// std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote
-
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
 

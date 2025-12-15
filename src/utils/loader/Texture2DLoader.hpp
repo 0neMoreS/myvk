@@ -12,6 +12,9 @@ struct Texture {
 	Helpers::AllocatedImage image;
 	VkImageView image_view = VK_NULL_HANDLE;
 	VkSampler sampler = VK_NULL_HANDLE;
+
+	Texture() = default;
+	~Texture();
 };
 
 std::shared_ptr<Texture> load_png(

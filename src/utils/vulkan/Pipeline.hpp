@@ -2,21 +2,28 @@
 
 #include <vector>
 #include <vulkan/vulkan.h>
-
-struct DescriptorConfig
-{
-    VkDescriptorType type;
-    VkDescriptorSetLayout set_layout;
-    VkDeviceSize size;
-};
+#include "VK.hpp"
 
 
 struct Pipeline
 {
-    std::vector<DescriptorConfig> block_descriptor_configs{};
-    std::vector<VkDescriptorSetLayout> texture_descriptor_layouts{};
+    struct BlockDescriptorConfig
+    {
+        VkDescriptorType type;
+        VkDescriptorSetLayout layout;
+    };
+
+    struct TextureDescriptorConfig 
+    {
+        TextureSlot slot;  // TextureManager::TextureSlot
+        VkDescriptorSetLayout layout;
+    };
+
     VkPipelineLayout layout = VK_NULL_HANDLE;	
     VkPipeline pipeline = VK_NULL_HANDLE;
+
+    std::vector<BlockDescriptorConfig> block_descriptor_configs{};
+    std::vector<TextureDescriptorConfig> texture_descriptor_configs{};  // mapping texture slots to layouts
 
     virtual void create(class RTG &, VkRenderPass render_pass, uint32_t subpass) = 0;
     virtual void destroy(class RTG &) = 0;

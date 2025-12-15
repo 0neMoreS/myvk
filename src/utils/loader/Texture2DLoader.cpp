@@ -212,4 +212,10 @@ void destroy(const std::shared_ptr<Texture> &texture, RTG& rtg) {
 	}
 }
 
+Texture::~Texture() {
+	if (sampler != VK_NULL_HANDLE || image_view != VK_NULL_HANDLE) {
+		std::cerr << "[Texture2DLoader] Texture destructor called without destroy() being called" << std::endl;
+	}
+}
+
 } // namespace Texture2DLoader

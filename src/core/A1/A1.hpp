@@ -6,13 +6,12 @@
 
 #include <cmath>
 
-#include "Vertex.hpp"
 #include "S72Loader.hpp"
 #include "Texture2DLoader.hpp"
 #include "CameraManager.hpp"
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
-#include "Pipeline.hpp"
+#include "A1ObjectsPipeline.hpp"
 #include "VK.hpp"
 
 #include "RTG.hpp"
@@ -33,42 +32,12 @@ struct A1 : RTG::Application {
 	WorkspaceManager workspace_manager;
 	RenderPassManager render_pass_manager;
 
-	const std::string s72_dir = "./external/s72/examples/";
+	static constexpr std::string_view s72_dir = "./external/s72/examples/";
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
 
-	//Pipelines:
-
-	struct ObjectsPipeline : Pipeline {
-		//descriptor set layouts:
-		
-		VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
-		VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
-		VkDescriptorSetLayout set2_TEXTURE = VK_NULL_HANDLE;
-
-		//types for descriptors:
-		struct World {
-			struct { float x, y, z, padding_; } SKY_DIRECTION;
-			struct { float r, g, b, padding_; } SKY_ENERGY;
-			struct { float x, y, z, padding_; } SUN_DIRECTION;
-			struct { float r, g, b, padding_; } SUN_ENERGY;
-		};
-		static_assert(sizeof(World) == 4*4 + 4*4 + 4*4 + 4*4, "World is the expected size.");
-
-		//types for descriptors:
-		struct Transform {
-			glm::mat4 PERSPECTIVE;
-			glm::mat4 VIEW;
-			glm::mat4 MODEL;
-			glm::mat4 MODEL_NORMAL;
-		};
-		static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
-
-		//no push constants
-		void create(RTG &, VkRenderPass render_pass, uint32_t subpass) override;
-		void destroy(RTG &) override;
-	} objects_pipeline;
+	A1ObjectsPipeline objects_pipeline;
 
 	//-------------------------------------------------------------------
 	//static scene resources:
@@ -106,11 +75,11 @@ struct A1 : RTG::Application {
 
 	float time = 0.0f;
 
-	ObjectsPipeline::World world;
+	A1ObjectsPipeline::World world;
 
 	struct ObjectInstance {
 		ObjectVertices vertices;
-		ObjectsPipeline::Transform transform;
+		A1ObjectsPipeline::Transform transform;
 		size_t texture = 0;
 	};
 	std::vector< ObjectInstance > object_instances;

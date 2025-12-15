@@ -1,4 +1,4 @@
-#include "A1.hpp"
+#include "A1ObjectsPipeline.hpp"
 
 #include "Helpers.hpp"
 #include "VK.hpp"
@@ -11,7 +11,13 @@ static uint32_t frag_code[] = {
 #include "../../shaders/spv/A1-load.frag.inl"
 };
 
-void A1::ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
+A1ObjectsPipeline::~A1ObjectsPipeline(){
+	if(set0_World != VK_NULL_HANDLE || set1_Transforms != VK_NULL_HANDLE || set2_TEXTURE != VK_NULL_HANDLE || layout != VK_NULL_HANDLE || pipeline != VK_NULL_HANDLE){
+		std::cerr << "[A1ObjectsPipeline] A1ObjectsPipeline destructor called, but some Vulkan objects are still allocated.\n";
+	}
+}
+
+void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
 	VkShaderModule vert_module = rtg.helpers.create_shader_module(vert_code);
 	VkShaderModule frag_module = rtg.helpers.create_shader_module(frag_code);
 
@@ -195,7 +201,7 @@ void A1::ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t su
 			.subpass = subpass,
 		};
 
-		VK( vkCreateGraphicsPipelines(rtg.device, VK_NULL_HANDLE, 1, &create_info, nullptr, &handle) );
+		VK( vkCreateGraphicsPipelines(rtg.device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) );
 
 		vkDestroyShaderModule(rtg.device, frag_module, nullptr);
 		vkDestroyShaderModule(rtg.device, vert_module, nullptr);
@@ -205,7 +211,7 @@ void A1::ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t su
 	descriptor_configs.push_back(DescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .set_layout = set1_Transforms, .size = sizeof(Transform)}); //Transform
 }
 
-void A1::ObjectsPipeline::destroy(RTG &rtg) {
+void A1ObjectsPipeline::destroy(RTG &rtg) {
 	if (set1_Transforms != VK_NULL_HANDLE) {
 		vkDestroyDescriptorSetLayout(rtg.device, set1_Transforms, nullptr);
 		set1_Transforms = VK_NULL_HANDLE;
@@ -216,9 +222,9 @@ void A1::ObjectsPipeline::destroy(RTG &rtg) {
 		layout = VK_NULL_HANDLE;
 	}
 
-	if (handle != VK_NULL_HANDLE) {
-		vkDestroyPipeline(rtg.device, handle, nullptr);
-		handle = VK_NULL_HANDLE;
+	if (pipeline != VK_NULL_HANDLE) {
+		vkDestroyPipeline(rtg.device, pipeline, nullptr);
+		pipeline = VK_NULL_HANDLE;
 	}
 
 	if (set2_TEXTURE != VK_NULL_HANDLE) {

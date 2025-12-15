@@ -13,14 +13,12 @@
 #include <cstring>
 #include <iostream>
 
-A1::A1(RTG &rtg_) : A1(rtg_, "origin-check.s72") {
+A1::A1(RTG &rtg) : A1(rtg, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, camera_manager{}, workspace_manager{}, render_pass_manager{} {
-	doc = S72Loader::load_file(s72_dir + filename);
-	
+A1::A1(RTG &rtg, const std::string &filename) : rtg{rtg}, doc{S72Loader::load_file(std::string(s72_dir) + filename)}, camera_manager{}, workspace_manager{}, render_pass_manager{}, objects_pipeline{} {
 	render_pass_manager.create(rtg);
-
+	
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 	// create workspace
 	workspace_manager.create(rtg, objects_pipeline.descriptor_configs, uint32_t(objects_pipeline.descriptor_configs.size()));
@@ -33,7 +31,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, camera_manager{}, wo
 		uint32_t vertex_offset = 0;
 		for (const auto &mesh : doc->meshes) {
 			try {
-				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(s72_dir, mesh);
+				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(std::string(s72_dir), mesh);
 				
 				ObjectVertices vertices;
 				vertices.first = vertex_offset;
@@ -69,7 +67,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, camera_manager{}, wo
 				if(material.lambertian.value().albedo_texture.has_value()){
 					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
 					// TODO: handle other types and other formats of textures
-					std::string texture_path = s72_dir + texture.src;
+					std::string texture_path = std::string(s72_dir) + texture.src;
 					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 					textures.emplace_back(Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR));
 				}
@@ -141,7 +139,7 @@ A1::A1(RTG &rtg_, const std::string &filename) : rtg{rtg_}, camera_manager{}, wo
 	}
 
 	// init camera
-	camera_manager.initialize(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
 
 A1::~A1() {
@@ -288,7 +286,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		{
 			if (!object_instances.empty()) { //upload object transforms:
-				size_t needed_bytes = object_instances.size() * sizeof(ObjectsPipeline::Transform);
+				size_t needed_bytes = object_instances.size() * sizeof(A1ObjectsPipeline::Transform);
 				if (workspace.buffer_pairs[1].host.handle == VK_NULL_HANDLE || workspace.buffer_pairs[1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
@@ -300,7 +298,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 				{ //copy transforms into Transforms_src:
 					assert(workspace.buffer_pairs[1].host.allocation.mapped);
-					ObjectsPipeline::Transform *out = reinterpret_cast< ObjectsPipeline::Transform * >(workspace.buffer_pairs[1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
+					A1ObjectsPipeline::Transform *out = reinterpret_cast< A1ObjectsPipeline::Transform * >(workspace.buffer_pairs[1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
 					for (ObjectInstance const &inst : object_instances) {
 						*out = inst.transform;
 						++out;
@@ -371,7 +369,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 				{ //draw with the objects pipeline:
 					if (!object_instances.empty()) { //draw with the objects pipeline:
-						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, objects_pipeline.handle);
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, objects_pipeline.pipeline);
 
 						{ //use object_vertices (offset 0) as vertex buffer binding 0:
 							std::array< VkBuffer, 1 > vertex_buffers{ object_vertices.handle };

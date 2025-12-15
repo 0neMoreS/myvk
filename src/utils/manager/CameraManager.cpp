@@ -4,7 +4,7 @@
 
 #include <cmath>
 
-void CameraManager::initialize(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height) {
+void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height) {
     cameras.clear();
 	for(auto &camera : doc->cameras) {
         for(auto &transform : camera.transforms) {

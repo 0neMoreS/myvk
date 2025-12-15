@@ -27,8 +27,8 @@ public:
 	CameraManager() = default;
 	~CameraManager() = default;
 
-	// Initialize cameras from S72 document
-	void initialize(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height);
+	// create cameras from S72 document
+	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height);
 
 	// Update camera state (called every frame)
 	void update(float dt, uint32_t swapchain_width, uint32_t swapchain_height);

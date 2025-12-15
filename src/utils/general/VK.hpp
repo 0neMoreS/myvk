@@ -47,3 +47,5 @@ static const glm::mat4 VULKAN_TO_BLENDER_4 = glm::mat4(
     0.0f,  0.0f,  0.0f, 1.0f
 );
 
+static std::string s72_dir = "./external/s72/examples/";
+

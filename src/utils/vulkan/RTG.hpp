@@ -13,6 +13,7 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
+#include <iostream>
 
 
 struct GLFWwindow;

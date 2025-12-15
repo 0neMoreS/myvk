@@ -10,7 +10,7 @@
 #include <iostream>
 
 struct A1ObjectsPipeline : Pipeline {
-    //descriptor set layouts:
+    // type definitions
     
     VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;

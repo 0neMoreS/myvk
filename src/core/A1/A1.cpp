@@ -16,49 +16,23 @@
 A1::A1(RTG &rtg) : A1(rtg, "origin-check.s72") {
 }
 
-A1::A1(RTG &rtg, const std::string &filename) : rtg{rtg}, doc{S72Loader::load_file(std::string(s72_dir) + filename)}, camera_manager{}, workspace_manager{}, render_pass_manager{}, objects_pipeline{} {
+A1::A1(RTG &rtg, const std::string &filename) : 
+	rtg{rtg}, 
+	doc{S72Loader::load_file(s72_dir + filename)}, 
+	camera_manager{}, 
+	workspace_manager{}, 
+	render_pass_manager{}, 
+	scene_manager{},
+	objects_pipeline{}
+{
 	render_pass_manager.create(rtg);
-	
+
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
-	// create workspace
+
 	workspace_manager.create(rtg, objects_pipeline.descriptor_configs, uint32_t(objects_pipeline.descriptor_configs.size()));
 	workspace_manager.update_all_descriptors(rtg, objects_pipeline.descriptor_configs, 0, objects_pipeline.descriptor_configs[0].size);
 
-	{ //create object vertices
-		std::vector< uint8_t > all_vertices;
-
-		// Load vertices from all meshes in the document
-		uint32_t vertex_offset = 0;
-		for (const auto &mesh : doc->meshes) {
-			try {
-				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(std::string(s72_dir), mesh);
-				
-				ObjectVertices vertices;
-				vertices.first = vertex_offset;
-				vertices.count = mesh.count;
-				object_vertices_list.push_back(vertices);
-
-				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
-				vertex_offset += mesh.count;
-			} catch (const std::exception &e) {
-				std::cerr << "Warning: Failed to load mesh '" << mesh.name << "': " << e.what() << std::endl;
-			}
-		}
-
-		size_t bytes = all_vertices.size();
-
-		if (bytes > 0) {
-			object_vertices = rtg.helpers.create_buffer(
-				bytes,
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				Helpers::Unmapped
-			);
-
-			//copy data to buffer:
-			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, object_vertices);
-		}
-	}
+	scene_manager.create(rtg, doc);
 
 	{ // make some textures
 		textures.reserve(doc->materials.size());
@@ -67,7 +41,7 @@ A1::A1(RTG &rtg, const std::string &filename) : rtg{rtg}, doc{S72Loader::load_fi
 				if(material.lambertian.value().albedo_texture.has_value()){
 					S72Loader::Texture const &texture = material.lambertian.value().albedo_texture.value();
 					// TODO: handle other types and other formats of textures
-					std::string texture_path = std::string(s72_dir) + texture.src;
+					std::string texture_path = s72_dir + texture.src;
 					// textures[mesh.material_index.value()] = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
 					textures.emplace_back(Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR));
 				}
@@ -162,7 +136,7 @@ A1::~A1() {
 	}
 	textures.clear();
 
-	rtg.helpers.destroy_buffer(std::move(object_vertices));
+	scene_manager.destroy(rtg);
 
 	if (swapchain_depth_image.handle != VK_NULL_HANDLE) {
 		destroy_framebuffers();
@@ -258,15 +232,10 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	VkFramebuffer framebuffer = swapchain_framebuffers[render_params.image_index];
 
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
-	VK( vkResetCommandBuffer(workspace.command_buffer, 0) );
+	workspace.reset_recoring();
 	
 	{ //begin recording:
-		VkCommandBufferBeginInfo begin_info{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
-		};
-		
-		VK( vkBeginCommandBuffer(workspace.command_buffer, &begin_info) );
+		workspace.begin_recording();
 
 		{ //upload world info:
 			assert(workspace.buffer_pairs[0].host.size == sizeof(world));
@@ -276,16 +245,12 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 			//add device-side copy from World_src -> World:
 			assert(workspace.buffer_pairs[0].host.size == workspace.buffer_pairs[0].device.size);
-			VkBufferCopy copy_region{
-				.srcOffset = 0,
-				.dstOffset = 0,
-				.size = workspace.buffer_pairs[0].host.size,
-			};
-			vkCmdCopyBuffer(workspace.command_buffer, workspace.buffer_pairs[0].host.handle, workspace.buffer_pairs[0].device.handle, 1, &copy_region);
+
+			workspace.copy_buffer(rtg, objects_pipeline.descriptor_configs, 0, sizeof(world));
 		}
 
-		{
-			if (!object_instances.empty()) { //upload object transforms:
+		{ //upload object transforms
+			if (!object_instances.empty()) { 
 				size_t needed_bytes = object_instances.size() * sizeof(A1ObjectsPipeline::Transform);
 				if (workspace.buffer_pairs[1].host.handle == VK_NULL_HANDLE || workspace.buffer_pairs[1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
@@ -372,7 +337,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, objects_pipeline.pipeline);
 
 						{ //use object_vertices (offset 0) as vertex buffer binding 0:
-							std::array< VkBuffer, 1 > vertex_buffers{ object_vertices.handle };
+							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
 							std::array< VkDeviceSize, 1 > offsets{ 0 };
 							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
 						}
@@ -406,7 +371,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								0, nullptr //dynamic offsets count, ptr
 							);
 
-							vkCmdDraw(workspace.command_buffer, inst.vertices.count, 1, inst.vertices.first, index);
+							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}
@@ -416,7 +381,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		}
 
 		//end recording:
-		VK( vkEndCommandBuffer(workspace.command_buffer) );
+		workspace.end_recording();
 	}
 
 	{ //submit `workspace.command buffer` for the GPU to run:
@@ -485,7 +450,7 @@ void A1::update(float dt) {
 				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
 				object_instances.emplace_back(ObjectInstance{
-					.vertices = object_vertices_list[i],
+					.object_ranges = scene_manager.object_ranges[i],
 					.transform{
 						.PERSPECTIVE = PERSPECTIVE,
 						.VIEW = VIEW,

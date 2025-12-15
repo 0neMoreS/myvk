@@ -37,6 +37,10 @@ class WorkspaceManager {
             void copy_buffer(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
             void update_descriptor(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t index, VkDeviceSize size);
 
+            void begin_recording();
+            void end_recording();
+            void reset_recoring();
+
             Workspace(WorkspaceManager &manager) : manager(&manager) {}
             ~Workspace();
             Workspace(Workspace&& other) noexcept;

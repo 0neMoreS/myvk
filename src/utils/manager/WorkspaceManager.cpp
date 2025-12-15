@@ -161,6 +161,23 @@ void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, std::vector<DescriptorCo
     vkCmdCopyBuffer(command_buffer, buffer_pair.host.handle, buffer_pair.device.handle, 1, &copy_region);
 }
 
+void WorkspaceManager::Workspace::begin_recording(){
+    VkCommandBufferBeginInfo begin_info{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
+		};
+		
+    VK( vkBeginCommandBuffer(command_buffer, &begin_info) );
+}
+
+void WorkspaceManager::Workspace::end_recording(){
+    VK( vkEndCommandBuffer(command_buffer) );
+}
+
+void WorkspaceManager::Workspace::reset_recoring(){
+    VK( vkResetCommandBuffer(command_buffer, 0) );
+}
+
 WorkspaceManager::~WorkspaceManager() {
     if(command_pool != VK_NULL_HANDLE || descriptor_pool != VK_NULL_HANDLE) {
         std::cerr << "[WorkspaceManager] command_pool or descriptor_pool not properly destroyed" << std::endl;

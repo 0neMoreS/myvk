@@ -12,6 +12,7 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "A1ObjectsPipeline.hpp"
+#include "SceneManager.hpp"
 #include "VK.hpp"
 
 #include "RTG.hpp"
@@ -31,8 +32,7 @@ struct A1 : RTG::Application {
 	CameraManager camera_manager;
 	WorkspaceManager workspace_manager;
 	RenderPassManager render_pass_manager;
-
-	static constexpr std::string_view s72_dir = "./external/s72/examples/";
+	SceneManager scene_manager;
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -42,19 +42,12 @@ struct A1 : RTG::Application {
 	//-------------------------------------------------------------------
 	//static scene resources:
 
-	Helpers::AllocatedBuffer object_vertices;
-	struct ObjectVertices {
-		uint32_t first = 0;
-		uint32_t count = 0;
-	};
-	std::vector<ObjectVertices> object_vertices_list;
-
 	std::vector< std::shared_ptr<Texture2DLoader::Texture> > textures;
 	// std::vector< Helpers::AllocatedImage > textures;
 	// std::vector< VkImageView > texture_views;
 	// VkSampler texture_sampler = VK_NULL_HANDLE;
 	VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
-	std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote, te
+	std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -78,7 +71,7 @@ struct A1 : RTG::Application {
 	A1ObjectsPipeline::World world;
 
 	struct ObjectInstance {
-		ObjectVertices vertices;
+		SceneManager::ObjectRange object_ranges;
 		A1ObjectsPipeline::Transform transform;
 		size_t texture = 0;
 	};

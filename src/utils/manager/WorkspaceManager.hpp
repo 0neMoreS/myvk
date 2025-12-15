@@ -23,7 +23,7 @@ class WorkspaceManager {
                 VkDescriptorSet descriptor; //references World
 
                 BufferPair() = default;
-                ~BufferPair();
+                ~BufferPair() = default;
                 BufferPair(BufferPair&& other) noexcept;
                 BufferPair& operator=(BufferPair&& other) noexcept;
             };
@@ -42,7 +42,7 @@ class WorkspaceManager {
             void reset_recoring();
 
             Workspace(WorkspaceManager &manager) : manager(&manager) {}
-            ~Workspace();
+            ~Workspace() = default;
             Workspace(Workspace&& other) noexcept;
             Workspace& operator=(Workspace&& other) noexcept;
         };

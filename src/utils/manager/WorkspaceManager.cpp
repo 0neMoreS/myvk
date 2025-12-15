@@ -22,12 +22,6 @@ WorkspaceManager::Workspace::BufferPair& WorkspaceManager::Workspace::BufferPair
     return *this;
 }
 
-WorkspaceManager::Workspace::BufferPair::~BufferPair() {
-    if (descriptor != VK_NULL_HANDLE) {
-        std::cerr << "[WorkspaceManager] Descriptor not properly destroyed" << std::endl;
-    }
-}
-
 WorkspaceManager::Workspace::Workspace(Workspace&& other) noexcept
     : command_buffer(std::move(other.command_buffer)),
         buffer_pairs(std::move(other.buffer_pairs)),
@@ -45,12 +39,6 @@ WorkspaceManager::Workspace& WorkspaceManager::Workspace::operator=(Workspace&& 
     }
     return *this;
 };
-
-WorkspaceManager::Workspace::~Workspace() {
-    if (command_buffer != VK_NULL_HANDLE) {
-        std::cerr << "[WorkspaceManager] command_buffer not properly destroyed" << std::endl;
-    }
-}
 
 void WorkspaceManager::Workspace::create(RTG& rtg, std::vector<DescriptorConfig> &pipeline_configs) {
     { // allocate one command buffer per workspace
@@ -82,6 +70,7 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
         if (buffer_pair.device.handle != VK_NULL_HANDLE) {
 			rtg.helpers.destroy_buffer(std::move(buffer_pair.device));
 		}
+        buffer_pair.descriptor = VK_NULL_HANDLE; // descriptor is freed when the descriptor pool is destroyed, and pool doesn't use this handle to locate descriptors
     }
 }
 
@@ -182,6 +171,18 @@ WorkspaceManager::~WorkspaceManager() {
     if(command_pool != VK_NULL_HANDLE || descriptor_pool != VK_NULL_HANDLE) {
         std::cerr << "[WorkspaceManager] command_pool or descriptor_pool not properly destroyed" << std::endl;
     }
+
+    for(auto &workspace : workspaces) {
+        if(workspace.command_buffer != VK_NULL_HANDLE) {
+            std::cerr << "[WorkspaceManager] workspace.command_buffer not properly destroyed" << std::endl;
+        }
+
+        for(auto &buffer_pair : workspace.buffer_pairs) {
+            if(buffer_pair.descriptor != VK_NULL_HANDLE) {
+                std::cerr << "[WorkspaceManager] workspace.buffer_pair.descriptor not properly destroyed" << std::endl; 
+            }
+        }
+    }
 }
 
 void WorkspaceManager::create(RTG &rtg, std::vector<DescriptorConfig> &pipeline_configs, uint32_t num_workspaces) {
@@ -230,7 +231,7 @@ void WorkspaceManager::destroy(RTG &rtg) {
     for(auto &workspace : workspaces) {
         workspace.destroy(rtg);
     }
-
+    
     if(descriptor_pool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(rtg.device, descriptor_pool, nullptr);
         descriptor_pool = VK_NULL_HANDLE;

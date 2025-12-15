@@ -207,8 +207,10 @@ void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 		vkDestroyShaderModule(rtg.device, vert_module, nullptr);
 	}
 
-	descriptor_configs.push_back(DescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER , .set_layout = set0_World, .size = sizeof(World)}); //World
-	descriptor_configs.push_back(DescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .set_layout = set1_Transforms, .size = sizeof(Transform)}); //Transform
+	block_descriptor_configs.push_back(DescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER , .set_layout = set0_World, .size = sizeof(World)}); //World
+	block_descriptor_configs.push_back(DescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .set_layout = set1_Transforms, .size = sizeof(Transform)}); //Transform
+
+	texture_descriptor_layouts.push_back(set2_TEXTURE); //TEXTURE
 }
 
 void A1ObjectsPipeline::destroy(RTG &rtg) {

@@ -29,8 +29,8 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 
-	workspace_manager.create(rtg, objects_pipeline.descriptor_configs, uint32_t(objects_pipeline.descriptor_configs.size()));
-	workspace_manager.update_all_descriptors(rtg, objects_pipeline.descriptor_configs, 0, objects_pipeline.descriptor_configs[0].size);
+	workspace_manager.create(rtg, objects_pipeline.block_descriptor_configs, uint32_t(objects_pipeline.block_descriptor_configs.size()));
+	workspace_manager.update_all_descriptors(rtg, objects_pipeline.block_descriptor_configs, 0, objects_pipeline.block_descriptor_configs[0].size);
 
 	scene_manager.create(rtg, doc);
 
@@ -246,7 +246,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			//add device-side copy from World_src -> World:
 			assert(workspace.buffer_pairs[0].host.size == workspace.buffer_pairs[0].device.size);
 
-			workspace.copy_buffer(rtg, objects_pipeline.descriptor_configs, 0, sizeof(world));
+			workspace.copy_buffer(rtg, objects_pipeline.block_descriptor_configs, 0, sizeof(world));
 		}
 
 		{ //upload object transforms
@@ -255,7 +255,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				if (workspace.buffer_pairs[1].host.handle == VK_NULL_HANDLE || workspace.buffer_pairs[1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, objects_pipeline.descriptor_configs, 1, new_bytes);
+					workspace.update_descriptor(rtg, objects_pipeline.block_descriptor_configs, 1, new_bytes);
 				}
 
 				assert(workspace.buffer_pairs[1].host.size == workspace.buffer_pairs[1].device.size);
@@ -270,7 +270,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 				}
 
-				workspace.copy_buffer(rtg, objects_pipeline.descriptor_configs, 1, needed_bytes);
+				workspace.copy_buffer(rtg, objects_pipeline.block_descriptor_configs, 1, needed_bytes);
 			}
 		}
 

@@ -13,6 +13,7 @@
 #include "RenderPassManager.hpp"
 #include "A1ObjectsPipeline.hpp"
 #include "SceneManager.hpp"
+#include "TextureManager.hpp"
 #include "VK.hpp"
 
 #include "RTG.hpp"
@@ -32,7 +33,6 @@ struct A1 : RTG::Application {
 	CameraManager camera_manager;
 	WorkspaceManager workspace_manager;
 	RenderPassManager render_pass_manager;
-	SceneManager scene_manager;
 
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
@@ -42,12 +42,15 @@ struct A1 : RTG::Application {
 	//-------------------------------------------------------------------
 	//static scene resources:
 
-	std::vector< std::shared_ptr<Texture2DLoader::Texture> > textures;
+	SceneManager scene_manager;
+	TextureManager texture_manager;
+
+	// std::vector< std::shared_ptr<Texture2DLoader::Texture> > textures;
 	// std::vector< Helpers::AllocatedImage > textures;
 	// std::vector< VkImageView > texture_views;
 	// VkSampler texture_sampler = VK_NULL_HANDLE;
-	VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
-	std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote
+	// VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
+	// std::vector< VkDescriptorSet > texture_descriptors; //allocated from texture_descriptor_pool In the code we just wrote
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:

@@ -65,7 +65,7 @@ struct A1 : RTG::Application {
 	struct ObjectInstance {
 		SceneManager::ObjectRange object_ranges;
 		A1ObjectsPipeline::Transform transform;
-		size_t texture = 0;
+		size_t material_index;
 	};
 	std::vector< ObjectInstance > object_instances;
 

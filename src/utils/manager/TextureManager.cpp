@@ -14,36 +14,35 @@ void TextureManager::destroy(RTG &rtg) {
         descriptor_pool = VK_NULL_HANDLE;
     }
 
-    for (auto &bucket : textures_by_slot) {
-        for (auto &tex : bucket) {
-            Texture2DLoader::destroy(tex, rtg);
+    for (auto &material_slots : raw_textures_by_material) {
+        for (auto &texture_opt : material_slots) {
+            if (texture_opt) {
+                Texture2DLoader::destroy(*texture_opt, rtg);
+            }
+            texture_opt.reset();
         }
-        bucket.clear();
     }
+
+    raw_textures_by_material.clear();
 }
 
 void TextureManager::create(
     RTG & rtg,
-    std::shared_ptr<S72Loader::Document> &doc,
-    const std::vector<Pipeline::TextureDescriptorConfig> &texture_descriptor_configs
+    std::shared_ptr<S72Loader::Document> &doc
 ) {
-    if (texture_descriptor_configs.empty()) return;
-
-    // clean previous data
+    // Clean previous data
     destroy(rtg);
 
-    for (auto &bucket : textures_by_slot) {
-        bucket.reserve(doc->materials.size());
-    }
+    raw_textures_by_material.resize(doc->materials.size());
 
-    auto push_texture = [&](TextureSlot slot, const std::optional<S72Loader::Texture> &texture_opt, const glm::vec3 &fallback_color) {
-        auto &bucket = textures_by_slot[slot];
+    auto push_texture = [&](size_t material_index, TextureSlot slot, const std::optional<S72Loader::Texture> &texture_opt, const glm::vec3 &fallback_color) {
+        auto &texture_element = raw_textures_by_material[material_index][slot];
         if (texture_opt.has_value()) {
             const auto &texture = texture_opt.value();
             std::string texture_path = s72_dir + texture.src;
-            bucket.emplace_back(Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR));
+            texture_element = Texture2DLoader::load_png(rtg.helpers, texture_path, VK_FILTER_LINEAR);
         } else {
-            bucket.emplace_back(Texture2DLoader::create_rgb_texture(rtg.helpers, fallback_color));
+            texture_element = Texture2DLoader::create_rgb_texture(rtg.helpers, fallback_color);
         }
     };
 
@@ -51,6 +50,7 @@ void TextureManager::create(
         // diffuse / albedo
         std::optional<S72Loader::Texture> albedo_texture;
         glm::vec3 albedo_value{1.0f, 1.0f, 1.0f};
+        size_t material_index = &material - &doc->materials[0];
 
         if (material.pbr && material.pbr->albedo_texture) {
             albedo_texture = material.pbr->albedo_texture;
@@ -64,10 +64,10 @@ void TextureManager::create(
             albedo_value = *material.lambertian->albedo_value;
         }
 
-        push_texture(TextureSlot::Diffuse, albedo_texture, albedo_value);
+        push_texture(material_index, TextureSlot::Diffuse, albedo_texture, albedo_value);
 
         // normal
-        push_texture(TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
+        push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
 
         // roughness
         std::optional<S72Loader::Texture> roughness_texture;
@@ -76,7 +76,7 @@ void TextureManager::create(
             if (material.pbr->roughness_texture) roughness_texture = material.pbr->roughness_texture;
             if (material.pbr->roughness_value) roughness_value = *material.pbr->roughness_value;
         }
-        push_texture(TextureSlot::Roughness, roughness_texture, glm::vec3(roughness_value));
+        push_texture(material_index, TextureSlot::Roughness, roughness_texture, glm::vec3(roughness_value));
 
         // metallic
         std::optional<S72Loader::Texture> metallic_texture;
@@ -85,17 +85,20 @@ void TextureManager::create(
             if (material.pbr->metalness_texture) metallic_texture = material.pbr->metalness_texture;
             if (material.pbr->metalness_value) metallic_value = *material.pbr->metalness_value;
         }
-        push_texture(TextureSlot::Metallic, metallic_texture, glm::vec3(metallic_value));
+        push_texture(material_index, TextureSlot::Metallic, metallic_texture, glm::vec3(metallic_value));
     }
 
-    // create the texture descriptor pool
+    // Create the descriptor pool based on actual textures loaded
     uint32_t total_descriptors = 0;
-    for (const auto &binding : texture_descriptor_configs) {
-        uint32_t count = static_cast<uint32_t>(textures_by_slot[binding.slot].size());
-        total_descriptors += count;
+    for (const auto &material_slots : raw_textures_by_material) {
+        for (const auto &texture_opt : material_slots) {
+            if (texture_opt) {
+                ++total_descriptors;
+            }
+        }
     }
 
-    if (total_descriptors == 0) return; // nothing to allocate
+    if (total_descriptors == 0) return; // No textures to allocate
 
     std::array<VkDescriptorPoolSize, 1> pool_sizes{
         VkDescriptorPoolSize{
@@ -104,7 +107,7 @@ void TextureManager::create(
         },
     };
 
-    VkDescriptorPoolCreateInfo create_info{
+    VkDescriptorPoolCreateInfo pool_create_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = 0,
         .maxSets = total_descriptors,
@@ -112,43 +115,65 @@ void TextureManager::create(
         .pPoolSizes = pool_sizes.data(),
     };
 
-    VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &descriptor_pool) );
+    VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &descriptor_pool) );
+}
 
-    // allocate and write the texture descriptor sets
-    descriptor_sets.resize(texture_descriptor_configs.size());
-    
+std::vector< std::array< std::optional<TextureManager::TextureBinding>, 4 > > TextureManager::build_texture_bindings(
+    RTG & rtg,
+    const std::vector<Pipeline::TextureDescriptorConfig> &texture_descriptor_configs
+) {
+    if (texture_descriptor_configs.empty()) return {};
+
+    std::vector< std::array< std::optional<TextureBinding>, 4 > > result(raw_textures_by_material.size());
+
+    if (descriptor_pool == VK_NULL_HANDLE) return result;
+
+
+    // Allocate and write the texture descriptor sets
     for (size_t i = 0; i < texture_descriptor_configs.size(); ++i) {
-        const auto &binding = texture_descriptor_configs[i];
-        const auto &bucket = textures_by_slot[binding.slot];
+        const auto &config = texture_descriptor_configs[i];
 
-        if (bucket.empty()) continue;
+        std::vector<TextureBinding*> bindings{}; // actual needed bindings
+        bindings.reserve(result.size());
+
+        for(auto &bucket : raw_textures_by_material){
+            const size_t material_index = &bucket - &raw_textures_by_material[0];
+            auto &texture = bucket[static_cast<size_t>(config.slot)];
+            if(texture){
+                TextureBinding binding{
+                    .texture = *texture,
+                    .descriptor_set = VK_NULL_HANDLE,
+                };
+                result[material_index][static_cast<size_t>(config.slot)] = binding;
+                bindings.push_back(&(*result[material_index][static_cast<size_t>(config.slot)]));
+            }
+        }
+
+        if (bindings.empty()) continue;
 
         VkDescriptorSetAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = descriptor_pool,
             .descriptorSetCount = 1,
-            .pSetLayouts = &binding.layout,
+            .pSetLayouts = &config.layout,
         };
 
-        descriptor_sets[i].assign(bucket.size(), VK_NULL_HANDLE);
-        for (VkDescriptorSet &descriptor_set : descriptor_sets[i]) {
-            VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &descriptor_set) );
-        }
+        std::vector< VkDescriptorImageInfo > infos(bindings.size());
+        std::vector< VkWriteDescriptorSet > writes(bindings.size());
 
-        std::vector< VkDescriptorImageInfo > infos(bucket.size());
-        std::vector< VkWriteDescriptorSet > writes(bucket.size());
+        for (size_t j = 0; j < bindings.size(); ++j) {
+            auto *item = bindings[j];
 
-        for (size_t j = 0; j < bucket.size(); ++j) {
-            const auto &texture = bucket[j];
-            
+            VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &item->descriptor_set) );
+
             infos[j] = VkDescriptorImageInfo {
-                .sampler = texture->sampler,
-                .imageView = texture->image_view,
+                .sampler = item->texture->sampler,
+                .imageView = item->texture->image_view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             };
             writes[j] = VkWriteDescriptorSet {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = descriptor_sets[i][j],
+                .dstSet = item->descriptor_set,
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
@@ -159,4 +184,6 @@ void TextureManager::create(
 
         vkUpdateDescriptorSets( rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr );
     }
+
+    return result;
 }

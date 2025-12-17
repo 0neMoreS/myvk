@@ -2,7 +2,6 @@
 
 #include "Helpers.hpp"
 #include "VK.hpp"
-#include "TextureManager.hpp"
 
 static uint32_t vert_code[] = {
 #include "../../shaders/spv/A1-load.vert.inl"

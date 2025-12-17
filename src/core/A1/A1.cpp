@@ -36,7 +36,11 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	scene_manager.create(rtg, doc);
 
-	texture_manager.create(rtg, doc, objects_pipeline.texture_descriptor_configs);
+	// Create texture manager to load all textures from document and create descriptor pool
+	texture_manager.create(rtg, doc);
+	
+	// Pipeline builds its own texture bindings
+	objects_pipeline.texture_bindings = texture_manager.build_texture_bindings(rtg, objects_pipeline.texture_descriptor_configs);
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
@@ -189,13 +193,20 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						for (ObjectInstance const &inst : object_instances) {
 							uint32_t index = uint32_t(&inst - &object_instances[0]);
 
-							//bind texture descriptor set:
-							vkCmdBindDescriptorSets(
-								workspace.command_buffer, //command buffer
-								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								objects_pipeline.layout, //pipeline layout
-								2, //second set
-								1, &texture_manager.descriptor_sets[inst.texture][inst.texture], //descriptor sets count, ptr //TODO
+						//bind texture descriptor set:
+						auto &material_textures = objects_pipeline.texture_bindings[inst.material_index];
+						auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
+						if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE){
+							// std::cerr << "Missing diffuse texture for material " << inst.material_index << std::endl;
+							continue; // no diffuse texture for this material
+						}
+
+						vkCmdBindDescriptorSets(
+							workspace.command_buffer, //command buffer
+							VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+							objects_pipeline.layout, //pipeline layout
+							2, //second set
+							1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
 								0, nullptr //dynamic offsets count, ptr
 							);
 
@@ -285,7 +296,7 @@ void A1::update(float dt) {
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
 					},
-					.texture = mesh.material_index.value_or(0),
+					.material_index = mesh.material_index.value_or(0),
 				});
 			}
 		}

@@ -3,6 +3,7 @@
 #include "Pipeline.hpp"
 #include "RTG.hpp"
 #include "Vertex.hpp"
+#include "TextureManager.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -11,7 +12,6 @@
 
 struct A1ObjectsPipeline : Pipeline {
     // type definitions
-    
     VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
     VkDescriptorSetLayout set2_TEXTURE = VK_NULL_HANDLE;
@@ -33,6 +33,9 @@ struct A1ObjectsPipeline : Pipeline {
         glm::mat4 MODEL_NORMAL;
     };
     static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
+
+    // Texture bindings for this pipeline: texture_bindings[material_index][texture_slot]
+    std::vector< std::array< std::optional<TextureManager::TextureBinding>, 4 > > texture_bindings;
 
     //no push constants
     void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;

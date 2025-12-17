@@ -51,9 +51,7 @@ A1::~A1() {
 
 	scene_manager.destroy(rtg);
 
-	if (swapchain_depth_image.handle != VK_NULL_HANDLE) {
-		destroy_framebuffers();
-	}
+	framebuffer_manager.destroy(rtg);
 
 	objects_pipeline.destroy(rtg);
 
@@ -65,72 +63,9 @@ A1::~A1() {
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	//[re]create framebuffers:
 	//clean up existing framebuffers (and depth image):
-	if (swapchain_depth_image.handle != VK_NULL_HANDLE) {
-		destroy_framebuffers();
-	}
+	framebuffer_manager.destroy(rtg);
 
-	//Allocate depth image for framebuffers to share:
-	swapchain_depth_image = rtg.helpers.create_image(
-		swapchain.extent,
-		render_pass_manager.depth_format,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		Helpers::Unmapped
-	);
-
-	{ //create depth image view:
-		VkImageViewCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = swapchain_depth_image.handle,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = render_pass_manager.depth_format,
-			.subresourceRange{
-				.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-				.baseMipLevel = 0,
-				.levelCount = 1,
-				.baseArrayLayer = 0,
-				.layerCount = 1
-			},
-		};
-
-		VK( vkCreateImageView(rtg.device, &create_info, nullptr, &swapchain_depth_image_view) );
-	}
-
-	//Make framebuffers for each swapchain image:
-	swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
-	for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
-		std::array< VkImageView, 2 > attachments{
-			swapchain.image_views[i],
-			swapchain_depth_image_view,
-		};
-		VkFramebufferCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = render_pass_manager.render_pass,
-			.attachmentCount = uint32_t(attachments.size()),
-			.pAttachments = attachments.data(),
-			.width = swapchain.extent.width,
-			.height = swapchain.extent.height,
-			.layers = 1,
-		};
-
-		VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
-	}
-}
-
-void A1::destroy_framebuffers() {
-	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
-		assert(framebuffer != VK_NULL_HANDLE);
-		vkDestroyFramebuffer(rtg.device, framebuffer, nullptr);
-		framebuffer = VK_NULL_HANDLE;
-	}
-	swapchain_framebuffers.clear();
-
-	assert(swapchain_depth_image_view != VK_NULL_HANDLE);
-	vkDestroyImageView(rtg.device, swapchain_depth_image_view, nullptr);
-	swapchain_depth_image_view = VK_NULL_HANDLE;
-
-	rtg.helpers.destroy_image(std::move(swapchain_depth_image));
+	framebuffer_manager.create(rtg, swapchain, render_pass_manager);
 }
 
 
@@ -138,12 +73,11 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	//assert that parameters are valid:
 	assert(&rtg == &rtg_);
 	assert(render_params.workspace_index < workspace_manager.workspaces.size());
-	assert(render_params.image_index < swapchain_framebuffers.size());
+	assert(render_params.image_index < framebuffer_manager.swapchain_framebuffers.size());
 
 	//get more convenient names for the current workspace and target framebuffer:
 	WorkspaceManager::Workspace &workspace = workspace_manager.workspaces[render_params.workspace_index];
-	VkFramebuffer framebuffer = swapchain_framebuffers[render_params.image_index];
-
+	VkFramebuffer framebuffer = framebuffer_manager.swapchain_framebuffers[render_params.image_index];
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
 	workspace.reset_recoring();
 	

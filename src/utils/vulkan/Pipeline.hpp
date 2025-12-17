@@ -15,7 +15,7 @@ struct Pipeline
 
     struct TextureDescriptorConfig 
     {
-        TextureSlot slot;  // TextureManager::TextureSlot
+        TextureSlot slot;
         VkDescriptorSetLayout layout;
     };
 

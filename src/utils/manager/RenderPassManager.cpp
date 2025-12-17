@@ -2,12 +2,6 @@
 #include "RTG.hpp"
 #include <array>
 
-RenderPassManager::~RenderPassManager() {
-    if(render_pass != VK_NULL_HANDLE) {
-        std::cerr << "[RenderPassManager] render_pass not properly destroyed" << std::endl;
-    }
-}
-
 void RenderPassManager::create(RTG& rtg) {
     //select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
@@ -95,6 +89,31 @@ void RenderPassManager::create(RTG& rtg) {
 
 		VK( vkCreateRenderPass(rtg.device, &create_info, nullptr, &render_pass) );
 	}
+
+	{ // clears
+		clears = {
+			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
+			VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
+		};
+	}
+
+	{ // scissor
+		scissor = {
+			.offset = {.x = 0, .y = 0},
+			.extent = rtg.swapchain_extent,
+		};
+	}
+
+	{ //viewport
+		viewport = {
+			.x = 0.0f,
+			.y = 0.0f,
+			.width = float(rtg.swapchain_extent.width),
+			.height = float(rtg.swapchain_extent.height),
+			.minDepth = 0.0f,
+			.maxDepth = 1.0f,
+		};
+	}
 }
 
 void RenderPassManager::destroy(RTG& rtg) {
@@ -102,4 +121,10 @@ void RenderPassManager::destroy(RTG& rtg) {
 		vkDestroyRenderPass(rtg.device, render_pass, nullptr);
 		render_pass = VK_NULL_HANDLE;
 	}
+}
+
+RenderPassManager::~RenderPassManager() {
+    if(render_pass != VK_NULL_HANDLE) {
+        std::cerr << "[RenderPassManager] render_pass not properly destroyed" << std::endl;
+    }
 }

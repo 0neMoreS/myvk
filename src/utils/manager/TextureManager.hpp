@@ -7,11 +7,12 @@
 
 class TextureManager {
     public:
+        VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+       
         // textures grouped by logical slot; index corresponds to material index
         std::array< std::vector< std::shared_ptr<Texture2DLoader::Texture> >, 4 > textures_by_slot{};
 
-        VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-        // descriptor_sets[layout_index][material_index]
+        // descriptor_sets[texture_slot][material_index]
         std::vector< std::vector< VkDescriptorSet > > descriptor_sets;
         
         void create(

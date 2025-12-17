@@ -24,7 +24,8 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	render_pass_manager{}, 
 	objects_pipeline{},
 	scene_manager{},
-	texture_manager{}
+	texture_manager{},
+	framebuffer_manager{}
 {
 	render_pass_manager.create(rtg);
 
@@ -61,10 +62,7 @@ A1::~A1() {
 }
 
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	//[re]create framebuffers:
-	//clean up existing framebuffers (and depth image):
 	framebuffer_manager.destroy(rtg);
-
 	framebuffer_manager.create(rtg, swapchain, render_pass_manager);
 }
 
@@ -138,13 +136,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			);
 		}
 
-		//render pass
-		{
-			std::array< VkClearValue, 2 > clear_values{
-				VkClearValue{ .color{ .float32{63.0f / 255.0f, 63.0f / 255.0f, 63.0f / 255.0f, 1.0f} } },
-				VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
-			};
-			
+		
+		{ //render pass
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.render_pass,
@@ -153,30 +146,18 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(clear_values.size()),
-				.pClearValues = clear_values.data(),
+				.clearValueCount = uint32_t(render_pass_manager.clears.size()),
+				.pClearValues = render_pass_manager.clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					VkRect2D scissor{
-						.offset = {.x = 0, .y = 0},
-						.extent = rtg.swapchain_extent,
-					};
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &scissor);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
 				}
 				{ //configure viewport transform:
-					VkViewport viewport{
-						.x = 0.0f,
-						.y = 0.0f,
-						.width = float(rtg.swapchain_extent.width),
-						.height = float(rtg.swapchain_extent.height),
-						.minDepth = 0.0f,
-						.maxDepth = 1.0f,
-					};
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &viewport);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
 				}
 
 				{ //draw with the objects pipeline:
@@ -214,7 +195,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 								objects_pipeline.layout, //pipeline layout
 								2, //second set
-								1, &texture_manager.descriptor_sets[0][inst.texture], //descriptor sets count, ptr //TODO
+								1, &texture_manager.descriptor_sets[inst.texture][inst.texture], //descriptor sets count, ptr //TODO
 								0, nullptr //dynamic offsets count, ptr
 							);
 

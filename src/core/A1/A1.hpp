@@ -51,12 +51,6 @@ struct A1 : RTG::Application {
 
 	virtual void on_swapchain(RTG &, RTG::SwapchainEvent const &) override;
 	
-
-	// Helpers::AllocatedImage swapchain_depth_image;
-	// VkImageView swapchain_depth_image_view = VK_NULL_HANDLE;
-	// std::vector< VkFramebuffer > swapchain_framebuffers;
-	//used from on_swapchain and the destructor: (framebuffers are created in on_swapchain)
-	// void destroy_framebuffers();
 	FrameBufferManager framebuffer_manager;
 	//--------------------------------------------------------------------
 	//Resources that change when time passes or the user interacts:

@@ -9,8 +9,8 @@ public:
     Helpers::AllocatedBuffer vertex_buffer;
     
     struct ObjectRange {
-		uint32_t first = 0;
-		uint32_t count = 0;
+		uint32_t first = 0; // first vertex index
+		uint32_t count = 0; // number of vertices
 	};
     std::vector<ObjectRange> object_ranges;
     

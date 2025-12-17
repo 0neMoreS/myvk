@@ -18,4 +18,9 @@ public:
 
     VkRenderPass render_pass = VK_NULL_HANDLE;
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
+
+    std::array<VkClearValue, 2> clears;
+
+    VkRect2D scissor;
+    VkViewport viewport;
 };

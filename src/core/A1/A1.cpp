@@ -31,8 +31,13 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 
-	workspace_manager.create(rtg, objects_pipeline.block_descriptor_configs, uint32_t(objects_pipeline.block_descriptor_configs.size()));
-	workspace_manager.update_all_descriptors(rtg, objects_pipeline.block_descriptor_configs, 0, sizeof(world));
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > descriptor_configs;
+	descriptor_configs.push_back(objects_pipeline.block_descriptor_configs);
+
+	workspace_manager.register_pipeline("A1ObjectsPipeline", 0);
+
+	workspace_manager.create(rtg, std::move(descriptor_configs), 2);
+	workspace_manager.update_all_descriptors(rtg, std::string("A1ObjectsPipeline"), 0, sizeof(world));
 
 	scene_manager.create(rtg, doc);
 
@@ -87,39 +92,38 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		workspace.begin_recording();
 
 		{ //upload world info:
-			assert(workspace.buffer_pairs[0].host.size == sizeof(world));
+			assert(workspace.pipeline_buffer_pairs[0][0].host.size == sizeof(world));
 
 			//host-side copy into World_src:
-			memcpy(workspace.buffer_pairs[0].host.allocation.data(), &world, sizeof(world));
+			memcpy(workspace.pipeline_buffer_pairs[0][0].host.allocation.data(), &world, sizeof(world));
 
 			//add device-side copy from World_src -> World:
-			assert(workspace.buffer_pairs[0].host.size == workspace.buffer_pairs[0].device.size);
+			assert(workspace.pipeline_buffer_pairs[0][0].host.size == workspace.pipeline_buffer_pairs[0][0].device.size);
 
-			workspace.copy_buffer(rtg, objects_pipeline.block_descriptor_configs, 0, sizeof(world));
+			workspace.copy_buffer(rtg, std::string("A1ObjectsPipeline"), 0, sizeof(world));
 		}
 
 		{ //upload object transforms
 			if (!object_instances.empty()) { 
 				size_t needed_bytes = object_instances.size() * sizeof(A1ObjectsPipeline::Transform);
-				if (workspace.buffer_pairs[1].host.handle == VK_NULL_HANDLE || workspace.buffer_pairs[1].host.size < needed_bytes) {
+				if (workspace.pipeline_buffer_pairs[0][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[0][1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, objects_pipeline.block_descriptor_configs, 1, new_bytes);
+					workspace.update_descriptor(rtg, std::string("A1ObjectsPipeline"), 1, new_bytes);
 				}
 
-				assert(workspace.buffer_pairs[1].host.size == workspace.buffer_pairs[1].device.size);
-				assert(workspace.buffer_pairs[1].host.size >= needed_bytes);
-
+				assert(workspace.pipeline_buffer_pairs[0][1].host.size == workspace.pipeline_buffer_pairs[0][1].device.size);
+				assert(workspace.pipeline_buffer_pairs[0][1].host.size >= needed_bytes);
 				{ //copy transforms into Transforms_src:
-					assert(workspace.buffer_pairs[1].host.allocation.mapped);
-					A1ObjectsPipeline::Transform *out = reinterpret_cast< A1ObjectsPipeline::Transform * >(workspace.buffer_pairs[1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
+					assert(workspace.pipeline_buffer_pairs[0][1].host.allocation.mapped);
+					A1ObjectsPipeline::Transform *out = reinterpret_cast< A1ObjectsPipeline::Transform * >(workspace.pipeline_buffer_pairs[0][1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
 					for (ObjectInstance const &inst : object_instances) {
 						*out = inst.transform;
 						++out;
 					}
 				}
 
-				workspace.copy_buffer(rtg, objects_pipeline.block_descriptor_configs, 1, needed_bytes);
+				workspace.copy_buffer(rtg, std::string("A1ObjectsPipeline"), 1, needed_bytes);
 			}
 		}
 
@@ -176,8 +180,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						{ //bind Transforms descriptor set:
 							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.buffer_pairs[0].descriptor, //0: World
-								workspace.buffer_pairs[1].descriptor, //1: Transforms
+								workspace.pipeline_buffer_pairs[0][0].descriptor, //0: World
+								workspace.pipeline_buffer_pairs[0][1].descriptor, //1: Transforms
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer

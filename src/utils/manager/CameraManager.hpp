@@ -9,9 +9,23 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <cstddef>
+#include <array>
 
 class CameraManager {
 public:
+	// Frustum plane structure
+	struct FrustumPlane {
+		glm::vec3 normal;
+		float distance;
+	};
+	
+	// Frustum structure with 6 planes
+	struct Frustum {
+		std::array<FrustumPlane, 6> planes; // left, right, bottom, top, near, far
+		
+		bool is_box_visible(const glm::vec3& min, const glm::vec3& max) const;
+	};
+
 	// Camera data structure
 	struct Camera {
 		glm::vec3 camera_position;
@@ -41,6 +55,9 @@ public:
 	// Get current camera matrices
 	glm::mat4 get_perspective() const;
 	glm::mat4 get_view() const;
+	
+	// Get current frustum for culling
+	Frustum get_frustum() const;
 
 	// Camera access
 	size_t get_active_camera_index() const { return active_camera_index; }

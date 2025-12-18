@@ -6,12 +6,39 @@ TextureManager::~TextureManager(){
     if(descriptor_pool != VK_NULL_HANDLE) {
         std::cerr << "[TextureManager] Warning: descriptor pool not destroyed before TextureManager destruction" << std::endl;
     }
+
+    for(size_t pipeline_index = 0; pipeline_index < texture_bindings_by_pipeline.size(); ++pipeline_index) {
+        for(size_t material_index = 0; material_index < texture_bindings_by_pipeline[pipeline_index].size(); ++material_index) {
+            for(size_t slot_index = 0; slot_index < texture_bindings_by_pipeline[pipeline_index][material_index].size(); ++slot_index) {
+                auto &binding_opt = texture_bindings_by_pipeline[pipeline_index][material_index][slot_index];
+                if(binding_opt) {
+                    if(binding_opt->descriptor_set != VK_NULL_HANDLE) {
+                        std::cerr << "[TextureManager] Warning: descriptor set not destroyed before TextureManager destruction (pipeline " << pipeline_index << ", material " << material_index << ", slot " << slot_index << ")" << std::endl;
+                    }
+                }
+            }
+        }
+    }
 }
 
 void TextureManager::destroy(RTG &rtg) {
     if (descriptor_pool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(rtg.device, descriptor_pool, nullptr);
         descriptor_pool = VK_NULL_HANDLE;
+    }
+
+    for(size_t pipeline_index = 0; pipeline_index < texture_bindings_by_pipeline.size(); ++pipeline_index) {
+        for(size_t material_index = 0; material_index < texture_bindings_by_pipeline[pipeline_index].size(); ++material_index) {
+            for(size_t slot_index = 0; slot_index < texture_bindings_by_pipeline[pipeline_index][material_index].size(); ++slot_index) {
+                auto &binding_opt = texture_bindings_by_pipeline[pipeline_index][material_index][slot_index];
+                if(binding_opt) {
+                    if(binding_opt->descriptor_set != VK_NULL_HANDLE) {
+                        // Descriptor sets are freed when the descriptor pool is destroyed
+                        binding_opt->descriptor_set = VK_NULL_HANDLE;
+                    }
+                }
+            }
+        }
     }
 
     for (auto &material_slots : raw_textures_by_material) {

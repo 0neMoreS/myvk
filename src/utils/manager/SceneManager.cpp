@@ -10,9 +10,25 @@ void SceneManager::create(RTG &rtg, std::shared_ptr<S72Loader::Document> doc) {
 			try {
 				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(s72_dir, mesh);
 				
+				// Calculate AABB
+				glm::vec3 aabb_min(FLT_MAX);
+				glm::vec3 aabb_max(-FLT_MAX);
+				
+				// Assuming vertex format has position at start (3 floats: x, y, z)
+				size_t vertex_stride = mesh_data.size() / mesh.count; // bytes per vertex
+				
+				for (uint32_t v = 0; v < mesh.count; ++v) {
+					const float* pos = reinterpret_cast<const float*>(mesh_data.data() + v * vertex_stride);
+					glm::vec3 p(pos[0], pos[1], pos[2]);
+					aabb_min = glm::min(aabb_min, p);
+					aabb_max = glm::max(aabb_max, p);
+				}
+				
 				ObjectRange object_range;
 				object_range.first = vertex_offset;
 				object_range.count = mesh.count;
+				object_range.aabb_min = aabb_min;
+				object_range.aabb_max = aabb_max;
 				object_ranges.push_back(object_range);
 
 				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());

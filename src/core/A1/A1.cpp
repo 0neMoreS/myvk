@@ -195,24 +195,21 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						for (ObjectInstance const &inst : object_instances) {
 							uint32_t index = uint32_t(&inst - &object_instances[0]);
 
-						//bind texture descriptor set:
-						auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
-						auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
-						if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE){
-							// std::cerr << "Missing diffuse texture for material " << inst.material_index << std::endl;
-							continue; // no diffuse texture for this material
-						}
+							//bind texture descriptor set:
+							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
+							auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
+							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
 
-						vkCmdBindDescriptorSets(
-							workspace.command_buffer, //command buffer
-							VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-							objects_pipeline.layout, //pipeline layout
-							2, //second set
-							1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
-								0, nullptr //dynamic offsets count, ptr
-							);
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								objects_pipeline.layout, //pipeline layout
+								2, //second set
+								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
+									0, nullptr //dynamic offsets count, ptr
+								);
 
-							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
+								vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}
@@ -281,17 +278,42 @@ void A1::update(float dt) {
 		object_instances.clear();
 		glm::mat4 PERSPECTIVE = camera_manager.get_perspective();
 		glm::mat4 VIEW = camera_manager.get_view();
+		
+		// Get frustum for culling
+		auto frustum = camera_manager.get_frustum();
 
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
 			const auto& mesh = doc->meshes[i];
+			const auto& object_range = scene_manager.object_ranges[i];
 
 			for(auto &transform : mesh.transforms){
 				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
+
+				// Transform local AABB to world AABB (8 corners method)
+				const glm::vec3& bmin = object_range.aabb_min;
+				const glm::vec3& bmax = object_range.aabb_max;
+				glm::vec3 corners[8] = {
+					{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+					{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+				};
+				glm::vec3 world_min(FLT_MAX);
+				glm::vec3 world_max(-FLT_MAX);
+				for (int c = 0; c < 8; ++c) {
+					glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+					world_min = glm::min(world_min, wp);
+					world_max = glm::max(world_max, wp);
+				}
+
+				// Frustum culling check with world-space AABB
+				if (!frustum.is_box_visible(world_min, world_max)) {
+					continue;
+				}
+
 				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
 				object_instances.emplace_back(ObjectInstance{
-					.object_ranges = scene_manager.object_ranges[i],
+					.object_ranges = object_range,
 					.transform{
 						.PERSPECTIVE = PERSPECTIVE,
 						.VIEW = VIEW,

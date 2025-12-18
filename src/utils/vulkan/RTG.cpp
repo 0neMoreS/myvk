@@ -667,6 +667,10 @@ void RTG::run(Application &application) {
 	//setup time handling
 	std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
 
+	// FPS accumulators:
+    double fps_accum_time = 0.0;
+    uint32_t fps_frames = 0;
+
 	while (!glfwWindowShouldClose(window)) {
 		//event handling:
 		glfwPollEvents();
@@ -678,14 +682,25 @@ void RTG::run(Application &application) {
 		event_queue.clear();
 
 		{ //elapsed time handling:
-			std::chrono::high_resolution_clock::time_point after = std::chrono::high_resolution_clock::now();
-			float dt = float(std::chrono::duration< double >(after - before).count());
-			before = after;
+            std::chrono::high_resolution_clock::time_point after = std::chrono::high_resolution_clock::now();
+            float dt = float(std::chrono::duration< double >(after - before).count());
+            before = after;
 
-			dt = std::min(dt, 0.1f); //lag if frame rate dips too low
+            dt = std::min(dt, 0.1f); //lag if frame rate dips too low
 
-			application.update(dt);
-		}
+            application.update(dt);
+
+            // FPS update:
+            fps_accum_time += dt;
+            ++fps_frames;
+            if (fps_accum_time >= 0.5) {
+                double fps = fps_frames / fps_accum_time;
+                std::string title = std::string(configuration.application_info.pApplicationName) + " - FPS: " + std::to_string(int(fps));
+                glfwSetWindowTitle(window, title.c_str());
+                fps_accum_time = 0.0;
+                fps_frames = 0;
+            }
+        }
 
 		uint32_t workspace_index;
 		{ //acquire a workspace:

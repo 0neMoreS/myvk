@@ -141,7 +141,7 @@ void TextureManager::create(
                 bindings.reserve(pipeline_bindings.size());
 
                 { // gather all textures for this slot across materials
-                    const auto slot_index = static_cast<size_t>(config.slot);
+                    const auto slot_index = config.slot;
                     for (size_t material_idx = 0; material_idx < raw_textures_by_material.size(); ++material_idx) {
                         auto &texture_opt = raw_textures_by_material[material_idx][slot_index];
                         if (!texture_opt) continue;

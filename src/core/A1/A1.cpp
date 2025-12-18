@@ -67,9 +67,10 @@ A1::~A1() {
 	render_pass_manager.destroy(rtg);
 }
 
-void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.destroy(rtg);
+void A1::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg, swapchain, render_pass_manager);
+	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
+	render_pass_manager.update_scissor_and_viewport(rtg, swapchain.extent);
 }
 
 

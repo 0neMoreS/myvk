@@ -36,6 +36,8 @@ public:
 	// Handle input events
 	void on_input(const InputEvent& event);
 
+	void resize_all_cameras(const uint32_t swapchain_width, const uint32_t swapchain_height);
+
 	// Get current camera matrices
 	glm::mat4 get_perspective() const;
 	glm::mat4 get_view() const;

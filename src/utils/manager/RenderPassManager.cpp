@@ -123,6 +123,24 @@ void RenderPassManager::destroy(RTG& rtg) {
 	}
 }
 
+void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent) {
+	// scissor
+	scissor = {
+		.offset = {.x = 0, .y = 0},
+		.extent = extent,
+	};
+
+	//viewport
+	viewport = {
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = float(extent.width),
+		.height = float(extent.height),
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f,
+	};
+}
+
 RenderPassManager::~RenderPassManager() {
     if(render_pass != VK_NULL_HANDLE) {
         std::cerr << "[RenderPassManager] render_pass not properly destroyed" << std::endl;

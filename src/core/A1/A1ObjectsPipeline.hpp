@@ -34,9 +34,6 @@ struct A1ObjectsPipeline : Pipeline {
     };
     static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
 
-    // Texture bindings for this pipeline: texture_bindings[material_index][texture_slot]
-    std::vector< std::array< std::optional<TextureManager::TextureBinding>, 4 > > texture_bindings;
-
     //no push constants
     void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;
     void destroy(RTG &rtg) override;

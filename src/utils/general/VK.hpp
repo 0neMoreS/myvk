@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 
 #include <stdexcept>
+#include <unordered_map>
 
 #define VK( FN ) \
 	if (VkResult result = FN; result != VK_SUCCESS) { \
@@ -56,3 +57,4 @@ enum TextureSlot {
         Metallic = 3
 };
 
+static std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices

@@ -52,7 +52,7 @@ void WorkspaceManager::Workspace::create(RTG& rtg) {
     }
 
     // Create buffer pairs for each pipeline
-    for (const auto& pipeline_configs : manager->pipelines_configs) {
+    for (const auto& pipeline_configs : manager->block_descriptor_configs_by_pipeline) {
         std::vector<BufferPair> buffer_pairs;
         for (size_t i = 0; i < pipeline_configs.size(); i++) {
             buffer_pairs.push_back(BufferPair{});
@@ -80,10 +80,9 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     }
 }
 
-void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, const std::string &pipeline_name, uint32_t descriptor_index, VkDeviceSize size) {
-    uint32_t pipeline_index = manager->get_pipeline_index(pipeline_name);
+void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     auto& buffer_pair = pipeline_buffer_pairs[pipeline_index][descriptor_index];
-    auto& config = manager->pipelines_configs[pipeline_index][descriptor_index];
+    auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_index];
 
     if(buffer_pair.host.handle != VK_NULL_HANDLE) {
         rtg.helpers.destroy_buffer(std::move(buffer_pair.host));
@@ -146,8 +145,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, const std::string 
     }
 }
 
-void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, const std::string &pipeline_name, uint32_t descriptor_index, VkDeviceSize size){
-    uint32_t pipeline_index = manager->get_pipeline_index(pipeline_name);
+void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size){
     auto &buffer_pair = pipeline_buffer_pairs[pipeline_index][descriptor_index];
 
     VkBufferCopy copy_region{
@@ -195,7 +193,7 @@ WorkspaceManager::~WorkspaceManager() {
     }
 }
 
-void WorkspaceManager::create(RTG &rtg, const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&pipelines_configs, uint32_t num_workspaces) {
+void WorkspaceManager::create(RTG &rtg, const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline, uint32_t num_workspaces) {
     { //create command pool
 		VkCommandPoolCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -208,7 +206,7 @@ void WorkspaceManager::create(RTG &rtg, const std::vector<std::vector<Pipeline::
     { //create descriptor pool:
         std::unordered_map<VkDescriptorType, uint32_t> descriptor_map;
         // Count all descriptor types from all pipelines
-        for (const auto& pipeline_configs : pipelines_configs) {
+        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline) {
             for (const auto& config : pipeline_configs) {
                 descriptor_map[config.type]++;
             }
@@ -227,7 +225,7 @@ void WorkspaceManager::create(RTG &rtg, const std::vector<std::vector<Pipeline::
 
         // Calculate total descriptor sets needed
         uint32_t total_descriptors = 0;
-        for (const auto& pipeline_configs : pipelines_configs) {
+        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline) {
             total_descriptors += pipeline_configs.size();
         }
 
@@ -242,7 +240,7 @@ void WorkspaceManager::create(RTG &rtg, const std::vector<std::vector<Pipeline::
 		VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &descriptor_pool) );
     }
 
-    this->pipelines_configs = std::move(pipelines_configs);
+    this->block_descriptor_configs_by_pipeline = std::move(block_descriptor_configs_by_pipeline);
 
     for(uint32_t i = 0; i < num_workspaces; i++) {
         workspaces.emplace_back(std::move(Workspace{*this}));
@@ -266,29 +264,14 @@ void WorkspaceManager::destroy(RTG &rtg) {
     }
 }
 
-uint32_t WorkspaceManager::get_pipeline_index(const std::string& name) const {
-    auto it = pipeline_name_to_index.find(name);
-    if (it == pipeline_name_to_index.end()) {
-        throw std::runtime_error("Pipeline '" + name + "' not found in WorkspaceManager");
-    }
-    return it->second;
-}
-
-void WorkspaceManager::register_pipeline(const std::string& name, uint32_t index) {
-    if (!workspaces.empty() && index >= workspaces[0].pipeline_buffer_pairs.size()) {
-        throw std::runtime_error("Pipeline index " + std::to_string(index) + " out of range");
-    }
-    pipeline_name_to_index[name] = index;
-}
-
-void WorkspaceManager::update_all_descriptors(RTG& rtg, const std::string &pipeline_name, uint32_t descriptor_index, VkDeviceSize size) {
+void WorkspaceManager::update_all_descriptors(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
-        workspace.update_descriptor(rtg, pipeline_name, descriptor_index, size);
+        workspace.update_descriptor(rtg, pipeline_index, descriptor_index, size);
     }
 }
 
-void WorkspaceManager::copy_all_buffers(RTG& rtg, const std::string &pipeline_name, uint32_t descriptor_index, VkDeviceSize size) {
+void WorkspaceManager::copy_all_buffers(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
-        workspace.copy_buffer(rtg, pipeline_name, descriptor_index, size);
+        workspace.copy_buffer(rtg, pipeline_index, descriptor_index, size);
     }
 }

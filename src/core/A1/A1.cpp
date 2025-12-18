@@ -31,21 +31,18 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > descriptor_configs;
-	descriptor_configs.push_back(objects_pipeline.block_descriptor_configs);
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline;
+	block_descriptor_configs_by_pipeline.push_back(objects_pipeline.block_descriptor_configs);
+	std::vector< std::vector< Pipeline::TextureDescriptorConfig > > texture_descriptor_configs_by_pipeline;
+	texture_descriptor_configs_by_pipeline.push_back(objects_pipeline.texture_descriptor_configs);
 
-	workspace_manager.register_pipeline("A1ObjectsPipeline", 0);
-
-	workspace_manager.create(rtg, std::move(descriptor_configs), 2);
-	workspace_manager.update_all_descriptors(rtg, std::string("A1ObjectsPipeline"), 0, sizeof(world));
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
+	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
 
 	scene_manager.create(rtg, doc);
 
 	// Create texture manager to load all textures from document and create descriptor pool
-	texture_manager.create(rtg, doc);
-	
-	// Pipeline builds its own texture bindings
-	objects_pipeline.texture_bindings = texture_manager.build_texture_bindings(rtg, objects_pipeline.texture_descriptor_configs);
+	texture_manager.create(rtg, doc, std::move(texture_descriptor_configs_by_pipeline));
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
@@ -100,7 +97,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			//add device-side copy from World_src -> World:
 			assert(workspace.pipeline_buffer_pairs[0][0].host.size == workspace.pipeline_buffer_pairs[0][0].device.size);
 
-			workspace.copy_buffer(rtg, std::string("A1ObjectsPipeline"), 0, sizeof(world));
+			workspace.copy_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
 		}
 
 		{ //upload object transforms
@@ -109,7 +106,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				if (workspace.pipeline_buffer_pairs[0][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[0][1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, std::string("A1ObjectsPipeline"), 1, new_bytes);
+					workspace.update_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
 				}
 
 				assert(workspace.pipeline_buffer_pairs[0][1].host.size == workspace.pipeline_buffer_pairs[0][1].device.size);
@@ -123,7 +120,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 				}
 
-				workspace.copy_buffer(rtg, std::string("A1ObjectsPipeline"), 1, needed_bytes);
+				workspace.copy_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, needed_bytes);
 			}
 		}
 
@@ -198,7 +195,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							uint32_t index = uint32_t(&inst - &object_instances[0]);
 
 						//bind texture descriptor set:
-						auto &material_textures = objects_pipeline.texture_bindings[inst.material_index];
+						auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
 						auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
 						if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE){
 							// std::cerr << "Missing diffuse texture for material " << inst.material_index << std::endl;

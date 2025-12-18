@@ -215,6 +215,8 @@ void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 		.slot = TextureSlot::Diffuse,
 		.layout = set2_TEXTURE
 	});
+
+	pipeline_name_to_index["A1ObjectsPipeline"] = 0;
 }
 
 void A1ObjectsPipeline::destroy(RTG &rtg) {

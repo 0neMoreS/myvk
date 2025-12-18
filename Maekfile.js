@@ -45,6 +45,11 @@ const a1_load_shaders = [
 	maek.GLSLC('./src/shaders/A1-load.frag'),
 ];
 
+const a2_load_shaders = [
+	maek.GLSLC('./src/shaders/A2-load.vert'),
+	maek.GLSLC('./src/shaders/A2-load.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const main_objs = [
@@ -58,6 +63,9 @@ const main_objs = [
 	// A1 files
 	maek.CPP('./src/core/A1/A1.cpp'),
 	maek.CPP('./src/core/A1/A1ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
+	// A2 files
+	maek.CPP('./src/core/A2/A2.cpp'),
+	maek.CPP('./src/core/A2/A2ObjectsPipeline.cpp', undefined, { depends:[...a2_load_shaders] } ),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
@@ -99,6 +107,7 @@ function custom_flags_and_rules() {
 			`-I${GLFW_DIR}/include`,
 			`-I./src/core/Tutorial`,
 			`-I./src/core/A1`,
+			`-I./src/core/A2`,
 			`-I./src/utils/general`,
 			`-I./src/utils/loader`,
 			`-I./src/utils/manager`,

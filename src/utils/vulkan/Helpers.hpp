@@ -59,7 +59,8 @@ struct Helpers {
 
 		//NOTE: could define default constructor, move constructor, move assignment, destructor for a bit more paranoia
 	};
-	AllocatedImage create_image(VkExtent2D const &extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, MapFlag map = Unmapped);
+	// is_cube: if true, creates a cubemap-compatible image (6 array layers, cube flag set); if false, creates 2D image (1 layer)
+	AllocatedImage create_image(VkExtent2D const &extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, MapFlag map = Unmapped, bool is_cube = false);
 	void destroy_image(AllocatedImage &&allocated_image);
 	
 
@@ -68,7 +69,8 @@ struct Helpers {
 
 	// NOTE: synchronizes *hard* against the GPU; inefficient to use for streaming data!
 	void transfer_to_buffer(void *data, size_t size, AllocatedBuffer &target);
-	void transfer_to_image(void *data, size_t size, AllocatedImage &image); //NOTE: image layout after call is VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	// face_count: 1 for regular 2D images, 6 for cubemaps. data is face_count * (width*height*bytes_per_pixel) bytes
+	void transfer_to_image(void *data, size_t size, AllocatedImage &image, uint32_t face_count = 1); //NOTE: image layout after call is VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
 	VkCommandPool transfer_command_pool = VK_NULL_HANDLE;
 	VkCommandBuffer transfer_command_buffer = VK_NULL_HANDLE;

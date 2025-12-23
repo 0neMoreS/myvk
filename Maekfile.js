@@ -70,6 +70,7 @@ const main_objs = [
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
 	maek.CPP('./src/utils/loader/Texture2DLoader.cpp'),
+	maek.CPP('./src/utils/loader/TextureCubeLoader.cpp'),
 	maek.CPP('./src/utils/manager/CameraManager.cpp'),
 	maek.CPP('./src/utils/manager/FrameBufferManager.cpp'),
 	maek.CPP('./src/utils/manager/RenderPassManager.cpp'),

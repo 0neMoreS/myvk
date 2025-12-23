@@ -42,7 +42,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	scene_manager.create(rtg, doc);
 
 	// Create texture manager to load all textures from document and create descriptor pool
-	texture_manager.create(rtg, doc, std::move(texture_descriptor_configs_by_pipeline));
+	texture_manager.create(rtg, doc, std::move(texture_descriptor_configs_by_pipeline), objects_pipeline.set3_CUBEMAP);
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
@@ -197,19 +197,29 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 							//bind texture descriptor set:
 							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A2ObjectsPipeline"]][inst.material_index];
-							auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
+							auto &diffuse_binding_opt = material_textures[(TextureSlot::Diffuse)];
 							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
 
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 								objects_pipeline.layout, //pipeline layout
-								2, //second set
+								2, //set 2 (Diffuse texture)
 								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
-									0, nullptr //dynamic offsets count, ptr
-								);
+								0, nullptr //dynamic offsets count, ptr
+							);
 
-								vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
+							// Bind cubemap descriptor set if available:
+							auto &cubemap_binding = texture_manager.environment_cubemap_binding;
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								objects_pipeline.layout, //pipeline layout
+								3, //set 3 (Cubemap)
+								1, &cubemap_binding->second, //descriptor sets count, ptr
+								0, nullptr //dynamic offsets count, ptr
+							);
+							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}

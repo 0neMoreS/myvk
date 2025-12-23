@@ -15,6 +15,7 @@ struct A2ObjectsPipeline : Pipeline {
     VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
     VkDescriptorSetLayout set2_TEXTURE = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set3_CUBEMAP = VK_NULL_HANDLE;
 
     //types for descriptors:
     struct World {
@@ -40,4 +41,10 @@ struct A2ObjectsPipeline : Pipeline {
 
     A2ObjectsPipeline() = default;
     ~A2ObjectsPipeline();
+    
+    // Cubemap data structure
+    struct Cubemap {
+        glm::vec4 reserved; // For future use, maintains alignment
+    };
+    static_assert(sizeof(Cubemap) == 16, "Cubemap is the expected size.");
 };

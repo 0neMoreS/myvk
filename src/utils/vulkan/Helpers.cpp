@@ -130,13 +130,14 @@ void Helpers::destroy_buffer(AllocatedBuffer &&buffer) {
 	this->free(std::move(buffer.allocation));
 }
 
-Helpers::AllocatedImage Helpers::create_image(VkExtent2D const &extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, MapFlag map) {
+Helpers::AllocatedImage Helpers::create_image(VkExtent2D const &extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, MapFlag map, bool is_cube) {
 	AllocatedImage image;
 	image.extent = extent;
 	image.format = format;
 
 	VkImageCreateInfo create_info{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.flags = is_cube ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0u,
 		.imageType = VK_IMAGE_TYPE_2D,
 		.format = format,
 		.extent{
@@ -145,7 +146,7 @@ Helpers::AllocatedImage Helpers::create_image(VkExtent2D const &extent, VkFormat
 			.depth = 1
 		},
 		.mipLevels = 1,
-		.arrayLayers = 1,
+		.arrayLayers = is_cube ? 6u : 1u,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = tiling,
 		.usage = usage,
@@ -226,12 +227,14 @@ void Helpers::transfer_to_buffer(void *data, size_t size, AllocatedBuffer &targe
 	destroy_buffer(std::move(transfer_src));
 }
 
-void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target) {
+void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target, uint32_t face_count) {
 	assert(target.handle != VK_NULL_HANDLE); //target image should be allocated already
+	assert(face_count >= 1);
 
 	//check data is the right size:
 	size_t bytes_per_pixel = vkuFormatElementSize(target.format);
-	assert(size == target.extent.width * target.extent.height * bytes_per_pixel);
+	size_t expected_size = static_cast<size_t>(target.extent.width) * target.extent.height * bytes_per_pixel * face_count;
+	assert(size == expected_size);
 
 	//create a host-coherent source buffer
 	AllocatedBuffer transfer_src = create_buffer(
@@ -259,7 +262,7 @@ void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target)
 		.baseMipLevel = 0,
 		.levelCount = 1,
 		.baseArrayLayer = 0,
-		.layerCount = 1,
+		.layerCount = face_count,
 	};
 
 	{ //put the receiving image in destination-optimal layout
@@ -286,31 +289,37 @@ void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target)
 		);
 	}
 
-	{ // copy the source buffer to the image
-		VkBufferImageCopy region{
-			.bufferOffset = 0,
-			.bufferRowLength = target.extent.width,
-			.bufferImageHeight = target.extent.height,
-			.imageSubresource{
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel = 0,
-				.baseArrayLayer = 0,
-				.layerCount = 1,
-			},
-			.imageOffset{ .x = 0, .y = 0, .z = 0 },
-			.imageExtent{
-				.width = target.extent.width,
-				.height = target.extent.height,
-				.depth = 1
-			},
-		};
+	{ // copy the source buffer to the image (all faces/layers)
+		size_t face_size_bytes = static_cast<size_t>(target.extent.width) * target.extent.height * vkuFormatElementSize(target.format);
+		std::vector<VkBufferImageCopy> regions;
+		regions.reserve(face_count);
+		for (uint32_t face = 0; face < face_count; ++face) {
+			VkBufferImageCopy region{
+				.bufferOffset = static_cast<VkDeviceSize>(face) * face_size_bytes,
+				.bufferRowLength = target.extent.width,
+				.bufferImageHeight = target.extent.height,
+				.imageSubresource{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.mipLevel = 0,
+					.baseArrayLayer = face,
+					.layerCount = 1,
+				},
+				.imageOffset{ .x = 0, .y = 0, .z = 0 },
+				.imageExtent{
+					.width = target.extent.width,
+					.height = target.extent.height,
+					.depth = 1
+				},
+			};
+			regions.push_back(region);
+		}
 
 		vkCmdCopyBufferToImage(
 			transfer_command_buffer,
 			transfer_src.handle,
 			target.handle,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1, &region
+			static_cast<uint32_t>(regions.size()), regions.data()
 		);
 
 		//NOTE: if image had mip levels, would need to copy as additional regions here.

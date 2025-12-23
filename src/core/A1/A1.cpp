@@ -197,7 +197,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 							//bind texture descriptor set:
 							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
-							auto &diffuse_binding_opt = material_textures[static_cast<size_t>(TextureSlot::Diffuse)];
+							auto &diffuse_binding_opt = material_textures[(TextureSlot::Diffuse)];
 							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
 
 							vkCmdBindDescriptorSets(
@@ -206,7 +206,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								objects_pipeline.layout, //pipeline layout
 								2, //second set
 								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
-									0, nullptr //dynamic offsets count, ptr
+								0, nullptr //dynamic offsets count, ptr
 								);
 
 								vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);

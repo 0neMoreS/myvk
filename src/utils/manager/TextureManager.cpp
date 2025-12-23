@@ -51,12 +51,21 @@ void TextureManager::destroy(RTG &rtg) {
     }
 
     raw_textures_by_material.clear();
+
+    // Clean up environment cubemaps
+    if(environment_cubemap_binding.has_value()){
+        TextureCubeLoader::destroy(environment_cubemap_binding->first, rtg);
+
+        environment_cubemap_binding->first.reset();
+        environment_cubemap_binding->second = VK_NULL_HANDLE;
+    }
 }
 
 void TextureManager::create(
     RTG &rtg,
     std::shared_ptr<S72Loader::Document> &doc,
-    const std::vector<std::vector<Pipeline::TextureDescriptorConfig>> &&texture_descriptor_configs_by_pipeline
+    const std::vector<std::vector<Pipeline::TextureDescriptorConfig>> &&texture_descriptor_configs_by_pipeline,
+    const VkDescriptorSetLayout cubemap_descriptor_layout
 ) {
     // Clean previous data
     destroy(rtg);
@@ -118,6 +127,18 @@ void TextureManager::create(
         }
     }
 
+    { // Load environment cubemaps
+        if(doc->environments.size()){
+            const auto &env = doc->environments[0];
+            const auto &radiance = env.radiance;
+            std::string texture_path = s72_dir + radiance.src;
+            environment_cubemap_binding.emplace(
+                TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR),
+                VK_NULL_HANDLE
+            );
+        }
+    }
+
     { // Create the descriptor pool based on actual textures loaded
         uint32_t total_descriptors = 0;
         for (const auto &material_slots : raw_textures_by_material) {
@@ -127,6 +148,9 @@ void TextureManager::create(
                 }
             }
         }
+        
+        // Add environment cubemaps to descriptor count
+        if(environment_cubemap_binding.has_value())  ++total_descriptors;
 
         if (total_descriptors == 0) return; // No textures to allocate
 
@@ -148,7 +172,7 @@ void TextureManager::create(
         VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &descriptor_pool) );
     }
 
-     { // Build texture bindings for each pipeline configuration
+    { // Build texture bindings for each pipeline configuration
         if (texture_descriptor_configs_by_pipeline.empty()) return;
         if (descriptor_pool == VK_NULL_HANDLE) return;
 
@@ -219,5 +243,37 @@ void TextureManager::create(
                 vkUpdateDescriptorSets(rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr);
             }
         }
+    }
+
+    { // Allocate descriptor set for environment cubemap
+        if(environment_cubemap_binding.has_value() && environment_cubemap_binding->first && cubemap_descriptor_layout != VK_NULL_HANDLE) {
+            VkDescriptorSetAllocateInfo alloc_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = descriptor_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &cubemap_descriptor_layout,
+            };
+
+            VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &environment_cubemap_binding->second));
+
+            VkDescriptorImageInfo image_info{
+                .sampler = environment_cubemap_binding->first->sampler,
+                .imageView = environment_cubemap_binding->first->image_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+
+            VkWriteDescriptorSet write{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = environment_cubemap_binding->second,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &image_info,
+            };
+
+            vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
+        }
+
     }
 }

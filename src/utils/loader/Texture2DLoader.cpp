@@ -2,6 +2,7 @@
 
 #include "VK.hpp"
 #include "RTG.hpp"
+#include "TextureCommon.hpp"
 
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -14,78 +15,7 @@
 namespace Texture2DLoader {
 
 namespace {
-
-VkFormat channel_count_to_format(int channels) {
-	switch (channels) {
-		case 1:
-			return VK_FORMAT_R8_UNORM;
-		case 2:
-			return VK_FORMAT_R8G8_UNORM;
-		case 3:
-			return VK_FORMAT_R8G8B8_UNORM;
-		case 4:
-			return VK_FORMAT_R8G8B8A8_UNORM;
-		default:
-			throw std::runtime_error("Unsupported number of channels: " + std::to_string(channels));
-	}
-}
-
-VkImageView create_image_view(
-	VkDevice device,
-	VkImage image,
-	VkFormat format
-) {
-	VkImageViewCreateInfo create_info{
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .flags = 0,
-		.image = image,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = format,
-		.components = {
-			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-		},
-		.subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
-		},
-	};
-
-	VkImageView image_view;
-	VK( vkCreateImageView(device, &create_info, nullptr, &image_view) );
-	return image_view;
-}
-
-VkSampler create_sampler(VkDevice device, VkFilter filter) {
-	VkSamplerCreateInfo create_info{
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter = filter,
-		.minFilter = filter,
-		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.mipLodBias = 0.0f,
-		.anisotropyEnable = VK_FALSE,
-		.maxAnisotropy = 1.0f,
-		.compareEnable = VK_FALSE,
-		.compareOp = VK_COMPARE_OP_ALWAYS,
-		.minLod = 0.0f,
-		.maxLod = 0.0f,
-		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-		.unnormalizedCoordinates = VK_FALSE,
-	};
-
-	VkSampler sampler;
-	VK( vkCreateSampler(device, &create_info, nullptr, &sampler) );
-	return sampler;
-}
-
+// no-internal helpers: kept empty to avoid anonymous namespace removal warnings
 } // namespace
 
 std::shared_ptr<Texture> load_image(
@@ -122,7 +52,7 @@ std::shared_ptr<Texture> load_image(
 
 	try {
 		// Determine format from channel count
-		VkFormat format = channel_count_to_format(channels);
+		VkFormat format = TextureCommon::channel_count_to_format(channels);
 
 		// Create GPU texture resource
 		auto texture = std::make_shared<Texture>();
@@ -141,8 +71,14 @@ std::shared_ptr<Texture> load_image(
 		);
 
 		helpers.transfer_to_image(pixel_data, image_size, texture->image);
-		texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, format);
-		texture->sampler = create_sampler(helpers.rtg.device, filter);
+		texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, format, false);
+		texture->sampler = TextureCommon::create_sampler(
+			helpers.rtg.device,
+			filter,
+			VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			VK_SAMPLER_ADDRESS_MODE_REPEAT
+		);
 
 		// Free CPU-side pixel data
 		stbi_image_free(pixel_data);
@@ -187,9 +123,15 @@ std::shared_ptr<Texture> create_rgb_texture(
         Helpers::Unmapped
     );
 
-    helpers.transfer_to_image(pixel_data, 1 * 1 * 4, texture->image);
-    texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM);
-    texture->sampler = create_sampler(helpers.rtg.device, filter);
+	helpers.transfer_to_image(pixel_data, 1 * 1 * 4, texture->image);
+	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->sampler = TextureCommon::create_sampler(
+		helpers.rtg.device,
+		filter,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT
+	);
 
     return texture;
 }

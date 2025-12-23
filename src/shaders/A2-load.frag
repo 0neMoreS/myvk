@@ -17,19 +17,7 @@ layout(location=2) in vec2 texCoord;
 layout(location=0) out vec4 outColor;
 
 void main() {
-	vec3 n = normalize(normal);
-	vec3 l = vec3(0.3, 0.4, 0.5);
-	vec3 albedo = texture(TEXTURE, texCoord).rgb;
-	
 	// Sample cubemap for indirect lighting
-	vec3 cubemap_color = texture(CUBEMAP, n).rgb;
-
-	//hemisphere lighting from direction l:
-	vec3 e = vec3(0.5 * dot(n,l) + 0.5);
-	// vec3 e = SKY_ENERGY * (0.5 * dot(n,SKY_DIRECTION) + 0.5)
-	//        + SUN_ENERGY * max(0.0, dot(n,SUN_DIRECTION)) ;
-
-	// Blend direct lighting with cubemap indirect lighting
-	vec3 final_light = e + cubemap_color * 0.3;
-	outColor = vec4(final_light * albedo, 1.0);
+	vec3 cubemap_color = texture(CUBEMAP, position).rgb;
+	outColor = vec4(cubemap_color, 1.0);
 }

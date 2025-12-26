@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Helpers.hpp"
+#include "VK.hpp"
+#include "RTG.hpp"
+#include "TextureCommon.hpp"
 
 #include <string>
 #include <memory>
@@ -26,7 +29,6 @@ std::shared_ptr<Texture> load_png(
 std::shared_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
-	int force_channels = 4,
 	VkFilter filter = VK_FILTER_LINEAR
 );
 

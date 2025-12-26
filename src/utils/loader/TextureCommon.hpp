@@ -1,10 +1,11 @@
 #pragma once
 
 #include "Helpers.hpp"
+#include "glm/glm.hpp"
 
 namespace TextureCommon {
 
-VkFormat channel_count_to_format(int channels);
+glm::vec3 decode_rgbe(const glm::u8vec4 &encoded);
 
 VkSampler create_sampler(
     VkDevice device,

@@ -7,15 +7,15 @@
 
 namespace TextureCommon {
 
-VkFormat channel_count_to_format(int channels) {
-    switch (channels) {
-        case 1: return VK_FORMAT_R8_UNORM;
-        case 2: return VK_FORMAT_R8G8_UNORM;
-        case 3: return VK_FORMAT_R8G8B8_UNORM;
-        case 4: return VK_FORMAT_R8G8B8A8_UNORM;
-        default:
-            throw std::runtime_error("Unsupported number of channels: " + std::to_string(channels));
-    }
+glm::vec3 decode_rgbe(const glm::u8vec4 &encoded){
+    if (encoded == glm::u8vec4(0,0,0,0)) return glm::vec3(0.0f);
+
+	int exp = int(encoded.a) - 128;
+	return glm::vec3(
+		std::ldexp((encoded.r + 0.5f) / 256.0f, exp),
+		std::ldexp((encoded.g + 0.5f) / 256.0f, exp),
+		std::ldexp((encoded.b + 0.5f) / 256.0f, exp)
+	);
 }
 
 VkSampler create_sampler(

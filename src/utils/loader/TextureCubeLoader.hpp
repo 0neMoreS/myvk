@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Helpers.hpp"
+#include "TextureCommon.hpp"
 
 #include <string>
 #include <memory>

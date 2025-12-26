@@ -2,7 +2,7 @@
 
 #include "VK.hpp"
 #include "RTG.hpp"
-#include "TextureCommon.hpp"
+
 
 #include <stb_image.h>
 
@@ -14,11 +14,6 @@ namespace TextureCubeLoader {
 using Face = TextureCubeLoader::Face;
 
 namespace {
-
-VkFormat default_format() {
-    return VK_FORMAT_R8G8B8A8_UNORM;
-}
-
 // Copy a square tile from (src_w x src_h) image into dest buffer (face_w x face_h)
 void blit_tile_rgba8(
     const unsigned char* src,
@@ -28,7 +23,7 @@ void blit_tile_rgba8(
     int tile_y,
     int tile_w,
     int tile_h,
-    unsigned char* dst,
+    float* dst,
     int rotate_deg
 ) {
     const int channels = 4;
@@ -53,8 +48,13 @@ void blit_tile_rgba8(
                     break;
             }
             const unsigned char* src_px = src + (sy * src_w + sx) * channels;
-            unsigned char* dst_px = dst + (y * tile_w + x) * channels;
-            std::memcpy(dst_px, src_px, channels);
+            float* dst_px = dst + (y * tile_w + x) * channels;
+
+            glm::vec3 decoded = TextureCommon::decode_rgbe(glm::u8vec4{src_px[0], src_px[1], src_px[2], src_px[3]});
+            dst_px[0] = decoded.r;
+            dst_px[1] = decoded.g;
+            dst_px[2] = decoded.b;
+            dst_px[3] = 1.0f;
         }
     }
 }
@@ -89,13 +89,13 @@ std::shared_ptr<Texture> load_from_png_atlas(
         throw std::runtime_error("Cubemap faces must be square.");
     }
 
-    const size_t face_bytes = static_cast<size_t>(face_w) * static_cast<size_t>(face_h) * 4;
-    std::vector<unsigned char> faces(face_bytes * 6);
+    const size_t face_offset = static_cast<size_t>(face_w) * static_cast<size_t>(face_h) * 4UL;
+    std::vector<float> faces(face_offset * 6);
 
     for (int tile = 0; tile < 6; ++tile) {
         const int tx = 0;
         const int ty = tile_for_vulkan_face[tile].first * face_h;
-        unsigned char* dst = faces.data() + tile * face_bytes;
+        float* dst = faces.data() + tile * face_offset;
         blit_tile_rgba8(pixels, img_w, img_h, tx, ty, face_w, face_h, dst, tile_for_vulkan_face[tile].second);
     }
 
@@ -103,7 +103,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
     auto texture = std::make_shared<Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = static_cast<uint32_t>(face_w), .height = static_cast<uint32_t>(face_h) },
-        default_format(),
+        VK_FORMAT_R32G32B32A32_SFLOAT,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -111,9 +111,9 @@ std::shared_ptr<Texture> load_from_png_atlas(
         true  // is_cube = true
     );
 
-    helpers.transfer_to_image(faces.data(), faces.size(), texture->image, 6);
+    helpers.transfer_to_image(faces.data(), faces.size() * sizeof(float), texture->image, 6);
 
-    texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, default_format(), true);
+    texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true);
     texture->sampler = TextureCommon::create_sampler(
         helpers.rtg.device,
         filter,

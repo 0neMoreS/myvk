@@ -1,9 +1,5 @@
 #include "Texture2DLoader.hpp"
 
-#include "VK.hpp"
-#include "RTG.hpp"
-#include "TextureCommon.hpp"
-
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #endif
@@ -21,7 +17,6 @@ namespace {
 std::shared_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
-	int force_channels,
 	VkFilter filter
 ) {
 	// Load image file using stb_image
@@ -34,7 +29,7 @@ std::shared_ptr<Texture> load_image(
 		&width,
 		&height,
 		&channels,
-		force_channels
+		4
 	);
 
 	if (!pixel_data) {
@@ -45,50 +40,49 @@ std::shared_ptr<Texture> load_image(
 		throw std::runtime_error(error_msg);
 	}
 
-	// If force_channels is set, use that; otherwise use what stb_image detected
-	if (force_channels > 0) {
-		channels = force_channels;
+	std::vector<float> rgba_data(width * height * 4);
+
+	for(size_t i = 0; i < static_cast<size_t>(width * height); ++i) {
+		glm::vec3 decoded = TextureCommon::decode_rgbe(glm::u8vec4{
+			pixel_data[i * 4 + 0],
+			pixel_data[i * 4 + 1],
+			pixel_data[i * 4 + 2],
+			pixel_data[i * 4 + 3]
+		});
+
+		rgba_data[i * 4 + 0] = decoded.r;
+		rgba_data[i * 4 + 1] = decoded.g;
+		rgba_data[i * 4 + 2] = decoded.b;
+		rgba_data[i * 4 + 3] = 1.0f;
 	}
 
-	try {
-		// Determine format from channel count
-		VkFormat format = TextureCommon::channel_count_to_format(channels);
+	// Create GPU texture resource
+	auto texture = std::make_shared<Texture>();
 
-		// Create GPU texture resource
-		auto texture = std::make_shared<Texture>();
+	// Create GPU image with transfer destination flag
+	texture->image = helpers.create_image(
+		VkExtent2D{.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)},
+		VK_FORMAT_R32G32B32A32_SFLOAT,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		Helpers::Unmapped
+	);
 
-		// Calculate image size in bytes
-		size_t image_size = width * height * channels;
+	helpers.transfer_to_image(rgba_data.data(), rgba_data.size() * sizeof(float), texture->image);
+	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, false);
+	texture->sampler = TextureCommon::create_sampler(
+		helpers.rtg.device,
+		filter,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT
+	);
 
-		// Create GPU image with transfer destination flag
-		texture->image = helpers.create_image(
-			VkExtent2D{.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)},
-			format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            Helpers::Unmapped
-		);
+	// Free CPU-side pixel data
+	stbi_image_free(pixel_data);
 
-		helpers.transfer_to_image(pixel_data, image_size, texture->image);
-		texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, format, false);
-		texture->sampler = TextureCommon::create_sampler(
-			helpers.rtg.device,
-			filter,
-			VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			VK_SAMPLER_ADDRESS_MODE_REPEAT
-		);
-
-		// Free CPU-side pixel data
-		stbi_image_free(pixel_data);
-
-		return texture;
-
-	} catch (const std::exception &e) {
-		stbi_image_free(pixel_data);
-		throw;
-	}
+	return texture;
 }
 
 std::shared_ptr<Texture> load_png(
@@ -96,8 +90,7 @@ std::shared_ptr<Texture> load_png(
 	const std::string &filepath,
 	VkFilter filter
 ) {
-	// Use load_image with force_channels = 4 for RGBA
-	return load_image(helpers, filepath, 4, filter);
+	return load_image(helpers, filepath, filter);
 }
 
 std::shared_ptr<Texture> create_rgb_texture(

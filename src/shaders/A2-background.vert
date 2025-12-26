@@ -7,7 +7,7 @@ layout(location=3) in vec2 TexCoord;
 
 layout(location = 0) out vec3 normal;
 
-layout(set=0,binding=0,std140) uniform Transform {
+layout(set=0,binding=0,std140) uniform PV {
     mat4 PERSPECTIVE;
     mat4 VIEW;
 };

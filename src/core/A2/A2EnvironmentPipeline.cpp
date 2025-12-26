@@ -4,24 +4,28 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/A2-load.vert.inl"
+#include "../../shaders/spv/A2-environment.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/A2-load.frag.inl"
+#include "../../shaders/spv/A2-environment.frag.inl"
 };
 
 A2EnvironmentPipeline::~A2EnvironmentPipeline(){
-	if(set0_World != VK_NULL_HANDLE || set1_Transforms != VK_NULL_HANDLE || set2_TEXTURE != VK_NULL_HANDLE || set3_CUBEMAP != VK_NULL_HANDLE || layout != VK_NULL_HANDLE || pipeline != VK_NULL_HANDLE){
-		std::cerr << "[A2EnvironmentPipeline] A2EnvironmentPipeline destructor called, but some Vulkan objects are still allocated.\n";
-	}
+	assert(layout == VK_NULL_HANDLE); //should have been destroyed already
+	assert(set1_World == VK_NULL_HANDLE);
+	assert(set2_Transforms == VK_NULL_HANDLE);
+	assert(set3_TEXTURE == VK_NULL_HANDLE);
 }
 
 void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
 	VkShaderModule vert_module = rtg.helpers.create_shader_module(vert_code);
 	VkShaderModule frag_module = rtg.helpers.create_shader_module(frag_code);
 
-	{ //the set0_World layout holds world info in a uniform buffer used in the fragment shader:
+	assert(set0_PV != VK_NULL_HANDLE && "should have been set before creating object pipeline layout");
+	assert(set4_CUBEMAP != VK_NULL_HANDLE && "should have been set before creating object pipeline layout");
+
+	{ //the set1_World layout holds world info in a uniform buffer used in the fragment shader:
 		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
@@ -37,10 +41,10 @@ void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t 
 			.pBindings = bindings.data(),
 		};
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_World) );
+		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_World) );
 	}
 	
-	{ //the set1_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
+	{ //the set2_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
 		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
@@ -56,10 +60,10 @@ void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t 
 			.pBindings = bindings.data(),
 		};
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_Transforms) );
+		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_Transforms) );
 	}
 
-	{ //the set2_TEXTURE layout has a single descriptor for a sampler2D used in the fragment shader:
+	{ //the set3_TEXTURE layout has a single descriptor for a sampler2D used in the fragment shader:
 		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
@@ -75,21 +79,16 @@ void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t 
 			.pBindings = bindings.data(),
 		};
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_TEXTURE) );
-	}
-
-	{ //the set3_CUBEMAP layout has a single descriptor for a samplerCube used in the fragment shader:
-		if(set3_CUBEMAP == VK_NULL_HANDLE) {
-			std::cout << "[A2EnvironmentPipeline] Warning: set3_CUBEMAP is VK_NULL_HANDLE. Should create one before creating object pipeline layout." << std::endl;
-		}
+		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set3_TEXTURE) );
 	}
 
 	{ //create pipeline layout:
-		std::array< VkDescriptorSetLayout, 4 > layouts{
-			set0_World, //we'd like to say "VK_NULL_HANDLE" here, but that's not valid without an extension
-			set1_Transforms,
-			set2_TEXTURE,
-			set3_CUBEMAP,
+		std::array< VkDescriptorSetLayout, 5 > layouts{
+			set0_PV,
+			set1_World,
+			set2_Transforms,
+			set3_TEXTURE,
+			set4_CUBEMAP,
 		};
 
 		VkPipelineLayoutCreateInfo create_info{
@@ -214,16 +213,16 @@ void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t 
 		vkDestroyShaderModule(rtg.device, vert_module, nullptr);
 	}
 
-	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER , .layout = set0_World}); //World
-	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .layout = set1_Transforms}); //Transform
+	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER , .layout = set1_World}); //World
+	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .layout = set2_Transforms}); //Transform
 	
 	// Configure texture layout bindings for TextureManager
 	texture_descriptor_configs.push_back(Pipeline::TextureDescriptorConfig{
 		.slot = TextureSlot::Diffuse,
-		.layout = set2_TEXTURE
+		.layout = set3_TEXTURE
 	});
 
-	pipeline_name_to_index["A2EnvironmentPipeline"] = 1;
+	pipeline_name_to_index["A2EnvironmentPipeline"] = 2;
 }
 
 void A2EnvironmentPipeline::destroy(RTG &rtg) {
@@ -237,18 +236,18 @@ void A2EnvironmentPipeline::destroy(RTG &rtg) {
 		pipeline = VK_NULL_HANDLE;
 	}
 
-	if (set0_World != VK_NULL_HANDLE) {
-		vkDestroyDescriptorSetLayout(rtg.device, set0_World, nullptr);
-		set0_World = VK_NULL_HANDLE;
+	if (set1_World != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set1_World, nullptr);
+		set1_World = VK_NULL_HANDLE;
 	}
 
-	if (set1_Transforms != VK_NULL_HANDLE) {
-		vkDestroyDescriptorSetLayout(rtg.device, set1_Transforms, nullptr);
-		set1_Transforms = VK_NULL_HANDLE;
+	if (set2_Transforms != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set2_Transforms, nullptr);
+		set2_Transforms = VK_NULL_HANDLE;
 	}
 
-	if (set2_TEXTURE != VK_NULL_HANDLE) {
-		vkDestroyDescriptorSetLayout(rtg.device, set2_TEXTURE, nullptr);
-		set2_TEXTURE = VK_NULL_HANDLE;
+	if (set3_TEXTURE != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set3_TEXTURE, nullptr);
+		set3_TEXTURE = VK_NULL_HANDLE;
 	}
 }

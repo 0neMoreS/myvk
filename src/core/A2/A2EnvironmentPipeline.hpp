@@ -9,13 +9,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <iostream>
+#include <cassert>
 
 struct A2EnvironmentPipeline : Pipeline {
     // type definitions
-    VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set2_TEXTURE = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set3_CUBEMAP = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set0_PV = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set1_World = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set2_Transforms = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set3_TEXTURE = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set4_CUBEMAP = VK_NULL_HANDLE;
 
     //types for descriptors:
     struct World {
@@ -28,12 +30,10 @@ struct A2EnvironmentPipeline : Pipeline {
 
     //types for descriptors:
     struct Transform {
-        glm::mat4 PERSPECTIVE;
-        glm::mat4 VIEW;
         glm::mat4 MODEL;
         glm::mat4 MODEL_NORMAL;
     };
-    static_assert(sizeof(Transform) == 16*4 + 16*4 + 16*4 + 16*4, "Transform is the expected size.");
+    static_assert(sizeof(Transform) == 16*4 + 16*4, "Transform is the expected size.");
 
     //no push constants
     void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;

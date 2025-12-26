@@ -21,7 +21,9 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	doc{S72Loader::load_file(s72_dir + filename)}, 
 	camera_manager{}, 
 	workspace_manager{}, 
-	render_pass_manager{}, 
+	render_pass_manager{},
+	common_layouts{},
+	background_pipeline{},
 	objects_pipeline{},
 	scene_manager{},
 	texture_manager{},
@@ -29,19 +31,32 @@ A2::A2(RTG &rtg, const std::string &filename) :
 {
 	render_pass_manager.create(rtg);
 
+	common_layouts.create(rtg);
+	background_pipeline.set0_PV = common_layouts.pv_matrix;
+	background_pipeline.set1_CUBEMAP = common_layouts.cubemap;
 	background_pipeline.create(rtg, render_pass_manager.render_pass, 0);
-	objects_pipeline.set3_CUBEMAP = background_pipeline.set1_CUBEMAP;
+
+	objects_pipeline.set0_PV = common_layouts.pv_matrix;
+	objects_pipeline.set4_CUBEMAP = common_layouts.cubemap;
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{2};
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{3};
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["CommonLayouts"]] = std::vector<Pipeline::BlockDescriptorConfig>{
+        Pipeline::BlockDescriptorConfig{
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .layout = common_layouts.pv_matrix
+        }
+    };
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2EnvironmentPipeline"]] = objects_pipeline.block_descriptor_configs;
 
-	std::vector< std::vector< Pipeline::TextureDescriptorConfig > > texture_descriptor_configs_by_pipeline{2};
+	std::vector< std::vector< Pipeline::TextureDescriptorConfig > > texture_descriptor_configs_by_pipeline{3};
+	texture_descriptor_configs_by_pipeline[pipeline_name_to_index["CommonLayouts"]] = std::vector<Pipeline::TextureDescriptorConfig>{};
+	texture_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.texture_descriptor_configs;
 	texture_descriptor_configs_by_pipeline[pipeline_name_to_index["A2EnvironmentPipeline"]] = objects_pipeline.texture_descriptor_configs;
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
-	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A2BackgroundPipeline"], 0, sizeof(background_transform));
+	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["CommonLayouts"], 0, sizeof(pv_matrix));
 	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A2EnvironmentPipeline"], 0, sizeof(object_world));
 
 	scene_manager.create(rtg, doc);
@@ -64,6 +79,8 @@ A2::~A2() {
 	scene_manager.destroy(rtg);
 
 	framebuffer_manager.destroy(rtg);
+
+	common_layouts.destroy(rtg);
 
 	background_pipeline.destroy(rtg);
 
@@ -96,16 +113,15 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	{ //begin recording:
 		workspace.begin_recording();
 
-		{ //upload background transform:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2BackgroundPipeline"]][0].host.size == sizeof(background_transform));
+		{ //upload pv matrix:
+			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.size == sizeof(pv_matrix));
 
 			//host-side copy into Transform_src:
-			memcpy(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2BackgroundPipeline"]][0].host.allocation.data(), &background_transform, sizeof(background_transform));
-
+			memcpy(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.allocation.data(), &pv_matrix, sizeof(pv_matrix));
 			//add device-side copy from Transform_src -> Transform:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2BackgroundPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2BackgroundPipeline"]][0].device.size);
+			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].device.size);
 
-			workspace.copy_buffer(rtg, pipeline_name_to_index["A2BackgroundPipeline"], 0, sizeof(background_transform));
+			workspace.copy_buffer(rtg, pipeline_name_to_index["CommonLayouts"], 0, sizeof(pv_matrix));
 		}
 
 		{ //upload world info:
@@ -198,7 +214,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						auto &cubemap_binding = texture_manager.environment_cubemap_binding;
 						if (cubemap_binding && cubemap_binding->second != VK_NULL_HANDLE) {
 							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2BackgroundPipeline"]][0].descriptor, //0: World
+								workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor, //0: World
 								cubemap_binding->second, //1: Cubemap
 							};
 
@@ -227,7 +243,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						{ //bind Transforms descriptor set:
-							std::array< VkDescriptorSet, 2 > descriptor_sets{
+							std::array< VkDescriptorSet, 3 > descriptor_sets{
+								workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor, //0: PV
 								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].descriptor, //0: World
 								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].descriptor, //1: Transforms
 							};
@@ -254,7 +271,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								workspace.command_buffer, //command buffer
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 								objects_pipeline.layout, //pipeline layout
-								2, //set 2 (Diffuse texture)
+								3, //set 3 (Diffuse texture)
 								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
 								0, nullptr //dynamic offsets count, ptr
 							);
@@ -266,7 +283,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								workspace.command_buffer, //command buffer
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 								objects_pipeline.layout, //pipeline layout
-								3, //set 3 (Cubemap)
+								4, //set 4 (Cubemap)
 								1, &cubemap_binding->second, //descriptor sets count, ptr
 								0, nullptr //dynamic offsets count, ptr
 							);
@@ -338,8 +355,8 @@ void A2::update(float dt) {
 	glm::mat4 VIEW = camera_manager.get_view();
 
 	{ // update background transform
-		background_transform.PERSPECTIVE = PERSPECTIVE;
-		background_transform.VIEW = VIEW;
+		pv_matrix.PERSPECTIVE = PERSPECTIVE;
+		pv_matrix.VIEW = VIEW;
 	}
 
 	{ // update object instances with frustum culling
@@ -381,8 +398,6 @@ void A2::update(float dt) {
 				object_instances.emplace_back(ObjectInstance{
 					.object_ranges = object_range,
 					.object_transform{
-						.PERSPECTIVE = PERSPECTIVE,
-						.VIEW = VIEW,
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
 					},

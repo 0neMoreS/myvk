@@ -13,6 +13,7 @@
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
 #include "A2EnvironmentPipeline.hpp"
+#include "CommonLayouts.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
@@ -39,6 +40,7 @@ struct A2 : RTG::Application {
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
 
+	CommonLayouts common_layouts;
 	A2BackgroundPipeline background_pipeline;
 	A2EnvironmentPipeline objects_pipeline;
 
@@ -62,7 +64,7 @@ struct A2 : RTG::Application {
 
 	float time = 0.0f;
 
-	A2BackgroundPipeline::Transform background_transform;
+	CommonLayouts::PV pv_matrix;
 	A2EnvironmentPipeline::World object_world;
 
 	struct ObjectInstance {

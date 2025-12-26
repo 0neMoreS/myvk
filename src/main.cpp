@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		A2 application(rtg, "materials.s72");
+		A2 application(rtg, "env-cube.s72");
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

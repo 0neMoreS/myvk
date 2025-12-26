@@ -27,9 +27,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
 	if(cameras.empty()) {
 		// Create a default camera if none are defined
 		cameras.emplace_back(CameraManager::Camera {
-			.camera_position = glm::vec3{0.0f, 0.0f, 5.0f},
-			.camera_forward = glm::vec3{0.0f, 0.0f, -1.0f},
-			.camera_up = glm::vec3{0.0f, 1.0f, 0.0f},
+			.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
+			.camera_forward = glm::vec3{0.0f, 0.0f, 1.0f},
+			.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
 			.camera_fov = glm::radians(60.0f),
 			.camera_height = swapchain_height,
 			.camera_width = swapchain_width,

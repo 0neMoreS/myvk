@@ -39,7 +39,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
 	}
 }
 
-void CameraManager::update(float dt, const uint32_t swapchain_width, const uint32_t swapchain_height) {
+void CameraManager::update(float dt) {
 	if (cameras.empty()) return;
 
 	Camera& active_camera = cameras[active_camera_index];
@@ -99,14 +99,9 @@ void CameraManager::update(float dt, const uint32_t swapchain_width, const uint3
 
 	// Clamp FOV
 	active_camera.camera_fov = glm::clamp(active_camera.camera_fov, 0.0f, glm::radians(120.0f));
-
-	// Update camera dimensions
-	// active_camera.camera_width = swapchain_width;
-	// active_camera.camera_height = swapchain_height;
 }
 
 void CameraManager::resize_all_cameras(const uint32_t swapchain_width, const uint32_t swapchain_height) {
-	std::cout << "CameraManager: Resizing all cameras to " << swapchain_width << "x" << swapchain_height << std::endl;
 	for(auto &camera : cameras) {
 		camera.camera_width = swapchain_width;
 		camera.camera_height = swapchain_height;

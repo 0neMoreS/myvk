@@ -45,7 +45,7 @@ public:
 	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height);
 
 	// Update camera state (called every frame)
-	void update(float dt, uint32_t swapchain_width, uint32_t swapchain_height);
+	void update(float dt);
 
 	// Handle input events
 	void on_input(const InputEvent& event);

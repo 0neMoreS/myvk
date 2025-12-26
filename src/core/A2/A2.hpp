@@ -12,7 +12,7 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
-#include "A2ObjectsPipeline.hpp"
+#include "A2EnvironmentPipeline.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
@@ -40,7 +40,7 @@ struct A2 : RTG::Application {
 	//Resources that last the lifetime of the application:
 
 	A2BackgroundPipeline background_pipeline;
-	A2ObjectsPipeline objects_pipeline;
+	A2EnvironmentPipeline objects_pipeline;
 
 	//-------------------------------------------------------------------
 	//static scene resources:
@@ -63,11 +63,11 @@ struct A2 : RTG::Application {
 	float time = 0.0f;
 
 	A2BackgroundPipeline::Transform background_transform;
-	A2ObjectsPipeline::World object_world;
+	A2EnvironmentPipeline::World object_world;
 
 	struct ObjectInstance {
 		SceneManager::ObjectRange object_ranges;
-		A2ObjectsPipeline::Transform object_transform;
+		A2EnvironmentPipeline::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ObjectInstance > object_instances;

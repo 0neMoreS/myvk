@@ -35,14 +35,14 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{2};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ObjectsPipeline"]] = objects_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2EnvironmentPipeline"]] = objects_pipeline.block_descriptor_configs;
 
 	std::vector< std::vector< Pipeline::TextureDescriptorConfig > > texture_descriptor_configs_by_pipeline{2};
-	texture_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ObjectsPipeline"]] = objects_pipeline.texture_descriptor_configs;
+	texture_descriptor_configs_by_pipeline[pipeline_name_to_index["A2EnvironmentPipeline"]] = objects_pipeline.texture_descriptor_configs;
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
 	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A2BackgroundPipeline"], 0, sizeof(background_transform));
-	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A2ObjectsPipeline"], 0, sizeof(object_world));
+	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A2EnvironmentPipeline"], 0, sizeof(object_world));
 
 	scene_manager.create(rtg, doc);
 
@@ -109,38 +109,38 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		}
 
 		{ //upload world info:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][0].host.size == sizeof(object_world));
+			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].host.size == sizeof(object_world));
 
 			//host-side copy into World_src:
-			memcpy(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][0].host.allocation.data(), &object_world, sizeof(object_world));
+			memcpy(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].host.allocation.data(), &object_world, sizeof(object_world));
 
 			//add device-side copy from World_src -> World:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][0].device.size);
+			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].device.size);
 
-			workspace.copy_buffer(rtg, pipeline_name_to_index["A2ObjectsPipeline"], 0, sizeof(object_world));
+			workspace.copy_buffer(rtg, pipeline_name_to_index["A2EnvironmentPipeline"], 0, sizeof(object_world));
 		}
 
 		{ //upload object transforms
 			if (!object_instances.empty()) { 
-				size_t needed_bytes = object_instances.size() * sizeof(A2ObjectsPipeline::Transform);
-				if (workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.size < needed_bytes) {
+				size_t needed_bytes = object_instances.size() * sizeof(A2EnvironmentPipeline::Transform);
+				if (workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, pipeline_name_to_index["A2ObjectsPipeline"], 1, new_bytes);
+					workspace.update_descriptor(rtg, pipeline_name_to_index["A2EnvironmentPipeline"], 1, new_bytes);
 				}
 
-				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].device.size);
-				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.size >= needed_bytes);
+				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].device.size);
+				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.size >= needed_bytes);
 				{ //copy transforms into Transforms_src:
-					assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.allocation.mapped);
-					A2ObjectsPipeline::Transform *out = reinterpret_cast< A2ObjectsPipeline::Transform * >(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
+					assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.allocation.mapped);
+					A2EnvironmentPipeline::Transform *out = reinterpret_cast< A2EnvironmentPipeline::Transform * >(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
 					for (ObjectInstance const &inst : object_instances) {
 						*out = inst.object_transform;
 						++out;
 					}
 				}
 
-				workspace.copy_buffer(rtg, pipeline_name_to_index["A2ObjectsPipeline"], 1, needed_bytes);
+				workspace.copy_buffer(rtg, pipeline_name_to_index["A2EnvironmentPipeline"], 1, needed_bytes);
 			}
 		}
 
@@ -228,8 +228,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						{ //bind Transforms descriptor set:
 							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][0].descriptor, //0: World
-								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ObjectsPipeline"]][1].descriptor, //1: Transforms
+								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][0].descriptor, //0: World
+								workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2EnvironmentPipeline"]][1].descriptor, //1: Transforms
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer
@@ -246,7 +246,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							uint32_t index = uint32_t(&inst - &object_instances[0]);
 
 							//bind texture descriptor set:
-							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A2ObjectsPipeline"]][inst.material_index];
+							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A2EnvironmentPipeline"]][inst.material_index];
 							auto &diffuse_binding_opt = material_textures[(TextureSlot::Diffuse)];
 							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
 
@@ -333,7 +333,7 @@ void A2::update(float dt) {
 	}
 
 	// Update camera
-	camera_manager.update(dt, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.update(dt);
 	glm::mat4 PERSPECTIVE = camera_manager.get_perspective();
 	glm::mat4 VIEW = camera_manager.get_view();
 

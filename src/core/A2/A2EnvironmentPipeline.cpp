@@ -1,4 +1,4 @@
-#include "A2ObjectsPipeline.hpp"
+#include "A2EnvironmentPipeline.hpp"
 
 #include "Helpers.hpp"
 #include "VK.hpp"
@@ -11,13 +11,13 @@ static uint32_t frag_code[] = {
 #include "../../shaders/spv/A2-load.frag.inl"
 };
 
-A2ObjectsPipeline::~A2ObjectsPipeline(){
+A2EnvironmentPipeline::~A2EnvironmentPipeline(){
 	if(set0_World != VK_NULL_HANDLE || set1_Transforms != VK_NULL_HANDLE || set2_TEXTURE != VK_NULL_HANDLE || set3_CUBEMAP != VK_NULL_HANDLE || layout != VK_NULL_HANDLE || pipeline != VK_NULL_HANDLE){
-		std::cerr << "[A2ObjectsPipeline] A2ObjectsPipeline destructor called, but some Vulkan objects are still allocated.\n";
+		std::cerr << "[A2EnvironmentPipeline] A2EnvironmentPipeline destructor called, but some Vulkan objects are still allocated.\n";
 	}
 }
 
-void A2ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
+void A2EnvironmentPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
 	VkShaderModule vert_module = rtg.helpers.create_shader_module(vert_code);
 	VkShaderModule frag_module = rtg.helpers.create_shader_module(frag_code);
 
@@ -78,24 +78,11 @@ void A2ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_TEXTURE) );
 	}
 
-	// { //the set3_CUBEMAP layout has a single descriptor for a samplerCube used in the fragment shader:
-	// 	std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
-	// 		VkDescriptorSetLayoutBinding{
-	// 			.binding = 0,
-	// 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-	// 			.descriptorCount = 1,
-	// 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-	// 		},
-	// 	};
-		
-	// 	VkDescriptorSetLayoutCreateInfo create_info{
-	// 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-	// 		.bindingCount = uint32_t(bindings.size()),
-	// 		.pBindings = bindings.data(),
-	// 	};
-
-	// 	VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set3_CUBEMAP) );
-	// }
+	{ //the set3_CUBEMAP layout has a single descriptor for a samplerCube used in the fragment shader:
+		if(set3_CUBEMAP == VK_NULL_HANDLE) {
+			std::cout << "[A2EnvironmentPipeline] Warning: set3_CUBEMAP is VK_NULL_HANDLE. Should create one before creating object pipeline layout." << std::endl;
+		}
+	}
 
 	{ //create pipeline layout:
 		std::array< VkDescriptorSetLayout, 4 > layouts{
@@ -236,10 +223,10 @@ void A2ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 		.layout = set2_TEXTURE
 	});
 
-	pipeline_name_to_index["A2ObjectsPipeline"] = 1;
+	pipeline_name_to_index["A2EnvironmentPipeline"] = 1;
 }
 
-void A2ObjectsPipeline::destroy(RTG &rtg) {
+void A2EnvironmentPipeline::destroy(RTG &rtg) {
 	if (layout != VK_NULL_HANDLE) {
 		vkDestroyPipelineLayout(rtg.device, layout, nullptr);
 		layout = VK_NULL_HANDLE;
@@ -264,9 +251,4 @@ void A2ObjectsPipeline::destroy(RTG &rtg) {
 		vkDestroyDescriptorSetLayout(rtg.device, set2_TEXTURE, nullptr);
 		set2_TEXTURE = VK_NULL_HANDLE;
 	}
-
-	// if (set3_CUBEMAP != VK_NULL_HANDLE) {
-	// 	vkDestroyDescriptorSetLayout(rtg.device, set3_CUBEMAP, nullptr);
-	// 	set3_CUBEMAP = VK_NULL_HANDLE;
-	// }
 }

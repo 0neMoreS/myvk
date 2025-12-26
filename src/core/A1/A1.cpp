@@ -272,7 +272,7 @@ void A1::update(float dt) {
 	}
 
 	// Update camera
-	camera_manager.update(dt, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.update(dt);
 
 	{
 		object_instances.clear();

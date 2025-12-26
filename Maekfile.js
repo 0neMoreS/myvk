@@ -71,7 +71,7 @@ const main_objs = [
 	// A2 files
 	maek.CPP('./src/core/A2/A2.cpp'),
 	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends:[...a2_background_shaders] } ),
-	maek.CPP('./src/core/A2/A2ObjectsPipeline.cpp', undefined, { depends:[...a2_load_shaders] } ),
+	maek.CPP('./src/core/A2/A2EnvironmentPipeline.cpp', undefined, { depends:[...a2_load_shaders] } ),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),

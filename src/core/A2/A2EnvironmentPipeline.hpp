@@ -10,7 +10,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <iostream>
 
-struct A2ObjectsPipeline : Pipeline {
+struct A2EnvironmentPipeline : Pipeline {
     // type definitions
     VkDescriptorSetLayout set0_World = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
@@ -39,8 +39,8 @@ struct A2ObjectsPipeline : Pipeline {
     void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;
     void destroy(RTG &rtg) override;
 
-    A2ObjectsPipeline() = default;
-    ~A2ObjectsPipeline();
+    A2EnvironmentPipeline() = default;
+    ~A2EnvironmentPipeline();
     
     // Cubemap data structure
     struct Cubemap {

@@ -153,6 +153,7 @@ struct Document {
 std::shared_ptr<Document> load_file(const std::string &path);
 std::shared_ptr<Document> load_string(const std::string &contents);
 
+std::vector<uint8_t> load_mesh_data(const std::string &base_path, const std::string &mesh);
 std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh);
 
 } // namespace S72Loader

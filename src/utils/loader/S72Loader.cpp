@@ -545,19 +545,7 @@ std::shared_ptr<Document> load_string(std::string const &contents) {
 	return parse_document(root);
 }
 
-std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh) {
-    // Determine which file to load
-    std::string src;
-    if (mesh.indices) {
-        // If mesh has indices, load the indices data
-        src = mesh.indices->src;
-    } else if (!mesh.attributes.empty()) {
-        // Otherwise load the first attribute's data source
-        src = mesh.attributes.begin()->second.src;
-    } else {
-        throw std::runtime_error("Mesh has no data sources");
-    }
-    
+std::vector<uint8_t> load_mesh_data(const std::string &base_path, const std::string &src){    
     // Build full file path
     std::string filepath = base_path;
     if (!base_path.empty() && base_path.back() != '/') {
@@ -584,4 +572,19 @@ std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &me
     return data;
 }
 
+std::vector<uint8_t> load_mesh_data(const std::string &base_path, const Mesh &mesh) {
+    // Determine which file to load
+    std::string src;
+    if (mesh.indices) {
+        // If mesh has indices, load the indices data
+        src = mesh.indices->src;
+    } else if (!mesh.attributes.empty()) {
+        // Otherwise load the first attribute's data source
+        src = mesh.attributes.begin()->second.src;
+    } else {
+        throw std::runtime_error("Mesh has no data sources");
+    }
+	
+    return load_mesh_data(base_path, src);
+}
 } // namespace S72Loader

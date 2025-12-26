@@ -9,6 +9,7 @@
 class SceneManager {
 public:
     Helpers::AllocatedBuffer vertex_buffer;
+    Helpers::AllocatedBuffer cubemap_vertex_buffer;
     
     struct ObjectRange {
 		uint32_t first = 0; // first vertex index

@@ -52,8 +52,34 @@ void SceneManager::create(RTG &rtg, std::shared_ptr<S72Loader::Document> doc) {
 			rtg.helpers.transfer_to_buffer(all_vertices.data(), bytes, vertex_buffer);
 		}
 	}
+
+	std::vector<uint8_t> cubemap_vertex_data;
+	{ // load cubemap vertices
+		if(doc->environments.size() > 0) {
+			try {
+				cubemap_vertex_data = S72Loader::load_mesh_data(s72_dir, "env-cube.b72");
+			} catch (const std::exception &e) {
+				std::cerr << "Warning: Failed to load mesh 'env_cube.b72': " << e.what() << std::endl;
+			}
+		}
+	}
+
+	size_t cubemap_bytes = cubemap_vertex_data.size();	
+
+	if (cubemap_bytes > 0) {
+		cubemap_vertex_buffer = rtg.helpers.create_buffer(
+			cubemap_bytes,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			Helpers::Unmapped
+		);
+
+		//copy data to buffer:
+		rtg.helpers.transfer_to_buffer(cubemap_vertex_data.data(), cubemap_bytes, cubemap_vertex_buffer);
+	}
 }
 
 void SceneManager::destroy(RTG &rtg) {
     rtg.helpers.destroy_buffer(std::move(vertex_buffer));
+	rtg.helpers.destroy_buffer(std::move(cubemap_vertex_buffer));
 }

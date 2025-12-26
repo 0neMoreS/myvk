@@ -57,4 +57,4 @@ enum TextureSlot : size_t {
         Metallic = 3
 };
 
-static std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices
+inline std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices

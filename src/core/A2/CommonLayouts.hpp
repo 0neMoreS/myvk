@@ -20,4 +20,7 @@ struct CommonLayouts {
 
     void create(RTG& rtg); 
     void destroy(RTG& rtg);
+
+    ~CommonLayouts();
+    CommonLayouts() = default;
 };

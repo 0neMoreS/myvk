@@ -55,3 +55,9 @@ void CommonLayouts::destroy(RTG& rtg) {
         cubemap = VK_NULL_HANDLE;
     }
 }
+
+CommonLayouts::~CommonLayouts() {
+	//ensure resources have been destroyed:
+	assert(pv_matrix == VK_NULL_HANDLE);
+	assert(cubemap == VK_NULL_HANDLE);
+}

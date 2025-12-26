@@ -116,9 +116,10 @@ std::shared_ptr<Texture> load_from_png_atlas(
     texture->sampler = TextureCommon::create_sampler(
         helpers.rtg.device,
         filter,
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
     );
 
     stbi_image_free(pixel_data);

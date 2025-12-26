@@ -12,7 +12,8 @@ VkSampler create_sampler(
     VkFilter filter,
     VkSamplerAddressMode address_mode_u,
     VkSamplerAddressMode address_mode_v,
-    VkSamplerAddressMode address_mode_w
+    VkSamplerAddressMode address_mode_w,
+    VkBorderColor border_color
 );
 
 VkImageView create_image_view(

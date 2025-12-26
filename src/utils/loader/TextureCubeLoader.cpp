@@ -49,12 +49,7 @@ void blit_tile_rgba8(
             }
             const unsigned char* src_px = src + (sy * src_w + sx) * channels;
             float* dst_px = dst + (y * tile_w + x) * channels;
-
-            glm::vec3 decoded = TextureCommon::decode_rgbe(glm::u8vec4{src_px[0], src_px[1], src_px[2], src_px[3]});
-            dst_px[0] = decoded.r;
-            dst_px[1] = decoded.g;
-            dst_px[2] = decoded.b;
-            dst_px[3] = 1.0f;
+            TextureCommon::decode_rgbe(src_px, dst_px);
         }
     }
 }
@@ -66,37 +61,41 @@ std::shared_ptr<Texture> load_from_png_atlas(
     const std::string &filepath,
     VkFilter filter
 ) {
-    int img_w, img_h, channels;
+    int width, height, channels;
+
     stbi_set_flip_vertically_on_load(false);
-    unsigned char* pixels = stbi_load(filepath.c_str(), &img_w, &img_h, &channels, 4);
-    if (!pixels) {
-        std::string msg = std::string("Failed to load image: ") + filepath;
-        if (stbi_failure_reason()) msg += std::string(" - ") + stbi_failure_reason();
-        throw std::runtime_error(msg);
-    }
-    channels = 4; // forced
+    unsigned char *pixel_data = stbi_load(
+		filepath.c_str(),
+		&width,
+		&height,
+		&channels,
+		4
+	);
 
-    if (img_h % 6 != 0) {
-        stbi_image_free(pixels);
-        throw std::runtime_error("Atlas height must be divisible by 6 (single column of faces).");
+    if (!pixel_data) {
+        std::string error_msg = std::string("Failed to load image: ") + filepath;
+		if (stbi_failure_reason()) {
+			error_msg += std::string(" - ") + stbi_failure_reason();
+		}
+		throw std::runtime_error(error_msg);
     }
 
-    const int face_w = img_w;
-    const int face_h = img_h / 6;
+    const int face_w = width;
+    const int face_h = height / 6;
 
     if (face_w != face_h) {
-        stbi_image_free(pixels);
+        stbi_image_free(pixel_data);
         throw std::runtime_error("Cubemap faces must be square.");
     }
 
     const size_t face_offset = static_cast<size_t>(face_w) * static_cast<size_t>(face_h) * 4UL;
-    std::vector<float> faces(face_offset * 6);
+    std::vector<float> rgba_data(face_offset * 6);
 
     for (int tile = 0; tile < 6; ++tile) {
         const int tx = 0;
         const int ty = tile_for_vulkan_face[tile].first * face_h;
-        float* dst = faces.data() + tile * face_offset;
-        blit_tile_rgba8(pixels, img_w, img_h, tx, ty, face_w, face_h, dst, tile_for_vulkan_face[tile].second);
+        float* dst = rgba_data.data() + tile * face_offset;
+        blit_tile_rgba8(pixel_data, width, height, tx, ty, face_w, face_h, dst, tile_for_vulkan_face[tile].second);
     }
 
     // Create GPU cubemap image
@@ -111,7 +110,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
         true  // is_cube = true
     );
 
-    helpers.transfer_to_image(faces.data(), faces.size() * sizeof(float), texture->image, 6);
+    helpers.transfer_to_image(rgba_data.data(), rgba_data.size() * sizeof(float), texture->image, 6);
 
     texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true);
     texture->sampler = TextureCommon::create_sampler(
@@ -122,7 +121,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
     );
 
-    stbi_image_free(pixels);
+    stbi_image_free(pixel_data);
     return texture;
 }
 

@@ -5,7 +5,7 @@
 
 namespace TextureCommon {
 
-glm::vec3 decode_rgbe(const glm::u8vec4 &encoded);
+void decode_rgbe(const unsigned char* src, float* dst);
 
 VkSampler create_sampler(
     VkDevice device,

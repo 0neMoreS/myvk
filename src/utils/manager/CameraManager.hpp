@@ -80,7 +80,7 @@ private:
 	float last_mouse_y = 0.0f;
 
 	// Camera parameters
-	const float move_speed = 4.0f;
+	const float move_speed = 10.0f;
 	const float fov_speed = 1.0f;
 	const float rotate_speed = 1.0f;
 };

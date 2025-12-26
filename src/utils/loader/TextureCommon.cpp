@@ -7,15 +7,24 @@
 
 namespace TextureCommon {
 
-glm::vec3 decode_rgbe(const glm::u8vec4 &encoded){
-    if (encoded == glm::u8vec4(0,0,0,0)) return glm::vec3(0.0f);
+void decode_rgbe(const unsigned char* src, float* dst){
+    unsigned char r = src[0];
+    unsigned char g = src[1];
+    unsigned char b = src[2];
+    unsigned char e = src[3];
+    if (r == 0 && g == 0 && b == 0 && e == 0){
+        dst[0] = 0.0f;
+        dst[1] = 0.0f;
+        dst[2] = 0.0f;
+        dst[3] = 1.0f;
+        return;
+    };
 
-	int exp = int(encoded.a) - 128;
-	return glm::vec3(
-		std::ldexp((encoded.r + 0.5f) / 256.0f, exp),
-		std::ldexp((encoded.g + 0.5f) / 256.0f, exp),
-		std::ldexp((encoded.b + 0.5f) / 256.0f, exp)
-	);
+	int exp = int(e) - 128;
+	dst[0] = std::ldexp((r + 0.5f) / 256.0f, exp);
+	dst[1] = std::ldexp((g + 0.5f) / 256.0f, exp);
+	dst[2] = std::ldexp((b + 0.5f) / 256.0f, exp);
+	dst[3] = 1.0f;
 }
 
 VkSampler create_sampler(

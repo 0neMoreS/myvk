@@ -43,17 +43,10 @@ std::shared_ptr<Texture> load_image(
 	std::vector<float> rgba_data(width * height * 4);
 
 	for(size_t i = 0; i < static_cast<size_t>(width * height); ++i) {
-		glm::vec3 decoded = TextureCommon::decode_rgbe(glm::u8vec4{
-			pixel_data[i * 4 + 0],
-			pixel_data[i * 4 + 1],
-			pixel_data[i * 4 + 2],
-			pixel_data[i * 4 + 3]
-		});
-
-		rgba_data[i * 4 + 0] = decoded.r;
-		rgba_data[i * 4 + 1] = decoded.g;
-		rgba_data[i * 4 + 2] = decoded.b;
-		rgba_data[i * 4 + 3] = 1.0f;
+		TextureCommon::decode_rgbe(
+			pixel_data + i * 4,
+			rgba_data.data() + i * 4
+		);
 	}
 
 	// Create GPU texture resource
@@ -70,6 +63,7 @@ std::shared_ptr<Texture> load_image(
 	);
 
 	helpers.transfer_to_image(rgba_data.data(), rgba_data.size() * sizeof(float), texture->image);
+	
 	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, false);
 	texture->sampler = TextureCommon::create_sampler(
 		helpers.rtg.device,

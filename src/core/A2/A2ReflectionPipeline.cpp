@@ -40,7 +40,7 @@ void A2ReflectionPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t s
 	}
 
 	{ //create pipeline layout:
-		std::array< VkDescriptorSetLayout, 5 > layouts{
+		std::array< VkDescriptorSetLayout, 3 > layouts{
 			set0_PV,
 			set1_Transforms,
             set2_CUBEMAP,

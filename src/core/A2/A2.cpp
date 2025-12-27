@@ -322,6 +322,7 @@ void A2::update(float dt) {
 		{
 			const auto& mesh = doc->meshes[i];
 			const auto& object_range = scene_manager.object_ranges[i];
+			std::optional<S72Loader::Material> material = mesh.material_index.has_value() ? std::optional<S72Loader::Material>{doc->materials[mesh.material_index.value()]} : std::nullopt;
 
 			for(auto &transform : mesh.transforms){
 				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
@@ -353,9 +354,13 @@ void A2::update(float dt) {
 					.object_transform{
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
+						.IS_REFLECTIVE = VK_FALSE,
+						// .IS_REFLECTIVE = material.has_value() ? (material->mirror ? VK_TRUE : VK_FALSE) : VK_FALSE,
 					},
 					.material_index = mesh.material_index.value_or(0),
 				});
+
+				std::cout << "Added object instance for mesh " << i << " is reflective: " << object_instances.back().object_transform.IS_REFLECTIVE << std::endl;
 			}
 		}
 	}

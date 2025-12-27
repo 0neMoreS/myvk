@@ -45,14 +45,19 @@ const a1_load_shaders = [
 	maek.GLSLC('./src/shaders/A1-load.frag'),
 ];
 
+const a2_background_shaders = [
+	maek.GLSLC('./src/shaders/A2-background.vert'),
+	maek.GLSLC('./src/shaders/A2-background.frag'),
+];
+
 const a2_environment_shaders = [
 	maek.GLSLC('./src/shaders/A2-environment.vert'),
 	maek.GLSLC('./src/shaders/A2-environment.frag'),
 ];
 
-const a2_background_shaders = [
-	maek.GLSLC('./src/shaders/A2-background.vert'),
-	maek.GLSLC('./src/shaders/A2-background.frag'),
+const a2_reflection_shaders = [
+	maek.GLSLC('./src/shaders/A2-reflection.vert'),
+	maek.GLSLC('./src/shaders/A2-reflection.frag'),
 ];
 
 //maek.CPP(...) builds a c++ file:
@@ -72,6 +77,7 @@ const main_objs = [
 	maek.CPP('./src/core/A2/A2.cpp'),
 	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends:[...a2_background_shaders] } ),
 	maek.CPP('./src/core/A2/A2EnvironmentPipeline.cpp', undefined, { depends:[...a2_environment_shaders] } ),
+	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends:[...a2_reflection_shaders] } ),
 	maek.CPP('./src/core/A2/CommonLayouts.cpp'),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),

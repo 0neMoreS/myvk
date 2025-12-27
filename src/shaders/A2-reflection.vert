@@ -12,20 +12,23 @@ struct Transform {
 layout(set=0,binding=0,std140) uniform PV {
     mat4 PERSPECTIVE;
     mat4 VIEW;
-	mat4 CAMERA_POSITION;
+    vec4 CAMERA_POSITION;
 };
 
-layout(set=2, binding=0, std140) readonly buffer Transforms {
+layout(set=1, binding=0, std140) readonly buffer Transforms {
 	Transform TRANSFORMS[];
 };
 
 layout(location=0) out vec3 position;
 layout(location=1) out vec3 normal;
 layout(location=2) out vec2 texCoord;
+layout(location=3) out vec3 camera_view;
 
 void main() {
 	gl_Position = PERSPECTIVE * VIEW * TRANSFORMS[gl_InstanceIndex].MODEL * vec4(Position, 1.0);
+	
 	position = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
 	normal = mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal;
 	texCoord = TexCoord;
+	camera_view = position - CAMERA_POSITION.xyz;
 }

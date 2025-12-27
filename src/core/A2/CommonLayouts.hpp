@@ -14,9 +14,10 @@ struct CommonLayouts {
     struct PV{
         glm::mat4 PERSPECTIVE;
         glm::mat4 VIEW;
+        glm::vec4 CAMERA_POSITION;
     };
 
-    static_assert(sizeof(PV) == 16*4 + 16*4, "PV is the expected size.");
+    static_assert(sizeof(PV) == 16*4 + 16*4 + 16, "PV is the expected size.");
 
     void create(RTG& rtg); 
     void destroy(RTG& rtg);

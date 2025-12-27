@@ -4,6 +4,8 @@
 #include "RTG.hpp"
 #include "Vertex.hpp"
 #include "TextureManager.hpp"
+#include "Helpers.hpp"
+#include "VK.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -41,10 +43,4 @@ struct A2EnvironmentPipeline : Pipeline {
 
     A2EnvironmentPipeline() = default;
     ~A2EnvironmentPipeline();
-    
-    // Cubemap data structure
-    struct Cubemap {
-        glm::vec4 reserved; // For future use, maintains alignment
-    };
-    static_assert(sizeof(Cubemap) == 16, "Cubemap is the expected size.");
 };

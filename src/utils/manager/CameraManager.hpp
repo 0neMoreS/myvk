@@ -31,6 +31,7 @@ public:
 		glm::vec3 camera_position;
         glm::vec3 camera_forward;
 		glm::vec3 camera_up;
+		glm::vec3 world_up;
 		float camera_fov;
         uint32_t camera_height;
         uint32_t camera_width;

@@ -15,6 +15,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
                 .camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]},
                 .camera_forward = BLENDER_TO_VULKAN_3 * blender_forward,
                 .camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
+				.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
                 .camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
                 .camera_height = swapchain_height,
                 .camera_width = swapchain_width,
@@ -30,6 +31,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
 			.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
 			.camera_forward = glm::vec3{0.0f, 0.0f, 1.0f},
 			.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
+			.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 			.camera_fov = glm::radians(60.0f),
 			.camera_height = swapchain_height,
 			.camera_width = swapchain_width,
@@ -61,13 +63,13 @@ void CameraManager::update(float dt) {
 	}
 
 	// Calculate forward direction
-	active_camera.camera_forward = glm::vec3(
+	active_camera.camera_forward = glm::normalize(glm::vec3(
 		std::sin(theta) * std::cos(phi),
 		-std::cos(theta),
 		std::sin(theta) * std::sin(phi)
-	);
-
-	glm::vec3 right = glm::normalize(glm::cross(active_camera.camera_forward, active_camera.camera_up));
+	));
+	glm::vec3 right = glm::normalize(glm::cross(active_camera.camera_forward, active_camera.world_up));
+	active_camera.camera_up = glm::normalize(glm::cross(right, active_camera.camera_forward));
 
 	// Keyboard movement
 	if (keys_down[GLFW_KEY_W]) {

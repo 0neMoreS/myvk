@@ -1,7 +1,7 @@
 #include "CommonLayouts.hpp"
 
 void CommonLayouts::create(RTG& rtg) {
-    { // World UBO layout (vertex+fragment)
+    { // Transform UBO layout (vertex+fragment)
         std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,

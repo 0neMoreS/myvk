@@ -13,6 +13,7 @@
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
 #include "A2EnvironmentPipeline.hpp"
+#include "A2ReflectionPipeline.hpp"
 #include "CommonLayouts.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
@@ -42,7 +43,7 @@ struct A2 : RTG::Application {
 
 	CommonLayouts common_layouts;
 	A2BackgroundPipeline background_pipeline;
-	A2EnvironmentPipeline objects_pipeline;
+	A2ReflectionPipeline reflection_pipeline;
 
 	//-------------------------------------------------------------------
 	//static scene resources:
@@ -65,11 +66,10 @@ struct A2 : RTG::Application {
 	float time = 0.0f;
 
 	CommonLayouts::PV pv_matrix;
-	A2EnvironmentPipeline::World object_world;
 
 	struct ObjectInstance {
 		SceneManager::ObjectRange object_ranges;
-		A2EnvironmentPipeline::Transform object_transform;
+		A2ReflectionPipeline::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ObjectInstance > object_instances;

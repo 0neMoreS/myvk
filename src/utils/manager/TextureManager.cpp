@@ -102,7 +102,7 @@ void TextureManager::create(
                 albedo_value = *material.lambertian->albedo_value;
             }
 
-            push_texture(material_index, TextureSlot::Diffuse, albedo_texture, albedo_value);
+            push_texture(material_index, TextureSlot::Albedo, albedo_texture, albedo_value);
 
             // normal
             push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});

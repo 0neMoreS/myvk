@@ -197,7 +197,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 							//bind texture descriptor set:
 							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
-							auto &diffuse_binding_opt = material_textures[(TextureSlot::Diffuse)];
+							auto &diffuse_binding_opt = material_textures[(TextureSlot::Albedo)];
 							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
 
 							vkCmdBindDescriptorSets(

@@ -212,7 +212,7 @@ void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 	
 	// Configure texture layout bindings for TextureManager
 	texture_descriptor_configs.push_back(Pipeline::TextureDescriptorConfig{
-		.slot = TextureSlot::Diffuse,
+		.slot = TextureSlot::Albedo,
 		.layout = set2_TEXTURE
 	});
 

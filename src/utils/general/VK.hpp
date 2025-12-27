@@ -51,10 +51,11 @@ static const glm::mat4 VULKAN_TO_BLENDER_4 = glm::mat4(
 static std::string s72_dir = "./external/s72/examples/";
 
 enum TextureSlot : size_t {
-        Diffuse = 0,
-        Normal = 1,
-        Roughness = 2,
-        Metallic = 3
+        Normal = 0,
+        Displacement = 1,
+        Albedo = 2,
+        Roughness = 3,
+        Metallic = 4
 };
 
 inline std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices

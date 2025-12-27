@@ -133,6 +133,12 @@ void A2PBRPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass)
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);
     frag_module = VK_NULL_HANDLE;
     vert_module = VK_NULL_HANDLE;
+
+    block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .layout = set1_Transforms}); //Transform
+    block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .layout = set2_Light}); //Light
+
+    texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Normal, .layout = set3_NormalTexture}); //NormalTexture
+    texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Displacement, .layout = set4_DisplacementTexture}); //DisplacementTexture
 }
 
 void A2PBRPipeline::destroy(RTG &rtg) {

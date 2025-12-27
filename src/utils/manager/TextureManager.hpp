@@ -19,10 +19,10 @@ class TextureManager {
 
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
         // Texture bindings by pipeline: texture_bindings_by_pipeline[pipeline_index][material_index][texture_slot]
-        std::vector< std::vector< std::array< std::optional< TextureBinding >, 4 > > > texture_bindings_by_pipeline;
+        std::vector< std::vector< std::array< std::optional< TextureBinding >, 5 > > > texture_bindings_by_pipeline;
 
         // Raw textures from document: textures_by_material[material_index][texture_slot]
-        std::vector< std::array< std::optional<std::shared_ptr<Texture2DLoader::Texture>>, 4 > > raw_textures_by_material;
+        std::vector< std::array< std::optional<std::shared_ptr<Texture2DLoader::Texture>>, 5 > > raw_textures_by_material;
         
         // Environment cubemaps: only one per doc
         std::optional<std::pair<std::shared_ptr<TextureCubeLoader::Texture>, VkDescriptorSet>> environment_cubemap_binding;

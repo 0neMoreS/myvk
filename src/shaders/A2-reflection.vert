@@ -7,7 +7,6 @@ layout(location=3) in vec2 TexCoord;
 struct Transform {
 	mat4 MODEL;
 	mat4 MODEL_NORMAL;
-	bool IS_REFLECTIVE;
 };
 
 layout(set=0,binding=0,std140) uniform PV {
@@ -32,12 +31,10 @@ void main() {
 	normal = mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal;
 	texCoord = TexCoord;
 
-	if(TRANSFORMS[gl_InstanceIndex].IS_REFLECTIVE == false){
-		camera_view = -normal;
-	}
-	else{
+	if(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL[3][3] == 1.0){
 		camera_view = position - CAMERA_POSITION.xyz;
 	}
-
-	// camera_view = position - CAMERA_POSITION.xyz;
+	else{
+		camera_view = -normal;
+	}
 }

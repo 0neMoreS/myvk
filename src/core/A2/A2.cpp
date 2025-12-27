@@ -349,18 +349,22 @@ void A2::update(float dt) {
 
 				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
-				object_instances.emplace_back(ObjectInstance{
+				ObjectInstance inst{
 					.object_ranges = object_range,
 					.object_transform{
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
-						.IS_REFLECTIVE = VK_FALSE,
-						// .IS_REFLECTIVE = material.has_value() ? (material->mirror ? VK_TRUE : VK_FALSE) : VK_FALSE,
 					},
 					.material_index = mesh.material_index.value_or(0),
-				});
+				};
 
-				std::cout << "Added object instance for mesh " << i << " is reflective: " << object_instances.back().object_transform.IS_REFLECTIVE << std::endl;
+				if (material.has_value() && material->mirror) {
+					inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
+				} else {
+					inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
+				}
+
+				object_instances.emplace_back(std::move(inst));
 			}
 		}
 	}

@@ -20,10 +20,9 @@ struct A2ReflectionPipeline : Pipeline {
     //types for descriptors:
     struct Transform {
         glm::mat4 MODEL;
-        glm::mat4 MODEL_NORMAL;
-        VkBool32 IS_REFLECTIVE;
+        glm::mat4 MODEL_NORMAL; // 3,3 == 1 reflective, 0 non-reflective
     };
-    static_assert(sizeof(Transform) == 16*4 + 16*4 + 4, "Transform is the expected size.");
+    static_assert(sizeof(Transform) == 16*4 + 16*4, "Transform is the expected size.");
 
     //no push constants
     void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;

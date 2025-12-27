@@ -12,7 +12,6 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
-#include "A2EnvironmentPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
 #include "CommonLayouts.hpp"
 #include "SceneManager.hpp"

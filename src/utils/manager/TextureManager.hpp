@@ -24,13 +24,19 @@ class TextureManager {
         // Raw textures from document: textures_by_material[material_index][texture_slot]
         std::vector< std::array< std::optional<std::shared_ptr<Texture2DLoader::Texture>>, 5 > > raw_textures_by_material;
         
-        // Environment cubemaps: only one per doc
+        // Environment cubemaps descriptor: only one per doc
         std::optional<std::pair<std::shared_ptr<TextureCubeLoader::Texture>, VkDescriptorSet>> environment_cubemap_binding;
+
+        // IBL cubemap descriptor layout
+        std::vector<std::pair<std::shared_ptr<TextureCubeLoader::Texture>, VkDescriptorSet>> ibl_cubemap_bindings;
+
+        TextureBinding brdf_LUT;
         
         void create(RTG & rtg,
             std::shared_ptr<S72Loader::Document> &doc,
             const std::vector<std::vector<Pipeline::TextureDescriptorConfig>> &&texture_descriptor_configs_by_pipeline,
-            const VkDescriptorSetLayout cubemap_descriptor_layout = VK_NULL_HANDLE);
+            const VkDescriptorSetLayout cubemap_descriptor_layout = VK_NULL_HANDLE // suppose environment cubemap layout is the same as IBL cubemap (actually, all the layouts for texture cubemaps are the same seems the same)
+        );
         void destroy(RTG &rtg);
 
         TextureManager() = default;

@@ -19,6 +19,22 @@ TextureManager::~TextureManager(){
             }
         }
     }
+
+    if(raw_textures_by_material.size() > 0) {
+        std::cerr << "[TextureManager] Warning: raw textures not destroyed before TextureManager destruction" << std::endl;
+    }
+
+    if(environment_cubemap_binding.has_value()) {
+        std::cerr << "[TextureManager] Warning: environment cubemap not destroyed before TextureManager destruction" << std::endl;
+    }
+
+    if(ibl_cubemap_bindings.size() > 0) {
+        std::cerr << "[TextureManager] Warning: IBL cubemaps not destroyed before TextureManager destruction" << std::endl;
+    }
+
+    if(brdf_LUT.texture) {
+        std::cerr << "[TextureManager] Warning: BRDF LUT texture not destroyed before TextureManager destruction" << std::endl;
+    }
 }
 
 void TextureManager::destroy(RTG &rtg) {
@@ -59,6 +75,20 @@ void TextureManager::destroy(RTG &rtg) {
         environment_cubemap_binding->first.reset();
         environment_cubemap_binding->second = VK_NULL_HANDLE;
     }
+
+    if(ibl_cubemap_bindings.size()){
+        for(auto &ibl_binding : ibl_cubemap_bindings){
+            TextureCubeLoader::destroy(ibl_binding.first, rtg);
+            ibl_binding.first.reset();
+            ibl_binding.second = VK_NULL_HANDLE;
+        }
+        ibl_cubemap_bindings.clear();
+    }
+
+
+    Texture2DLoader::destroy(brdf_LUT.texture, rtg);
+    brdf_LUT.texture.reset();
+    brdf_LUT.descriptor_set = VK_NULL_HANDLE; 
 }
 
 void TextureManager::create(
@@ -107,6 +137,9 @@ void TextureManager::create(
             // normal
             push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
 
+            // displacement
+            push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f});
+
             // roughness
             std::optional<S72Loader::Texture> roughness_texture;
             float roughness_value = 1.0f;
@@ -127,7 +160,7 @@ void TextureManager::create(
         }
     }
 
-    { // Load environment cubemaps
+    { // Load environment and IBL cubemaps
         if(doc->environments.size()){
             const auto &env = doc->environments[0];
             const auto &radiance = env.radiance;
@@ -136,7 +169,36 @@ void TextureManager::create(
                 TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR),
                 VK_NULL_HANDLE
             );
+
+            std::string ibl_base_path = texture_path.substr(0, texture_path.find_last_of('.'));
+
+            ibl_cubemap_bindings.emplace_back(
+                TextureCubeLoader::load_from_png_atlas(rtg.helpers, ibl_base_path + ".lambertian.png", VK_FILTER_LINEAR),
+                VK_NULL_HANDLE
+            );
+
+            // std::vector<std::shared_ptr<TextureCubeLoader::Texture>> ibl_levels;
+            // for(int level = 0; level < 5; ++level){
+            //     std::string ibl_path = ibl_base_path + "." + std::to_string(level) + ".png";
+            //     ibl_levels.push_back(
+            //         TextureCubeLoader::load_from_png_atlas(rtg.helpers, ibl_path, VK_FILTER_LINEAR)
+            //     );
+            // }
+
+            // For now, ignore mipmap...
+
+            ibl_cubemap_bindings.emplace_back(
+                TextureCubeLoader::load_from_png_atlas(rtg.helpers, ibl_base_path + ".1.png", VK_FILTER_LINEAR),
+                VK_NULL_HANDLE
+            );
         }
+    }
+
+    { // Load BRDF LUT texture
+        std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
+        brdf_LUT.texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR);
+        brdf_LUT.descriptor_set = VK_NULL_HANDLE;
+
     }
 
     { // Create the descriptor pool based on actual textures loaded
@@ -202,7 +264,7 @@ void TextureManager::create(
                             .descriptor_set = VK_NULL_HANDLE,
                         };
                         pipeline_bindings[material_idx][slot_index] = binding;
-                        bindings.push_back(&(*pipeline_bindings[material_idx][slot_index]));
+                        bindings.push_back(&(pipeline_bindings[material_idx][slot_index].value()));
                     }
                 }
 
@@ -275,5 +337,67 @@ void TextureManager::create(
             vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
         }
 
+    }
+
+    { // Allocate descriptor set for IBL cubemap
+        if(ibl_cubemap_bindings.size() > 0) {
+            for(auto &ibl_binding : ibl_cubemap_bindings){
+                VkDescriptorSetAllocateInfo alloc_info{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                    .descriptorPool = descriptor_pool,
+                    .descriptorSetCount = 1,
+                    .pSetLayouts = &cubemap_descriptor_layout,
+                };
+
+                VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &ibl_binding.second));
+
+                VkDescriptorImageInfo image_info{
+                    .sampler = ibl_binding.first->sampler,
+                    .imageView = ibl_binding.first->image_view,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+
+                VkWriteDescriptorSet write{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = ibl_binding.second,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = &image_info,
+                };
+
+                vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
+            }
+        }
+    }
+
+    { // Allocate descriptor set for brdf_LUT
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &cubemap_descriptor_layout,
+        };
+
+        VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &brdf_LUT.descriptor_set));
+
+        VkDescriptorImageInfo image_info{
+            .sampler = brdf_LUT.texture->sampler,
+            .imageView = brdf_LUT.texture->image_view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+
+        VkWriteDescriptorSet write{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = brdf_LUT.descriptor_set,
+            .dstBinding = 0,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &image_info,
+        };
+
+        vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
     }
 }

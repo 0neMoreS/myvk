@@ -139,6 +139,9 @@ void A2PBRPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass)
 
     texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Normal, .layout = set3_NormalTexture}); //NormalTexture
     texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Displacement, .layout = set4_DisplacementTexture}); //DisplacementTexture
+    texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Albedo, .layout = set5_AlbedoTexture}); //AlbedoTexture
+    texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Roughness, .layout = set6_RoughnessTexture}); //RoughnessTexture
+    texture_descriptor_configs.push_back(TextureDescriptorConfig{ .slot = TextureSlot::Metallic, .layout = set7_MetalnessTexture}); //MetalnessTexture
 }
 
 void A2PBRPipeline::destroy(RTG &rtg) {

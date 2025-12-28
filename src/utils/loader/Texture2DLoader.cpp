@@ -10,10 +10,6 @@
 
 namespace Texture2DLoader {
 
-namespace {
-// no-internal helpers: kept empty to avoid anonymous namespace removal warnings
-} // namespace
-
 std::shared_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
@@ -40,31 +36,22 @@ std::shared_ptr<Texture> load_image(
 		throw std::runtime_error(error_msg);
 	}
 
-	std::vector<float> rgba_data(width * height * 4);
-
-	for(size_t i = 0; i < static_cast<size_t>(width * height); ++i) {
-		TextureCommon::decode_rgbe(
-			pixel_data + i * 4,
-			rgba_data.data() + i * 4
-		);
-	}
-
 	// Create GPU texture resource
 	auto texture = std::make_shared<Texture>();
 
 	// Create GPU image with transfer destination flag
 	texture->image = helpers.create_image(
 		VkExtent2D{.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)},
-		VK_FORMAT_R32G32B32A32_SFLOAT,
+		VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		Helpers::Unmapped
 	);
 
-	helpers.transfer_to_image(rgba_data.data(), rgba_data.size() * sizeof(float), texture->image);
+	helpers.transfer_to_image(pixel_data, width * height * 4, texture->image);
 	
-	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, false);
+	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
 	texture->sampler = TextureCommon::create_sampler(
 		helpers.rtg.device,
 		filter,
@@ -78,14 +65,6 @@ std::shared_ptr<Texture> load_image(
 	stbi_image_free(pixel_data);
 
 	return texture;
-}
-
-std::shared_ptr<Texture> load_png(
-	Helpers &helpers,
-	const std::string &filepath,
-	VkFilter filter
-) {
-	return load_image(helpers, filepath, filter);
 }
 
 std::shared_ptr<Texture> create_rgb_texture(

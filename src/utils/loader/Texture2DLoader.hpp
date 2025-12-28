@@ -20,12 +20,6 @@ struct Texture {
 	~Texture();
 };
 
-std::shared_ptr<Texture> load_png(
-	Helpers &helpers,
-	const std::string &filepath,
-	VkFilter filter = VK_FILTER_LINEAR
-);
-
 std::shared_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,

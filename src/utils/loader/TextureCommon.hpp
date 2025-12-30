@@ -13,7 +13,8 @@ VkSampler create_sampler(
     VkSamplerAddressMode address_mode_u,
     VkSamplerAddressMode address_mode_v,
     VkSamplerAddressMode address_mode_w,
-    VkBorderColor border_color
+    VkBorderColor border_color,
+    float max_lod = 0.0f
 );
 
 VkImageView create_image_view(

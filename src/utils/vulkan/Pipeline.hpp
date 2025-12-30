@@ -3,6 +3,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "VK.hpp"
+#include "TextureManager.hpp"
 #include "Vertex.hpp"
 #include "RTG.hpp"
 
@@ -16,7 +17,7 @@ struct Pipeline
 
     struct TextureDescriptorConfig 
     {
-        TextureSlot slot;
+        std::vector<TextureSlot> slots;
         VkDescriptorSetLayout layout;
     };
 
@@ -29,7 +30,12 @@ struct Pipeline
     VkShaderModule frag_module;
     VkShaderModule vert_module;
 
-    virtual void create(class RTG &, VkRenderPass render_pass, uint32_t subpass) = 0;
+    virtual void create(
+		class RTG &, 
+		VkRenderPass render_pass, 
+		uint32_t subpass,
+		const TextureManager& texture_manager
+	) = 0;
     virtual void destroy(class RTG &) = 0;
     
     void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true) {

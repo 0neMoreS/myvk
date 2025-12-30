@@ -16,7 +16,12 @@ A2ReflectionPipeline::~A2ReflectionPipeline(){
     assert(set1_Transforms == VK_NULL_HANDLE);
 }
 
-void A2ReflectionPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
+void A2ReflectionPipeline::create(
+    class RTG &rtg, 
+    VkRenderPass render_pass, 
+    uint32_t subpass,
+    const TextureManager& texture_manager
+) {
 	vert_module = rtg.helpers.create_shader_module(vert_code);
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 

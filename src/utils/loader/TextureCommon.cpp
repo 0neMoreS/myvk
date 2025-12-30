@@ -33,7 +33,8 @@ VkSampler create_sampler(
     VkSamplerAddressMode address_mode_u,
     VkSamplerAddressMode address_mode_v,
     VkSamplerAddressMode address_mode_w,
-    VkBorderColor border_color
+    VkBorderColor border_color,
+    float max_lod
 ) {
     VkSamplerCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -49,7 +50,7 @@ VkSampler create_sampler(
         .compareEnable = VK_FALSE,
         .compareOp = VK_COMPARE_OP_ALWAYS,
         .minLod = 0.0f,
-        .maxLod = 0.0f,
+        .maxLod = max_lod,
         .borderColor = border_color,
         .unnormalizedCoordinates = VK_FALSE,
     };

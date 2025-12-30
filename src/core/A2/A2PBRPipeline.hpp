@@ -11,20 +11,32 @@
 #include <iostream>
 
 struct A2PBRPipeline : Pipeline {
-    // Matrix descriptor sets
-    VkDescriptorSetLayout set0_PV = VK_NULL_HANDLE;
+    // Global PV matrix, light, update per-frame
+    VkDescriptorSetLayout set0_Global = VK_NULL_HANDLE;
+
+    // Per-instance transforms matrix, update per-draw
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set2_Light = VK_NULL_HANDLE;
-    // Texture descriptor sets
-    VkDescriptorSetLayout set3_NormalTexture = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set4_DisplacementTexture = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set5_AlbedoTexture = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set6_RoughnessTexture = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set7_MetalnessTexture = VK_NULL_HANDLE;
-    // IBL descriptor sets
-    VkDescriptorSetLayout set8_IrradianceMap = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set9_PrefilterMap = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set10_BRDFLUT = VK_NULL_HANDLE;
+
+    // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, no update
+    VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
+    VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
+    VkDescriptorPool set2_Textures_instance_pool = VK_NULL_HANDLE;
+    /*
+        PBRTLUT
+        IrradianceMap
+        PrefilterMap
+        {
+            NormalTexture
+            DisplacementTexture
+            AlbedoTexture
+            RoughnessTexture
+            MetalnessTexture
+        }
+    */
+
+    struct Push{
+        uint32_t material_index;
+    };
 
     //types for descriptors:
     struct Light {
@@ -41,7 +53,12 @@ struct A2PBRPipeline : Pipeline {
     static_assert(sizeof(Transform) == 16*4 + 16*4, "Transform is the expected size.");
 
     //no push constants
-    void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;
+    void create(
+		class RTG &, 
+		VkRenderPass render_pass, 
+		uint32_t subpass,
+		const TextureManager& texture_manager
+	) override;
     void destroy(RTG &rtg) override;
 
     A2PBRPipeline() = default;

@@ -25,7 +25,12 @@ struct A2ReflectionPipeline : Pipeline {
     static_assert(sizeof(Transform) == 16*4 + 16*4, "Transform is the expected size.");
 
     //no push constants
-    void create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) override;
+    void create(
+        class RTG &rtg, 
+        VkRenderPass render_pass, 
+        uint32_t subpass,
+        const TextureManager& texture_manager
+    ) override;
     void destroy(RTG &rtg) override;
 
     A2ReflectionPipeline() = default;

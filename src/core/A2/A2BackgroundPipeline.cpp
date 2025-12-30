@@ -15,7 +15,12 @@ static uint32_t frag_code[] = {
 #include "../../shaders/spv/A2-background.frag.inl"
 };
 
-void A2BackgroundPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
+void A2BackgroundPipeline::create(
+		class RTG &rtg, 
+		VkRenderPass render_pass, 
+		uint32_t subpass,
+		const TextureManager& texture_manager
+	) {
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 

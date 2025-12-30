@@ -20,6 +20,8 @@
 		throw std::runtime_error(error_msg); \
 	} while(0)
 
+#define MAX_TEXTURES 128
+
 // Coordinate system conversion matrix: Blender → Vulkan
 static const glm::mat3 BLENDER_TO_VULKAN_3 = glm::mat3(
     0.0f,  0.0f,  -1.0f,

@@ -12,6 +12,7 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
+#include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
 #include "CommonLayouts.hpp"
 #include "SceneManager.hpp"
@@ -42,6 +43,7 @@ struct A2 : RTG::Application {
 
 	CommonLayouts common_layouts;
 	A2BackgroundPipeline background_pipeline;
+	A2PBRPipeline pbr_pipeline;
 	A2ReflectionPipeline reflection_pipeline;
 
 	//-------------------------------------------------------------------
@@ -49,6 +51,11 @@ struct A2 : RTG::Application {
 
 	SceneManager scene_manager;
 	TextureManager texture_manager;
+
+	A2PBRPipeline::Light global_light{
+		.LIGHT_POSITION = { 10.0f, 10.0f, 10.0f, 0.0f },
+		.LIGHT_ENERGY = { 1.0f, 1.0f, 1.0f, 0.0f }
+	};
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -66,12 +73,19 @@ struct A2 : RTG::Application {
 
 	CommonLayouts::PV pv_matrix;
 
-	struct ObjectInstance {
+	struct ReflectionInstance {
 		SceneManager::ObjectRange object_ranges;
 		A2ReflectionPipeline::Transform object_transform;
 		size_t material_index;
 	};
-	std::vector< ObjectInstance > object_instances;
+	std::vector< ReflectionInstance > reflection_object_instances;
+
+	struct PBRInstance {
+		SceneManager::ObjectRange object_ranges;
+		A2PBRPipeline::Transform object_transform;
+		size_t material_index;
+	};
+	std::vector< PBRInstance > pbr_object_instances;
 
 	//--------------------------------------------------------------------
 	//Rendering function, uses all the resources above to queue work to draw a frame:

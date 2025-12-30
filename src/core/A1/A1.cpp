@@ -37,7 +37,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	texture_descriptor_configs_by_pipeline.push_back(objects_pipeline.texture_descriptor_configs);
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
-	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
+	workspace_manager.allocate_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
 
 	scene_manager.create(rtg, doc);
 
@@ -84,7 +84,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	WorkspaceManager::Workspace &workspace = workspace_manager.workspaces[render_params.workspace_index];
 	VkFramebuffer framebuffer = framebuffer_manager.swapchain_framebuffers[render_params.image_index];
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
-	workspace.reset_recoring();
+	workspace.reset_recording();
 	
 	{ //begin recording:
 		workspace.begin_recording();
@@ -98,7 +98,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			//add device-side copy from World_src -> World:
 			assert(workspace.pipeline_buffer_pairs[0][0].host.size == workspace.pipeline_buffer_pairs[0][0].device.size);
 
-			workspace.copy_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
+			workspace.write_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
 		}
 
 		{ //upload object transforms
@@ -107,7 +107,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				if (workspace.pipeline_buffer_pairs[0][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[0][1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
+					workspace.allocate_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
 				}
 
 				assert(workspace.pipeline_buffer_pairs[0][1].host.size == workspace.pipeline_buffer_pairs[0][1].device.size);
@@ -121,7 +121,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 				}
 
-				workspace.copy_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, needed_bytes);
+				workspace.write_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, needed_bytes);
 			}
 		}
 
@@ -207,9 +207,9 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								2, //second set
 								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
 								0, nullptr //dynamic offsets count, ptr
-								);
+							);
 
-								vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
+							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}

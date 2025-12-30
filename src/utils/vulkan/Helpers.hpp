@@ -60,7 +60,16 @@ struct Helpers {
 		//NOTE: could define default constructor, move constructor, move assignment, destructor for a bit more paranoia
 	};
 	// is_cube: if true, creates a cubemap-compatible image (6 array layers, cube flag set); if false, creates 2D image (1 layer)
-	AllocatedImage create_image(VkExtent2D const &extent, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, MapFlag map = Unmapped, bool is_cube = false);
+	AllocatedImage create_image(
+		VkExtent2D const &extent, 
+		VkFormat format, 
+		VkImageTiling tiling, 
+		VkImageUsageFlags usage, 
+		VkMemoryPropertyFlags properties, 
+		MapFlag map = Unmapped, 
+		bool is_cube = false,
+		uint32_t mipmap_levels = 1
+	);
 	void destroy_image(AllocatedImage &&allocated_image);
 	
 
@@ -70,7 +79,13 @@ struct Helpers {
 	// NOTE: synchronizes *hard* against the GPU; inefficient to use for streaming data!
 	void transfer_to_buffer(void *data, size_t size, AllocatedBuffer &target);
 	// face_count: 1 for regular 2D images, 6 for cubemaps. data is face_count * (width*height*bytes_per_pixel) bytes
-	void transfer_to_image(void *data, size_t size, AllocatedImage &image, uint32_t face_count = 1); //NOTE: image layout after call is VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	// void transfer_to_image(void *data, size_t size, AllocatedImage &image, uint32_t face_count = 1); //NOTE: image layout after call is VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	void transfer_to_image(
+		const std::vector<void*>& mipmap_data,
+		const std::vector<size_t>& mipmap_sizes,
+		AllocatedImage& target,
+		uint32_t face_count
+	);
 
 	VkCommandPool transfer_command_pool = VK_NULL_HANDLE;
 	VkCommandBuffer transfer_command_buffer = VK_NULL_HANDLE;

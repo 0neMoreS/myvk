@@ -71,8 +71,8 @@ const main_objs = [
 	maek.CPP('./src/core/Tutorial/Tutorial-LinesPipeline.cpp', undefined, { depends:[...lines_shaders] } ),
 	maek.CPP('./src/core/Tutorial/Tutorial-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ),
 	// A1 files
-	maek.CPP('./src/core/A1/A1.cpp'),
-	maek.CPP('./src/core/A1/A1ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
+	// maek.CPP('./src/core/A1/A1.cpp'),
+	// maek.CPP('./src/core/A1/A1ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
 	// A2 files
 	maek.CPP('./src/core/A2/A2.cpp'),
 	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends:[...a2_background_shaders] } ),

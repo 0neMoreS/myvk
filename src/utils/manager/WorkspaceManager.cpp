@@ -80,7 +80,7 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     }
 }
 
-void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
+void WorkspaceManager::Workspace::allocate_descriptor(RTG &rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     auto& buffer_pair = pipeline_buffer_pairs[pipeline_index][descriptor_index];
     auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_index];
 
@@ -145,7 +145,7 @@ void WorkspaceManager::Workspace::update_descriptor(RTG &rtg, uint32_t pipeline_
     }
 }
 
-void WorkspaceManager::Workspace::copy_buffer(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size){
+void WorkspaceManager::Workspace::write_buffer(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size){
     auto &buffer_pair = pipeline_buffer_pairs[pipeline_index][descriptor_index];
 
     VkBufferCopy copy_region{
@@ -169,7 +169,7 @@ void WorkspaceManager::Workspace::end_recording(){
     VK( vkEndCommandBuffer(command_buffer) );
 }
 
-void WorkspaceManager::Workspace::reset_recoring(){
+void WorkspaceManager::Workspace::reset_recording(){
     VK( vkResetCommandBuffer(command_buffer, 0) );
 }
 
@@ -264,14 +264,14 @@ void WorkspaceManager::destroy(RTG &rtg) {
     }
 }
 
-void WorkspaceManager::update_all_descriptors(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
+void WorkspaceManager::allocate_all_descriptors(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
-        workspace.update_descriptor(rtg, pipeline_index, descriptor_index, size);
+        workspace.allocate_descriptor(rtg, pipeline_index, descriptor_index, size);
     }
 }
 
-void WorkspaceManager::copy_all_buffers(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
+void WorkspaceManager::write_all_buffers(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size) {
     for (auto& workspace : workspaces) {
-        workspace.copy_buffer(rtg, pipeline_index, descriptor_index, size);
+        workspace.write_buffer(rtg, pipeline_index, descriptor_index, size);
     }
 }

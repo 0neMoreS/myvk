@@ -35,11 +35,11 @@ class WorkspaceManager {
             void create(RTG& rtg);
             void destroy(RTG& rtg);
 
-            void copy_buffer(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
-            void update_descriptor(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
+            void write_buffer(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
+            void allocate_descriptor(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
             void begin_recording();
             void end_recording();
-            void reset_recoring();
+            void reset_recording();
 
             Workspace(WorkspaceManager &manager) : manager(&manager) {}
             ~Workspace() = default;
@@ -53,8 +53,8 @@ class WorkspaceManager {
         void create(RTG& rtg, const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline, uint32_t num_workspaces);  
         void destroy(RTG& rtg);
 
-        void copy_all_buffers(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
-        void update_all_descriptors(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
+        void write_all_buffers(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
+        void allocate_all_descriptors(RTG& rtg, uint32_t pipeline_index, uint32_t descriptor_index, VkDeviceSize size);
         
         std::vector<Workspace> workspaces;
         std::vector<std::vector<Pipeline::BlockDescriptorConfig>> block_descriptor_configs_by_pipeline;

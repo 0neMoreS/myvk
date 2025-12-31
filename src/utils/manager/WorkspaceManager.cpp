@@ -68,13 +68,27 @@ void WorkspaceManager::Workspace::create(RTG& rtg) {
     pipeline_descriptor_set_groups.resize(manager->block_descriptor_configs_by_pipeline.size());
     for (size_t pipeline_index = 0; pipeline_index < manager->block_descriptor_configs_by_pipeline.size(); ++pipeline_index) {
         pipeline_descriptor_set_groups[pipeline_index].resize(manager->block_descriptor_configs_by_pipeline[pipeline_index].size());
-
         auto& pipeline_configs = manager->block_descriptor_configs_by_pipeline[pipeline_index];
+
         for(size_t descriptor_set_index = 0; descriptor_set_index < pipeline_configs.size(); ++descriptor_set_index) {
-            for(size_t binding_index = 0; binding_index < pipeline_configs[descriptor_set_index].bindings_count; ++binding_index) {
+            auto& config = pipeline_configs[descriptor_set_index];
+            auto& descriptor_set_group = pipeline_descriptor_set_groups[pipeline_index][descriptor_set_index];
+
+            { //allocate descriptor set for descriptor
+                VkDescriptorSetAllocateInfo alloc_info{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                    .descriptorPool = manager->descriptor_pool,
+                    .descriptorSetCount = 1,
+                    .pSetLayouts = &config.layout,
+                };
+
+                VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &descriptor_set_group.descriptor_set) );
+            }
+
+            for(size_t binding_index = 0; binding_index < config.bindings_count; ++binding_index) {
                 // Initialize empty BufferPair
                 auto buffer_pair = std::make_shared<BufferPair>();
-                pipeline_descriptor_set_groups[pipeline_index][descriptor_set_index].buffer_pairs.push_back(buffer_pair);
+                descriptor_set_group.buffer_pairs.push_back(buffer_pair);
             }
         }
     }
@@ -137,7 +151,7 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     pipeline_descriptor_set_groups.clear();
 }
 
-void WorkspaceManager::Workspace::allocate_descriptor(
+void WorkspaceManager::Workspace::update_descriptor(
     RTG& rtg, 
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
@@ -169,17 +183,6 @@ void WorkspaceManager::Workspace::allocate_descriptor(
         Helpers::Unmapped
     );
 
-    { //allocate descriptor set for descriptor
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = manager->descriptor_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &config.layout,
-        };
-
-        VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &pipeline_descriptor_set_group.descriptor_set) );
-    }
-
     { //point descriptor to the buffer:
         VkDescriptorBufferInfo buffer_info{
             .buffer = buffer_pair->device.handle,
@@ -209,7 +212,7 @@ void WorkspaceManager::Workspace::allocate_descriptor(
     }
 }
 
-void WorkspaceManager::Workspace::allocate_global_descriptor(
+void WorkspaceManager::Workspace::update_global_descriptor(
     RTG& rtg, 
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
@@ -222,17 +225,6 @@ void WorkspaceManager::Workspace::allocate_global_descriptor(
     auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_set_index];
 
     pipeline_descriptor_set_group.buffer_pairs[descriptor_index] = buffer_pair;
-
-    { //allocate descriptor set for descriptor
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = manager->descriptor_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &config.layout,
-        };
-
-        VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &pipeline_descriptor_set_group.descriptor_set) );
-    }
 
     { //point descriptor to the buffer:
         VkDescriptorBufferInfo buffer_info{
@@ -420,7 +412,7 @@ void WorkspaceManager::write_all_global_buffers(
     }
 }
 
-void WorkspaceManager::allocate_all_descriptors(
+void WorkspaceManager::update_all_descriptors(
     RTG& rtg, 
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
@@ -428,11 +420,11 @@ void WorkspaceManager::allocate_all_descriptors(
     VkDeviceSize size
 ) {
     for (auto& workspace : workspaces) {
-        workspace.allocate_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, size);
+        workspace.update_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, size);
     }
 }
 
-void WorkspaceManager::allocate_all_global_descriptors(
+void WorkspaceManager::update_all_global_descriptors(
     RTG& rtg, 
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
@@ -441,7 +433,7 @@ void WorkspaceManager::allocate_all_global_descriptors(
     VkDeviceSize size
 ) {
     for (auto& workspace : workspaces) {
-        workspace.allocate_global_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, buffer_name, size);
+        workspace.update_global_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, buffer_name, size);
     }
 }
 

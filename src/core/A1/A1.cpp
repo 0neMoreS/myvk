@@ -37,7 +37,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	texture_descriptor_configs_by_pipeline.push_back(objects_pipeline.texture_descriptor_configs);
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
-	workspace_manager.allocate_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
+	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
 
 	scene_manager.create(rtg, doc);
 
@@ -107,7 +107,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				if (workspace.pipeline_buffer_pairs[0][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[0][1].host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.allocate_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
+					workspace.update_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
 				}
 
 				assert(workspace.pipeline_buffer_pairs[0][1].host.size == workspace.pipeline_buffer_pairs[0][1].device.size);

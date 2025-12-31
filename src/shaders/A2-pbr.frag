@@ -23,7 +23,7 @@ layout(location=0) out vec4 outColor;
 void main() {
 	// Sample cubemap for indirect lighting
 	vec3 refl = reflect(normalize(camera_view), normalize(normal));
-	vec3 hdr = texture(ibl_cubemaps[0], refl).rgb;
+	vec3 hdr = texture(ibl_cubemaps[1], refl).rgb;
 	vec3 ldr = aces_approx(hdr);
 	outColor = vec4(ldr, 1.0);
 	// outColor = vec4(pow(hdr.rgb / (hdr.rgb + vec3(1.0)), vec3(1.0/2.2)), 1.0);

@@ -70,7 +70,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	};
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
-	workspace_manager.allocate_all_global_descriptors(
+	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
@@ -78,7 +78,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		"PV",
 		sizeof(CommonData::PV)
 	);
-	workspace_manager.allocate_all_global_descriptors(
+	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
@@ -156,7 +156,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// 		if (workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size < needed_bytes) {
 		// 			//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 		// 			size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-		// 			workspace.allocate_descriptor(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, new_bytes);
+		// 			workspace.update_descriptor(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, new_bytes);
 		// 		}
 
 		// 		assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].device.size);
@@ -182,7 +182,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				if (buffer_pair->host.handle == VK_NULL_HANDLE || buffer_pair->host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.allocate_descriptor(
+					workspace.update_descriptor(
 						rtg, 
 						pipeline_name_to_index["A2PBRPipeline"], 
 						pbr_pipeline.block_descriptor_set_name_to_index["Transforms"], 
@@ -360,12 +360,12 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						for(auto &inst : pbr_object_instances) {
 							//draw all instances:
-							// uint32_t index = uint32_t(&inst - &pbr_object_instances[0]);
+							uint32_t index = uint32_t(&inst - &pbr_object_instances[0]);
 							A2PBRPipeline::Push push{
 								.MATERIAL_INDEX = static_cast<uint32_t>(inst.material_index)
 							};
 							vkCmdPushConstants(workspace.command_buffer, pbr_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
-							// vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
+							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}

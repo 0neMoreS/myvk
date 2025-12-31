@@ -59,14 +59,14 @@ class WorkspaceManager {
                 void* data, 
                 VkDeviceSize size
             );
-            void allocate_descriptor(
+            void update_descriptor(
                 RTG& rtg, 
                 uint32_t pipeline_index, 
                 uint32_t descriptor_set_index, 
                 uint32_t descriptor_index, 
                 VkDeviceSize size
             );
-            void allocate_global_descriptor(
+            void update_global_descriptor(
                 RTG& rtg, 
                 uint32_t pipeline_index, 
                 uint32_t descriptor_set_index, 
@@ -115,14 +115,14 @@ class WorkspaceManager {
             void* data, 
             VkDeviceSize size
         );
-        void allocate_all_descriptors(
+        void update_all_descriptors(
             RTG& rtg, 
             uint32_t pipeline_index, 
             uint32_t descriptor_set_index, 
             uint32_t descriptor_index, 
             VkDeviceSize size
         );
-        void allocate_all_global_descriptors(
+        void update_all_global_descriptors(
             RTG& rtg, 
             uint32_t pipeline_index, 
             uint32_t descriptor_set_index, 

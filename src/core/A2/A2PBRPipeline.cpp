@@ -143,6 +143,35 @@ void A2PBRPipeline::create(
             VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_Textures_instance));
         }
 
+        { // update cubemap descriptors
+            std::vector<VkDescriptorImageInfo> image_info(2);
+            // IrradianceMap
+            image_info[0] = VkDescriptorImageInfo{
+                .sampler = texture_manager.raw_environment_cubemap_texture[1]->sampler,
+                .imageView = texture_manager.raw_environment_cubemap_texture[1]->image_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+            // PrefilterMap
+            image_info[1] = VkDescriptorImageInfo{
+                .sampler = texture_manager.raw_environment_cubemap_texture[2]->sampler,
+                .imageView = texture_manager.raw_environment_cubemap_texture[2]->image_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+
+            VkWriteDescriptorSet write_cubemap{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = set2_Textures_instance,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 2,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = image_info.data(),
+            };
+
+            vkUpdateDescriptorSets(rtg.device, 1, &write_cubemap, 0, nullptr);
+
+        }
+
         { //update the set2_Textures_instance descriptor set
             std::vector<VkDescriptorImageInfo> image_info(total_2d_descriptors);
             size_t index = 0;
@@ -172,7 +201,7 @@ void A2PBRPipeline::create(
             VkWriteDescriptorSet write_2d{
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = set2_Textures_instance,
-                .dstBinding = 0,
+                .dstBinding = 1,
                 .dstArrayElement = 0,
                 .descriptorCount = total_2d_descriptors,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -180,35 +209,6 @@ void A2PBRPipeline::create(
             };
 
             vkUpdateDescriptorSets(rtg.device, 1, &write_2d, 0, nullptr); 
-        }
-
-        { // update cubemap descriptors
-            std::vector<VkDescriptorImageInfo> image_info(2);
-            // IrradianceMap
-            image_info[0] = VkDescriptorImageInfo{
-                .sampler = texture_manager.raw_environment_cubemap_texture[1]->sampler,
-                .imageView = texture_manager.raw_environment_cubemap_texture[1]->image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            };
-            // PrefilterMap
-            image_info[1] = VkDescriptorImageInfo{
-                .sampler = texture_manager.raw_environment_cubemap_texture[2]->sampler,
-                .imageView = texture_manager.raw_environment_cubemap_texture[2]->image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            };
-
-            VkWriteDescriptorSet write_cubemap{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = set2_Textures_instance,
-                .dstBinding = 1,
-                .dstArrayElement = 0,
-                .descriptorCount = 2,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = image_info.data(),
-            };
-
-            vkUpdateDescriptorSets(rtg.device, 1, &write_cubemap, 0, nullptr);
-
         }
     }
 
@@ -236,7 +236,7 @@ void A2PBRPipeline::create(
 		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
 	}
 
-    create_pipeline(rtg, render_pass, subpass);
+    create_pipeline(rtg, render_pass, subpass, true);
 
     vkDestroyShaderModule(rtg.device, frag_module, nullptr);
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);

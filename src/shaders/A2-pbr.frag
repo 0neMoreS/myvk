@@ -7,7 +7,7 @@ layout(set=0,binding=1,std140) uniform Light {
 };
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
-layout(set=2,binding=1) uniform sampler2D textures[1024];
+layout(set=2,binding=1) uniform sampler2D textures[128];
 
 layout(push_constant) uniform Push {
     uint MATERIAL_INDEX;

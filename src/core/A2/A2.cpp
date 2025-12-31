@@ -425,6 +425,7 @@ void A2::update(float dt) {
 
 	{ // update object instances with frustum culling
 		reflection_object_instances.clear();
+		pbr_object_instances.clear();
 		
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();

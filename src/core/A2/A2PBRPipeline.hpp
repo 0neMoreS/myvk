@@ -22,9 +22,9 @@ struct A2PBRPipeline : Pipeline {
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
     VkDescriptorPool set2_Textures_instance_pool = VK_NULL_HANDLE;
     /*
-        PBRTLUT
         IrradianceMap
         PrefilterMap
+        PBRTLUT
         {
             NormalTexture
             DisplacementTexture
@@ -35,22 +35,8 @@ struct A2PBRPipeline : Pipeline {
     */
 
     struct Push{
-        uint32_t material_index;
+        uint32_t MATERIAL_INDEX;
     };
-
-    //types for descriptors:
-    struct Light {
-        struct { float x, y, z, padding_; } LIGHT_POSITION;
-        struct { float r, g, b, padding_; } LIGHT_ENERGY;
-    };
-    static_assert(sizeof(Light) == 4*4 + 4*4, "Light is the expected size.");
-
-    //types for descriptors:
-    struct Transform {
-        glm::mat4 MODEL;
-        glm::mat4 MODEL_NORMAL;
-    };
-    static_assert(sizeof(Transform) == 16*4 + 16*4, "Transform is the expected size.");
 
     //no push constants
     void create(

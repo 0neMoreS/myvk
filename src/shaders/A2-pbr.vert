@@ -30,11 +30,5 @@ void main() {
 	position = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
 	normal = mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal;
 	texCoord = TexCoord;
-
-	if(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL[3][3] == 1.0){
-		camera_view = position - CAMERA_POSITION.xyz;
-	}
-	else{
-		camera_view = -normal;
-	}
+	camera_view = position - CAMERA_POSITION.xyz;
 }

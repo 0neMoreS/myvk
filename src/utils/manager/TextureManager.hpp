@@ -6,7 +6,6 @@
 #include "Texture2DLoader.hpp"
 #include "TextureCubeLoader.hpp"
 #include "VK.hpp"
-#include "Pipeline.hpp"
 
 #include <optional>
 

@@ -178,8 +178,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						{ //bind Transforms descriptor set:
 							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.pipeline_buffer_pairs[0][0].descriptor, //0: World
-								workspace.pipeline_buffer_pairs[0][1].descriptor, //1: Transforms
+								workspace.pipeline_buffer_pairs[0][0].descriptor_set, //0: World
+								workspace.pipeline_buffer_pairs[0][1].descriptor_set, //1: Transforms
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer

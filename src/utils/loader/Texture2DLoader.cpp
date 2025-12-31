@@ -49,7 +49,7 @@ std::shared_ptr<Texture> load_image(
 		Helpers::Unmapped
 	);
 
-	helpers.transfer_to_image(pixel_data, width * height * 4, texture->image);
+	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1);
 	
 	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
 	texture->sampler = TextureCommon::create_sampler(
@@ -90,7 +90,7 @@ std::shared_ptr<Texture> create_rgb_texture(
         Helpers::Unmapped
     );
 
-	helpers.transfer_to_image(pixel_data, 1 * 1 * 4, texture->image);
+	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1);
 	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
 	texture->sampler = TextureCommon::create_sampler(
 		helpers.rtg.device,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 #include "VK.hpp"
 #include "TextureManager.hpp"
@@ -13,19 +14,15 @@ struct Pipeline
     {
         VkDescriptorType type;
         VkDescriptorSetLayout layout;
-    };
-
-    struct TextureDescriptorConfig 
-    {
-        std::vector<TextureSlot> slots;
-        VkDescriptorSetLayout layout;
+		uint32_t bindings_count; //names of bindings in this block
     };
 
     VkPipelineLayout layout = VK_NULL_HANDLE;	
     VkPipeline pipeline = VK_NULL_HANDLE;
 
     std::vector<BlockDescriptorConfig> block_descriptor_configs{};
-    std::vector<TextureDescriptorConfig> texture_descriptor_configs{};  // mapping texture slots to layouts
+	std::unordered_map<std::string, uint32_t> block_descriptor_set_name_to_index{};
+	std::unordered_map<std::string, uint32_t> block_binding_name_to_index{};
 
     VkShaderModule frag_module;
     VkShaderModule vert_module;

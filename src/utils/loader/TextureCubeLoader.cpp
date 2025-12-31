@@ -129,22 +129,14 @@ void blit_tile_rgba8(
 std::shared_ptr<Texture> load_from_png_atlas(
     Helpers &helpers,
     const std::string &filepath,
-    VkFilter filter = VK_FILTER_LINEAR,
+    VkFilter filter,
     uint32_t mipmap_levels
 ) {
     // Load all mipmap levels from files with suffix pattern (.1 through .5)
     std::vector<unsigned char*> pixel_data_levels;
     std::vector<int> widths, heights;
-    
-    int base_width = 0, base_height = 0;    
-    stbi_set_flip_vertically_on_load(false);
-    
-    // Load mipmap levels
-    std::vector<unsigned char*> pixel_data_levels;
-    std::vector<int> widths, heights;
 
     stbi_set_flip_vertically_on_load(false);
-
     // Load mipmap levels [0 .. mipmap_levels-1]
     for (uint32_t level = 0; level < mipmap_levels; ++level) {
         std::string level_filepath;
@@ -232,7 +224,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
     // Create GPU cubemap image with mipmaps
     auto texture = std::make_shared<Texture>();
     texture->image = helpers.create_image(
-        VkExtent2D{ .width = static_cast<uint32_t>(widths[0]), .height = static_cast<uint32_t>(heights[0]) },
+        VkExtent2D{ .width = static_cast<uint32_t>(widths[0]), .height = static_cast<uint32_t>(heights[0] / 6) },
         VK_FORMAT_R32G32B32A32_SFLOAT,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,

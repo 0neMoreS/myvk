@@ -1,8 +1,5 @@
-
 #include "RTG.hpp"
 
-#include "Tutorial.hpp"
-#include "A1.hpp"
 #include "A2.hpp"
 
 #include <iostream>

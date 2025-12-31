@@ -34,30 +34,58 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	texture_manager.create(rtg, doc);
 
-	common_layouts.create(rtg);
-	background_pipeline.set0_PV = common_layouts.pv_matrix;
-	background_pipeline.set1_CUBEMAP = common_layouts.cubemap;
-	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	// common_layouts.create(rtg);
+	// background_pipeline.set0_PV = common_layouts.pv_matrix;
+	// background_pipeline.set1_CUBEMAP = common_layouts.cubemap;
+	// background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
-	reflection_pipeline.set0_PV = common_layouts.pv_matrix;
-	reflection_pipeline.set2_CUBEMAP = common_layouts.cubemap;
-	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	// reflection_pipeline.set0_PV = common_layouts.pv_matrix;
+	// reflection_pipeline.set2_CUBEMAP = common_layouts.cubemap;
+	// reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{3};
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["CommonLayouts"]] = std::vector<Pipeline::BlockDescriptorConfig>{
-        Pipeline::BlockDescriptorConfig{
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .layout = common_layouts.pv_matrix
-        }
-    };
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
+	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["CommonLayouts"]] = std::vector<Pipeline::BlockDescriptorConfig>{
+    //     Pipeline::BlockDescriptorConfig{
+    //         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //         .layout = common_layouts.pv_matrix
+    //     }
+    // };
+	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ReflectionPipeline"]] = reflection_pipeline.block_descriptor_configs;
+	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ReflectionPipeline"]] = reflection_pipeline.block_descriptor_configs;
 
-	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
-	workspace_manager.allocate_all_descriptors(rtg, pipeline_name_to_index["CommonLayouts"], 0, sizeof(pv_matrix));
+	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "PV",
+			.size = sizeof(CommonData::PV),
+			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "Light",
+			.size = sizeof(CommonData::Light),
+			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+		},
+	};
+
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	workspace_manager.allocate_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2PBRPipeline"], 
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
+		pbr_pipeline.block_binding_name_to_index["PV"], 
+		"PV",
+		sizeof(CommonData::PV)
+	);
+	workspace_manager.allocate_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2PBRPipeline"], 
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
+		pbr_pipeline.block_binding_name_to_index["Light"], 
+		"Light",
+		sizeof(CommonData::Light)
+	);
 
 	scene_manager.create(rtg, doc);
 
@@ -112,38 +140,75 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	{ //begin recording:
 		workspace.begin_recording();
 
-		{ //upload pv matrix:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.size == sizeof(pv_matrix));
+		{ //upload global data:
+			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(CommonData::PV));
+			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(CommonData::PV));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 
-			//host-side copy into Transform_src:
-			memcpy(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.allocation.data(), &pv_matrix, sizeof(pv_matrix));
-			//add device-side copy from Transform_src -> Transform:
-			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].device.size);
-
-			workspace.write_buffer(rtg, pipeline_name_to_index["CommonLayouts"], 0, sizeof(pv_matrix));
+			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(CommonData::Light));
+			workspace.write_global_buffer(rtg, "Light", &light, sizeof(CommonData::Light));
+			assert(workspace.global_buffer_pairs["Light"]->host.size == workspace.global_buffer_pairs["Light"]->device.size);
 		}
 
-		{ //upload object transforms
-			if (!reflection_object_instances.empty()) { 
-				size_t needed_bytes = reflection_object_instances.size() * sizeof(A2ReflectionPipeline::Transform);
-				if (workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size < needed_bytes) {
+		// { //upload reflection transforms
+		// 	if (!reflection_object_instances.empty()) { 
+		// 		size_t needed_bytes = reflection_object_instances.size() * sizeof(A2ReflectionPipeline::Transform);
+		// 		if (workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size < needed_bytes) {
+		// 			//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
+		// 			size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
+		// 			workspace.allocate_descriptor(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, new_bytes);
+		// 		}
+
+		// 		assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].device.size);
+		// 		assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size >= needed_bytes);
+		// 		{ //copy transforms into Transforms_src:
+		// 			assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.allocation.mapped);
+		// 			A2ReflectionPipeline::Transform *out = reinterpret_cast< A2ReflectionPipeline::Transform * >(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
+		// 			for (ReflectionInstance const &inst : reflection_object_instances) {
+		// 				*out = inst.object_transform;
+		// 				++out;
+		// 			}
+		// 		}
+
+		// 		workspace.write_buffer(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, needed_bytes);
+		// 	}
+		// }
+
+		{ //upload pbr transforms
+			if (!pbr_object_instances.empty()) { 
+				size_t needed_bytes = pbr_object_instances.size() * sizeof(A2ReflectionPipeline::Transform);
+				
+				auto& buffer_pair = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2PBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].buffer_pairs[pbr_pipeline.block_binding_name_to_index["Transforms"]];
+				if (buffer_pair->host.handle == VK_NULL_HANDLE || buffer_pair->host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.allocate_descriptor(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, new_bytes);
+					workspace.allocate_descriptor(
+						rtg, 
+						pipeline_name_to_index["A2PBRPipeline"], 
+						pbr_pipeline.block_descriptor_set_name_to_index["Transforms"], 
+						pbr_pipeline.block_binding_name_to_index["Transforms"],
+						new_bytes
+					);
 				}
 
-				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size == workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].device.size);
-				assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.size >= needed_bytes);
-				{ //copy transforms into Transforms_src:
-					assert(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.allocation.mapped);
-					A2ReflectionPipeline::Transform *out = reinterpret_cast< A2ReflectionPipeline::Transform * >(workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
-					for (ReflectionInstance const &inst : reflection_object_instances) {
-						*out = inst.object_transform;
-						++out;
+				{
+					assert(buffer_pair->host.size == buffer_pair->device.size);
+					assert(buffer_pair->host.size >= needed_bytes);
+					assert(buffer_pair->host.allocation.mapped);
+
+					std::vector<CommonData::Transform> transform_data;
+
+					for (const auto& inst : pbr_object_instances) {
+						transform_data.push_back(inst.object_transform);
 					}
-				}
-
-				workspace.write_buffer(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 0, needed_bytes);
+					
+					workspace.write_buffer(rtg, pipeline_name_to_index["A2PBRPipeline"], 
+						pbr_pipeline.block_descriptor_set_name_to_index["Transforms"], 
+						pbr_pipeline.block_binding_name_to_index["Transforms"],
+						transform_data.data(),
+						needed_bytes
+					);
+				}	
 			}
 		}
 
@@ -201,7 +266,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// 		auto &cubemap_binding = texture_manager.environment_cubemap_binding;
 				// 		if (cubemap_binding && cubemap_binding->second != VK_NULL_HANDLE) {
 				// 			std::array< VkDescriptorSet, 2 > descriptor_sets{
-				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor, //0: World
+				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor_set, //0: World
 				// 				cubemap_binding->second, //1: Cubemap
 				// 			};
 
@@ -210,7 +275,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// 				VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 				// 				background_pipeline.layout, //pipeline layout
 				// 				0, //set 0 and 1
-				// 				uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor sets count, ptr
+				// 				uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
 				// 				0, nullptr //dynamic offsets count, ptr
 				// 			);
 				// 		}
@@ -229,17 +294,17 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// 			vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
 				// 		}
 
-				// 		{ //bind Transforms descriptor set:
+				// 		{ //bind Transforms descriptor_set set:
 				// 			std::array< VkDescriptorSet, 2 > descriptor_sets{
-				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor, //0: PV
-				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].descriptor, //0: Transforms
+				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor_set, //0: PV
+				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["A2ReflectionPipeline"]][0].descriptor_set, //0: Transforms
 				// 			};
 				// 			vkCmdBindDescriptorSets(
 				// 				workspace.command_buffer, //command buffer
 				// 				VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 				// 				reflection_pipeline.layout, //pipeline layout
 				// 				0, //first set
-				// 				uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor sets count, ptr
+				// 				uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
 				// 				0, nullptr //dynamic offsets count, ptr
 				// 			);
 				// 		}
@@ -248,7 +313,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// 		for (ReflectionInstance const &inst : reflection_object_instances) {
 				// 			uint32_t index = uint32_t(&inst - &reflection_object_instances[0]);
 
-				// 			// Bind cubemap descriptor set if available:
+				// 			// Bind cubemap descriptor_set set if available:
 				// 			auto &cubemap_binding = texture_manager.environment_cubemap_binding;
 				// 			if (!cubemap_binding || cubemap_binding->second == VK_NULL_HANDLE) continue;
 				// 			vkCmdBindDescriptorSets(
@@ -256,7 +321,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// 				VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
 				// 				reflection_pipeline.layout, //pipeline layout
 				// 				2, //set 2 (Cubemap)
-				// 				1, &cubemap_binding->second, //descriptor sets count, ptr
+				// 				1, &cubemap_binding->second, //descriptor_set sets count, ptr
 				// 				0, nullptr //dynamic offsets count, ptr
 				// 			);
 				// 			vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
@@ -272,6 +337,35 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
 							std::array< VkDeviceSize, 1 > offsets{ 0 };
 							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+						}
+
+						auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2PBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+						auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2PBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+						auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
+						{ //bind Global and Transforms descriptor_set sets:
+							std::array< VkDescriptorSet, 3 > descriptor_sets{
+								global_descriptor_set, //0: Global (PV, Light)
+								transform_descriptor_set, //1: Transforms
+								textures_descriptor_set, //2: Textures
+							};
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								pbr_pipeline.layout, //pipeline layout
+								0, //first set
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
+								0, nullptr //dynamic offsets count, ptr
+							);
+						}
+
+						for(auto &inst : pbr_object_instances) {
+							//draw all instances:
+							// uint32_t index = uint32_t(&inst - &pbr_object_instances[0]);
+							A2PBRPipeline::Push push{
+								.MATERIAL_INDEX = static_cast<uint32_t>(inst.material_index)
+							};
+							vkCmdPushConstants(workspace.command_buffer, pbr_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+							// vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
 						}
 					}
 				}
@@ -318,10 +412,15 @@ void A2::update(float dt) {
 	// Update camera
 	camera_manager.update(dt);
 
-	{ // update background transform
+	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
 		pv_matrix.VIEW = camera_manager.get_view();
 		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+
+		light = CommonData::Light{
+			.LIGHT_POSITION = doc->lights[0].transforms[0][3],
+			.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint, 1.0f),
+		}; // assuming single light for now
 	}
 
 	{ // update object instances with frustum culling

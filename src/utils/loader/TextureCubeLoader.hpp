@@ -60,7 +60,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter = VK_FILTER_LINEAR,
-    uint32_t mipmap_levels
+    uint32_t mipmap_levels = 1
 );
 
 void destroy(const std::shared_ptr<Texture> &texture, RTG &rtg);

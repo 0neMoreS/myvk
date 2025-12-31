@@ -15,6 +15,7 @@
 #include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
 #include "CommonLayouts.hpp"
+#include "CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
@@ -52,7 +53,7 @@ struct A2 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	A2PBRPipeline::Light global_light{
+	CommonData::Light global_light{
 		.LIGHT_POSITION = { 10.0f, 10.0f, 10.0f, 0.0f },
 		.LIGHT_ENERGY = { 1.0f, 1.0f, 1.0f, 0.0f }
 	};
@@ -71,18 +72,19 @@ struct A2 : RTG::Application {
 
 	float time = 0.0f;
 
-	CommonLayouts::PV pv_matrix;
+	CommonData::PV pv_matrix;
+	CommonData::Light light;
 
 	struct ReflectionInstance {
 		SceneManager::ObjectRange object_ranges;
-		A2ReflectionPipeline::Transform object_transform;
+		CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct PBRInstance {
 		SceneManager::ObjectRange object_ranges;
-		A2PBRPipeline::Transform object_transform;
+		CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;

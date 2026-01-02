@@ -75,140 +75,159 @@ void A2PBRPipeline::create(
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_Transforms) );
     }
 
-    { // the set2_Textures
-        std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
-			VkDescriptorSetLayoutBinding{
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.descriptorCount = 2, // IrradianceMap + PrefilterMap
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-			},
-            VkDescriptorSetLayoutBinding{
-                .binding = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = MAX_TEXTURES, // 2D Textures
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            }
-		};
-		
-		VkDescriptorSetLayoutCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.bindingCount = uint32_t(bindings.size()),
-			.pBindings = bindings.data(),
-		};
-
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_Textures) );
-    }
-
-    { // allocate texture descriptor and update data
+    {
         uint32_t total_2d_descriptors = 1; // BRDF LUT
         uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
         assert(texture_manager.raw_environment_cubemap_texture.size() > 1);
 
-        { // the set2_Textures_instance_pool
-            for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
-                for (const auto &texture_opt : material_slots) {
-                    if (texture_opt) {
-                        ++total_2d_descriptors;
-                    }
-                }
-            }    
-
-            std::array<VkDescriptorPoolSize, 1> pool_sizes{
-                VkDescriptorPoolSize{
-                    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
-                },
-            };
-
-            VkDescriptorPoolCreateInfo pool_create_info{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                .flags = 0,
-                .maxSets = 1,
-                .poolSizeCount = uint32_t(pool_sizes.size()),
-                .pPoolSizes = pool_sizes.data(),
-            };
-
-            VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &set2_Textures_instance_pool) );
-        }
-
-        { // the set2_Textures_instance
-            VkDescriptorSetAllocateInfo alloc_info{
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                    .descriptorPool = set2_Textures_instance_pool,
-                    .descriptorSetCount = 1,
-                    .pSetLayouts = &set2_Textures,
-                };
-
-            VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_Textures_instance));
-        }
-
-        { // update cubemap descriptors
-            std::vector<VkDescriptorImageInfo> image_info(2);
-            // IrradianceMap
-            image_info[0] = VkDescriptorImageInfo{
-                .sampler = texture_manager.raw_environment_cubemap_texture[1]->sampler,
-                .imageView = texture_manager.raw_environment_cubemap_texture[1]->image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            };
-            // PrefilterMap
-            image_info[1] = VkDescriptorImageInfo{
-                .sampler = texture_manager.raw_environment_cubemap_texture[2]->sampler,
-                .imageView = texture_manager.raw_environment_cubemap_texture[2]->image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            };
-
-            VkWriteDescriptorSet write_cubemap{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = set2_Textures_instance,
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorCount = 2,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = image_info.data(),
-            };
-
-            vkUpdateDescriptorSets(rtg.device, 1, &write_cubemap, 0, nullptr);
-
-        }
-
-        { //update the set2_Textures_instance descriptor set
-            std::vector<VkDescriptorImageInfo> image_info(total_2d_descriptors);
-            size_t index = 0;
-
-            // PBRTLUT
-            image_info[index] = VkDescriptorImageInfo{
-                .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            };
-            ++index;
-
-            for(const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
-                for (const auto &texture_opt : material_slots) {
-                    if (texture_opt) {
-                        const auto &texture = texture_opt.value();
-                        image_info[index] = VkDescriptorImageInfo{
-                            .sampler = texture->sampler,
-                            .imageView = texture->image_view,
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        };
-                        ++index;
-                    }
+        for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
+            for (const auto &texture_opt : material_slots) {
+                if (texture_opt) {
+                    ++total_2d_descriptors;
                 }
             }
+        }
 
-            VkWriteDescriptorSet write_2d{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = set2_Textures_instance,
-                .dstBinding = 1,
-                .dstArrayElement = 0,
-                .descriptorCount = total_2d_descriptors,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = image_info.data(),
+        { // the set2_Textures
+            std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
+                VkDescriptorSetLayoutBinding{
+                    .binding = 0,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 2, // IrradianceMap + PrefilterMap
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = total_2d_descriptors, // runtime-defined number of 2D textures
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                }
             };
 
-            vkUpdateDescriptorSets(rtg.device, 1, &write_2d, 0, nullptr); 
+            VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                .bindingCount = 2,
+                .pBindingFlags = std::array<VkDescriptorBindingFlags, 2>{
+                    0,  // binding 0: fixed size
+                    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT  // binding 1: variable size
+                }.data()
+            };
+            
+            VkDescriptorSetLayoutCreateInfo create_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .pNext = &binding_flags_info,
+                .bindingCount = uint32_t(bindings.size()),
+                .pBindings = bindings.data(),
+            };
+
+            VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_Textures) );
+        }
+
+        { // allocate texture descriptor and update data
+            { // the set2_Textures_instance_pool
+                std::array<VkDescriptorPoolSize, 1> pool_sizes{
+                    VkDescriptorPoolSize{
+                        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                        .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
+                    },
+                };
+
+                VkDescriptorPoolCreateInfo pool_create_info{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                    .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                    .maxSets = 1,
+                    .poolSizeCount = uint32_t(pool_sizes.size()),
+                    .pPoolSizes = pool_sizes.data(),
+                };
+
+                VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &set2_Textures_instance_pool) );
+            }
+
+            { // the set2_Textures_instance
+                VkDescriptorSetVariableDescriptorCountAllocateInfo var_count_alloc_info{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
+                    .descriptorSetCount = 1,
+                    .pDescriptorCounts = &total_2d_descriptors  // runtime-defined size
+                };
+
+                VkDescriptorSetAllocateInfo alloc_info{
+                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                        .pNext = &var_count_alloc_info,
+                        .descriptorPool = set2_Textures_instance_pool,
+                        .descriptorSetCount = 1,
+                        .pSetLayouts = &set2_Textures,
+                    };
+
+                VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_Textures_instance));
+            }
+
+            { // update cubemap descriptors
+                std::vector<VkDescriptorImageInfo> image_info(2);
+                // IrradianceMap
+                image_info[0] = VkDescriptorImageInfo{
+                    .sampler = texture_manager.raw_environment_cubemap_texture[1]->sampler,
+                    .imageView = texture_manager.raw_environment_cubemap_texture[1]->image_view,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+                // PrefilterMap
+                image_info[1] = VkDescriptorImageInfo{
+                    .sampler = texture_manager.raw_environment_cubemap_texture[2]->sampler,
+                    .imageView = texture_manager.raw_environment_cubemap_texture[2]->image_view,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+
+                VkWriteDescriptorSet write_cubemap{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_Textures_instance,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 2,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = image_info.data(),
+                };
+
+                vkUpdateDescriptorSets(rtg.device, 1, &write_cubemap, 0, nullptr);
+
+            }
+
+            { //update the set2_Textures_instance descriptor set
+                std::vector<VkDescriptorImageInfo> image_info(total_2d_descriptors);
+                size_t index = 0;
+
+                // PBRTLUT
+                image_info[index] = VkDescriptorImageInfo{
+                    .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
+                    .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                };
+                ++index;
+
+                for(const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
+                    for (const auto &texture_opt : material_slots) {
+                        if (texture_opt) {
+                            const auto &texture = texture_opt.value();
+                            image_info[index] = VkDescriptorImageInfo{
+                                .sampler = texture->sampler,
+                                .imageView = texture->image_view,
+                                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            };
+                            ++index;
+                        }
+                    }
+                }
+
+                VkWriteDescriptorSet write_2d{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_Textures_instance,
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = total_2d_descriptors,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = image_info.data(),
+                };
+
+                vkUpdateDescriptorSets(rtg.device, 1, &write_2d, 0, nullptr); 
+            }
         }
     }
 

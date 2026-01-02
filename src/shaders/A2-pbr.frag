@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_nonuniform_qualifier : require
 #include "tone_mapping.glsl"
 
 layout(set=0,binding=1,std140) uniform Light {
@@ -7,7 +8,7 @@ layout(set=0,binding=1,std140) uniform Light {
 };
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
-layout(set=2,binding=1) uniform sampler2D textures[128];
+layout(set=2,binding=1) uniform sampler2D textures[];
 
 layout(push_constant) uniform Push {
     uint MATERIAL_INDEX;
@@ -25,6 +26,6 @@ void main() {
 	vec3 refl = reflect(normalize(camera_view), normalize(normal));
 	vec3 hdr = texture(ibl_cubemaps[1], refl).rgb;
 	vec3 ldr = aces_approx(hdr);
-	outColor = vec4(ldr, 1.0);
+	outColor = vec4(texture(textures[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).rgb, 1.0);
 	// outColor = vec4(pow(hdr.rgb / (hdr.rgb + vec3(1.0)), vec3(1.0/2.2)), 1.0);
 }

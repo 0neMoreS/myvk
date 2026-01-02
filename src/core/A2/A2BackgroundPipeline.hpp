@@ -10,6 +10,7 @@ struct A2BackgroundPipeline : Pipeline {
     // External cubemap descriptor set layout (allocated elsewhere, not owned)
     VkDescriptorSetLayout set0_PV = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_CUBEMAP = VK_NULL_HANDLE;
+    VkDescriptorSet set1_CUBEMAP_instance = VK_NULL_HANDLE;
 
     void create(
 		class RTG &, 

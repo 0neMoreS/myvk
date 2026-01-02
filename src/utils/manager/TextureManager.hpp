@@ -8,9 +8,11 @@
 #include "VK.hpp"
 
 #include <optional>
+#include <cassert>
 
 class TextureManager {
     public:
+        VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
         // Raw textures from document: textures_by_material[material_index][texture_slot]
         std::vector< std::array< std::optional<std::shared_ptr<Texture2DLoader::Texture>>, 5 > > raw_2d_textures_by_material;
 
@@ -27,5 +29,5 @@ class TextureManager {
         void destroy(RTG &rtg);
 
         TextureManager() = default;
-        ~TextureManager() = default;
+        ~TextureManager();
 };

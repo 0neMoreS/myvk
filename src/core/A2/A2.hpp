@@ -14,7 +14,6 @@
 #include "A2BackgroundPipeline.hpp"
 #include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
-#include "CommonLayouts.hpp"
 #include "CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
@@ -42,7 +41,6 @@ struct A2 : RTG::Application {
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
 
-	CommonLayouts common_layouts;
 	A2BackgroundPipeline background_pipeline;
 	A2PBRPipeline pbr_pipeline;
 	A2ReflectionPipeline reflection_pipeline;

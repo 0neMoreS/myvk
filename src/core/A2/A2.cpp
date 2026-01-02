@@ -22,7 +22,6 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	camera_manager{}, 
 	workspace_manager{}, 
 	render_pass_manager{},
-	common_layouts{},
 	background_pipeline{},
 	pbr_pipeline{},
 	reflection_pipeline{},
@@ -34,25 +33,14 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	texture_manager.create(rtg, doc);
 
-	// common_layouts.create(rtg);
-	// background_pipeline.set0_PV = common_layouts.pv_matrix;
-	// background_pipeline.set1_CUBEMAP = common_layouts.cubemap;
-	// background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
-	// reflection_pipeline.set0_PV = common_layouts.pv_matrix;
-	// reflection_pipeline.set2_CUBEMAP = common_layouts.cubemap;
 	// reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
-	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["CommonLayouts"]] = std::vector<Pipeline::BlockDescriptorConfig>{
-    //     Pipeline::BlockDescriptorConfig{
-    //         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //         .layout = common_layouts.pv_matrix
-    //     }
-    // };
-	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{3};
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	// block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ReflectionPipeline"]] = reflection_pipeline.block_descriptor_configs;
 
@@ -70,6 +58,14 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	};
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2BackgroundPipeline"], 
+		background_pipeline.block_descriptor_set_name_to_index["PV"], 
+		background_pipeline.block_binding_name_to_index["PV"], 
+		"PV",
+		sizeof(CommonData::PV)
+	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2PBRPipeline"], 
@@ -104,8 +100,6 @@ A2::~A2() {
 	scene_manager.destroy(rtg);
 
 	framebuffer_manager.destroy(rtg);
-
-	common_layouts.destroy(rtg);
 
 	background_pipeline.destroy(rtg);
 
@@ -253,36 +247,35 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
 				}
 
-				// { //draw skybox with background pipeline if available
-				// 	if (doc->environments.size() > 0) {
-				// 		vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background_pipeline.pipeline);
+				{ //draw skybox with background pipeline if available
+					if (doc->environments.size() > 0) {
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, background_pipeline.pipeline);
 
-				// 		{ //use scene vertex buffer as binding 0:
-				// 			std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.cubemap_vertex_buffer.handle };
-				// 			std::array< VkDeviceSize, 1 > offsets{ 0 };
-				// 			vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
-				// 		}
+						{ //use scene vertex buffer as binding 0:
+							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.cubemap_vertex_buffer.handle };
+							std::array< VkDeviceSize, 1 > offsets{ 0 };
+							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+						}
 
-				// 		auto &cubemap_binding = texture_manager.environment_cubemap_binding;
-				// 		if (cubemap_binding && cubemap_binding->second != VK_NULL_HANDLE) {
-				// 			std::array< VkDescriptorSet, 2 > descriptor_sets{
-				// 				workspace.pipeline_buffer_pairs[pipeline_name_to_index["CommonLayouts"]][0].descriptor_set, //0: World
-				// 				cubemap_binding->second, //1: Cubemap
-				// 			};
+						{
+							std::array< VkDescriptorSet, 2 > descriptor_sets{
+								workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2BackgroundPipeline"]][background_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set, //0: PV
+								background_pipeline.set1_CUBEMAP_instance, //1: Cubemap
+							};
 
-				// 			vkCmdBindDescriptorSets(
-				// 				workspace.command_buffer, //command buffer
-				// 				VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-				// 				background_pipeline.layout, //pipeline layout
-				// 				0, //set 0 and 1
-				// 				uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
-				// 				0, nullptr //dynamic offsets count, ptr
-				// 			);
-				// 		}
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								background_pipeline.layout, //pipeline layout
+								0, //set 0
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
+								0, nullptr //dynamic offsets count, ptr
+							);
+						}
 
-				// 		vkCmdDraw(workspace.command_buffer, 36, 1, 0, 0); // hard coded for a cube
-				// 	}
-				// }
+						vkCmdDraw(workspace.command_buffer, 36, 1, 0, 0); // hard coded for a cube
+					}
+				}
 
 				// { //draw with the reflection pipeline:
 				// 	if (!reflection_object_instances.empty()) { //draw with the objects pipeline:

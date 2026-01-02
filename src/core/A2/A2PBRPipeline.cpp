@@ -19,7 +19,6 @@ A2PBRPipeline::~A2PBRPipeline(){
     assert(set1_Transforms == VK_NULL_HANDLE);
     assert(set2_Textures == VK_NULL_HANDLE);
     assert(set2_Textures_instance == VK_NULL_HANDLE);
-    assert(set2_Textures_instance_pool == VK_NULL_HANDLE);
 }
 
 void A2PBRPipeline::create(
@@ -75,7 +74,7 @@ void A2PBRPipeline::create(
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_Transforms) );
     }
 
-    {
+    { // bind texture descriptors: cubemaps and 2D textures
         uint32_t total_2d_descriptors = 1; // BRDF LUT
         uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
         assert(texture_manager.raw_environment_cubemap_texture.size() > 1);
@@ -93,7 +92,7 @@ void A2PBRPipeline::create(
                 VkDescriptorSetLayoutBinding{
                     .binding = 0,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 2, // IrradianceMap + PrefilterMap
+                    .descriptorCount = total_cubemap_descriptors, // IrradianceMap + PrefilterMap
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                 },
                 VkDescriptorSetLayoutBinding{
@@ -124,25 +123,6 @@ void A2PBRPipeline::create(
         }
 
         { // allocate texture descriptor and update data
-            { // the set2_Textures_instance_pool
-                std::array<VkDescriptorPoolSize, 1> pool_sizes{
-                    VkDescriptorPoolSize{
-                        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                        .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
-                    },
-                };
-
-                VkDescriptorPoolCreateInfo pool_create_info{
-                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                    .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-                    .maxSets = 1,
-                    .poolSizeCount = uint32_t(pool_sizes.size()),
-                    .pPoolSizes = pool_sizes.data(),
-                };
-
-                VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &set2_Textures_instance_pool) );
-            }
-
             { // the set2_Textures_instance
                 VkDescriptorSetVariableDescriptorCountAllocateInfo var_count_alloc_info{
                     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
@@ -153,7 +133,7 @@ void A2PBRPipeline::create(
                 VkDescriptorSetAllocateInfo alloc_info{
                         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                         .pNext = &var_count_alloc_info,
-                        .descriptorPool = set2_Textures_instance_pool,
+                        .descriptorPool = texture_manager.texture_descriptor_pool,
                         .descriptorSetCount = 1,
                         .pSetLayouts = &set2_Textures,
                     };
@@ -187,7 +167,6 @@ void A2PBRPipeline::create(
                 };
 
                 vkUpdateDescriptorSets(rtg.device, 1, &write_cubemap, 0, nullptr);
-
             }
 
             { //update the set2_Textures_instance descriptor set
@@ -262,13 +241,20 @@ void A2PBRPipeline::create(
     frag_module = VK_NULL_HANDLE;
     vert_module = VK_NULL_HANDLE;
 
-    block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .layout = set0_Global, .bindings_count = 2}); //Global
-    block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .layout = set1_Transforms, .bindings_count = 1}); //Transform
+    block_descriptor_configs.push_back(BlockDescriptorConfig{
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
+        .layout = set0_Global, 
+        .bindings_count = 2
+    }); //Global
+    block_descriptor_configs.push_back(BlockDescriptorConfig{
+        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 
+        .layout = set1_Transforms, 
+        .bindings_count = 1
+    }); //Transform
 
     block_descriptor_set_name_to_index = {
         {"Global", 0},
-        {"Transforms", 1},
-        {"Textures", 2},
+        {"Transforms", 1}
     };
 
     block_binding_name_to_index = {
@@ -279,7 +265,7 @@ void A2PBRPipeline::create(
         {"Transforms", 0},
     };
     
-    pipeline_name_to_index["A2PBRPipeline"] = 3;
+    pipeline_name_to_index["A2PBRPipeline"] = 1;
 }
 
 void A2PBRPipeline::destroy(RTG &rtg) {
@@ -306,11 +292,6 @@ void A2PBRPipeline::destroy(RTG &rtg) {
     if(set2_Textures != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(rtg.device, set2_Textures, nullptr);
         set2_Textures = VK_NULL_HANDLE;
-    }
-
-    if(set2_Textures_instance_pool != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(rtg.device, set2_Textures_instance_pool, nullptr);
-        set2_Textures_instance_pool = VK_NULL_HANDLE;
     }
 
     if(set2_Textures_instance != VK_NULL_HANDLE) {

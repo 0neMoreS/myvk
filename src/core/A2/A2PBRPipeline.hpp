@@ -20,7 +20,6 @@ struct A2PBRPipeline : Pipeline {
     // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, no update
     VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
-    VkDescriptorPool set2_Textures_instance_pool = VK_NULL_HANDLE;
     /*
         IrradianceMap
         PrefilterMap

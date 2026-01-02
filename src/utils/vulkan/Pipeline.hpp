@@ -101,7 +101,7 @@ struct Pipeline
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 			.depthTestEnable = enable_depth ? VK_TRUE : VK_FALSE,
 			.depthWriteEnable = enable_depth ? VK_TRUE : VK_FALSE,
-			.depthCompareOp = VK_COMPARE_OP_LESS,
+			.depthCompareOp = enable_depth ? VK_COMPARE_OP_LESS : VK_COMPARE_OP_ALWAYS,
 			.depthBoundsTestEnable = VK_FALSE,
 			.stencilTestEnable = VK_FALSE,
 		};

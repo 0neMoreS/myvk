@@ -25,10 +25,10 @@ layout(location=2) out vec2 texCoord;
 layout(location=3) out vec3 camera_view;
 
 void main() {
-	gl_Position = PERSPECTIVE * VIEW * TRANSFORMS[gl_InstanceIndex].MODEL * vec4(Position, 1.0);
-	
 	position = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
 	normal = mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal;
 	texCoord = TexCoord;
 	camera_view = position - CAMERA_POSITION.xyz;
+
+	gl_Position = PERSPECTIVE * VIEW * vec4(position, 1.0);
 }

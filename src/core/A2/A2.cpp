@@ -424,8 +424,8 @@ void A2::update(float dt) {
 		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
 		light = CommonData::Light{
-			.LIGHT_POSITION = doc->lights[0].transforms[0][3],
-			.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint, 1.0f),
+			.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]),
+			.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f),
 		}; // assuming single light for now
 	}
 

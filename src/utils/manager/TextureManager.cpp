@@ -56,7 +56,7 @@ void TextureManager::create(
             size_t material_index = &material - &doc->materials[0];
 
             // normal
-            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
+            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.5f, 0.5f, 1.0f});
 
             // displacement
             push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f});

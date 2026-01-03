@@ -126,11 +126,11 @@ void A2PBRPipeline::create(
 
         { // allocate texture descriptor and update data
             { // the set2_Textures_instance
-                uint32_t total_descriptors = total_2d_descriptors + total_cubemap_descriptors;
+                // uint32_t total_descriptors = total_2d_descriptors + total_cubemap_descriptors;
                 VkDescriptorSetVariableDescriptorCountAllocateInfo var_count_alloc_info{
                     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
                     .descriptorSetCount = 1,
-                    .pDescriptorCounts = &total_descriptors  // runtime-defined size
+                    .pDescriptorCounts = &total_2d_descriptors  // runtime-defined size
                 };
 
                 VkDescriptorSetAllocateInfo alloc_info{

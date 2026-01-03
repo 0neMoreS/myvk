@@ -26,6 +26,6 @@ void main() {
 	vec3 refl = reflect(normalize(camera_view), normalize(normal));
 	vec3 hdr = texture(ibl_cubemaps[1], refl).rgb;
 	vec3 ldr = aces_approx(hdr);
-	outColor = vec4(texture(textures[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).rgb, 1.0);
+	outColor = vec4(texture(textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).rgb, 1.0);
 	// outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
 }

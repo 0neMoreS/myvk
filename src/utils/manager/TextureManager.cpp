@@ -55,6 +55,13 @@ void TextureManager::create(
             glm::vec3 albedo_value{1.0f, 1.0f, 1.0f};
             size_t material_index = &material - &doc->materials[0];
 
+            // normal
+            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
+
+            // displacement
+            push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f});
+
+            // albedo
             if (material.pbr && material.pbr->albedo_texture) {
                 albedo_texture = material.pbr->albedo_texture;
             } else if (material.lambertian && material.lambertian->albedo_texture) {
@@ -68,12 +75,6 @@ void TextureManager::create(
             }
 
             push_texture(material_index, TextureSlot::Albedo, albedo_texture, albedo_value);
-
-            // normal
-            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.0f, 0.0f, 0.0f});
-
-            // displacement
-            push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f});
 
             // roughness
             std::optional<S72Loader::Texture> roughness_texture;

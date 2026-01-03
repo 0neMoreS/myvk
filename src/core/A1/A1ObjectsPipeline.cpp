@@ -29,13 +29,13 @@ void A1ObjectsPipeline::create(
 	vert_module = rtg.helpers.create_shader_module(vert_code);
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 
-	{ //the set0_PV layout holds PV info in a uniform buffer used in the fragment shader:
+	{ //the set0_PV layout holds PV info in a uniform buffer used in the vertex shader:
 		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
 				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
 			},
 		};
 		
@@ -73,10 +73,12 @@ void A1ObjectsPipeline::create(
 		{
 			for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
 				for (const auto &texture_opt : material_slots) {
+					std::cout << "material_slots size: " << material_slots.size() << " texture_opt: " << (texture_opt.has_value() ? "present" : "absent") << "\n";
 					if (texture_opt) {
 						++total_2d_descriptors;
 					}
 				}
+				std::cout << "----\n";
 			}
 
 			std::array< VkDescriptorSetLayoutBinding, 1 > bindings{

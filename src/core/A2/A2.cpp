@@ -368,7 +368,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						for(size_t i = 0; i < pbr_object_instances.size(); ++i) {
 							//draw all instances:
 							A2PBRPipeline::Push push{
-								.MATERIAL_INDEX = static_cast<uint32_t>(pbr_object_instances[i].material_index)
+								.MATERIAL_INDEX = static_cast<uint32_t>(1 + pbr_object_instances[i].material_index * 5)
 							};
 							vkCmdPushConstants(workspace.command_buffer, pbr_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 							vkCmdDraw(workspace.command_buffer, pbr_object_instances[i].object_ranges.count, 1, pbr_object_instances[i].object_ranges.first, i);

@@ -95,53 +95,56 @@ void TextureManager::create(
         }
     }
 
-    { // Load environment and IBL cubemaps
-        if(doc->environments.size()){
-            const auto &env = doc->environments[0];
-            const auto &radiance = env.radiance;
-            std::string texture_path = s72_dir + radiance.src;
-            raw_environment_cubemap_texture.resize(3);
-            
-            raw_environment_cubemap_texture[0] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
-            raw_environment_cubemap_texture[1] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
-            raw_environment_cubemap_texture[2] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
-        }
-    }
+    {
+        bool has_cubemap = doc->environments.size() > 0;
 
-    { // Load BRDF LUT texture
-        std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
-        raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR);
-    }
-
-    { // the descriptor pool for texture descriptors
-        uint32_t total_2d_descriptors = 1; // BRDF LUT
-        uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
-        assert(raw_environment_cubemap_texture.size() > 1);
-
-        for (const auto &material_slots : raw_2d_textures_by_material) {
-            for (const auto &texture_opt : material_slots) {
-                if (texture_opt) {
-                    ++total_2d_descriptors;
-                }
+        { // Load environment and IBL cubemaps
+            if(has_cubemap){
+                const auto &env = doc->environments[0];
+                const auto &radiance = env.radiance;
+                std::string texture_path = s72_dir + radiance.src;
+                raw_environment_cubemap_texture.resize(3);
+                
+                raw_environment_cubemap_texture[0] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[2] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
             }
         }
 
-        std::array<VkDescriptorPoolSize, 1> pool_sizes{
-            VkDescriptorPoolSize{
-                .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
-            },
-        };
+        { // Load BRDF LUT texture
+            std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
+            raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR);
+        }
 
-        VkDescriptorPoolCreateInfo pool_create_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-            .maxSets = 1,
-            .poolSizeCount = uint32_t(pool_sizes.size()),
-            .pPoolSizes = pool_sizes.data(),
-        };
+        { // the descriptor pool for texture descriptors
+            uint32_t total_2d_descriptors = has_cubemap ? 1 : 0; // BRDF LUT
+            uint32_t total_cubemap_descriptors = has_cubemap ? 2 : 0; // IrradianceMap + PrefilterMap
 
-        VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &texture_descriptor_pool) );
+            for (const auto &material_slots : raw_2d_textures_by_material) {
+                for (const auto &texture_opt : material_slots) {
+                    if (texture_opt) {
+                        ++total_2d_descriptors;
+                    }
+                }
+            }
+
+            std::array<VkDescriptorPoolSize, 1> pool_sizes{
+                VkDescriptorPoolSize{
+                    .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
+                },
+            };
+
+            VkDescriptorPoolCreateInfo pool_create_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+                .maxSets = 1,
+                .poolSizeCount = uint32_t(pool_sizes.size()),
+                .pPoolSizes = pool_sizes.data(),
+            };
+
+            VK( vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &texture_descriptor_pool) );
+        }
     }
 }
 

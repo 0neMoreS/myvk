@@ -328,19 +328,28 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 				});
 			}
 
+			VkPhysicalDeviceDescriptorIndexingFeatures indexing_features{
+				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+				.pNext = nullptr,
+				.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+				.descriptorBindingVariableDescriptorCount = VK_TRUE,
+				.runtimeDescriptorArray = VK_TRUE,
+			};
+
+			VkPhysicalDeviceFeatures2 device_features2{
+				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+				.pNext = &indexing_features,
+			};
+
 			VkDeviceCreateInfo create_info{
 				.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+				.pNext = &device_features2,
 				.queueCreateInfoCount = uint32_t(queue_create_infos.size()),
 				.pQueueCreateInfos = queue_create_infos.data(),
-
-				//device layers are depreciated; spec suggests passing instance_layers or nullptr:
 				.enabledLayerCount = 0,
 				.ppEnabledLayerNames = nullptr,
-
 				.enabledExtensionCount = static_cast< uint32_t>(device_extensions.size()),
 				.ppEnabledExtensionNames = device_extensions.data(),
-
-				//pass a pointer to a VkPhysicalDeviceFeatures to request specific features: (e.g., thick lines)
 				.pEnabledFeatures = nullptr,
 			};
 

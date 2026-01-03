@@ -414,7 +414,7 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 			));
 
 			//transfer data:
-			rtg.helpers.transfer_to_image(data.data(), sizeof(data[0]) * data.size(), textures.back());
+			rtg.helpers.transfer_to_image({data.data()}, {sizeof(data[0]) * data.size()}, textures.back(), 1);
 		}
 
 		{ //texture 1 will be a classic 'xor' texture:
@@ -444,7 +444,7 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 			));
 
 			//transfer data:
-			rtg.helpers.transfer_to_image(data.data(), sizeof(data[0]) * data.size(), textures.back());
+			rtg.helpers.transfer_to_image({data.data()}, {sizeof(data[0]) * data.size()}, textures.back(), 1);
 		}
 	}
 

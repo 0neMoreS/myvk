@@ -12,16 +12,24 @@ static uint32_t frag_code[] = {
 };
 
 A1ObjectsPipeline::~A1ObjectsPipeline(){
-	if(set0_World != VK_NULL_HANDLE || set1_Transforms != VK_NULL_HANDLE || set2_TEXTURE != VK_NULL_HANDLE || layout != VK_NULL_HANDLE || pipeline != VK_NULL_HANDLE){
-		std::cerr << "[A1ObjectsPipeline] A1ObjectsPipeline destructor called, but some Vulkan objects are still allocated.\n";
-	}
+	assert(layout == VK_NULL_HANDLE);
+	assert(pipeline == VK_NULL_HANDLE);
+	assert(set0_PV == VK_NULL_HANDLE);
+	assert(set1_Transforms == VK_NULL_HANDLE);
+	assert(set2_TEXTURE == VK_NULL_HANDLE);
+	assert(set2_TEXTURE_instance == VK_NULL_HANDLE);
 }
 
-void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
-	VkShaderModule vert_module = rtg.helpers.create_shader_module(vert_code);
-	VkShaderModule frag_module = rtg.helpers.create_shader_module(frag_code);
+void A1ObjectsPipeline::create(
+	RTG &rtg, 
+	VkRenderPass render_pass, 
+	uint32_t subpass,
+	const TextureManager& texture_manager
+) {
+	vert_module = rtg.helpers.create_shader_module(vert_code);
+	frag_module = rtg.helpers.create_shader_module(frag_code);
 
-	{ //the set0_World layout holds world info in a uniform buffer used in the fragment shader:
+	{ //the set0_PV layout holds PV info in a uniform buffer used in the fragment shader:
 		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
@@ -37,7 +45,7 @@ void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 			.pBindings = bindings.data(),
 		};
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_World) );
+		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_PV) );
 	}
 	
 	{ //the set1_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
@@ -60,161 +68,153 @@ void A1ObjectsPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subp
 	}
 
 	{ //the set2_TEXTURE layout has a single descriptor for a sampler2D used in the fragment shader:
-		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
-			VkDescriptorSetLayoutBinding{
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-			},
-		};
-		
-		VkDescriptorSetLayoutCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.bindingCount = uint32_t(bindings.size()),
-			.pBindings = bindings.data(),
-		};
+		uint32_t total_2d_descriptors = 0;
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_TEXTURE) );
+		{
+			for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
+				for (const auto &texture_opt : material_slots) {
+					if (texture_opt) {
+						++total_2d_descriptors;
+					}
+				}
+			}
+
+			std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
+				VkDescriptorSetLayoutBinding{
+					.binding = 0,
+					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.descriptorCount = total_2d_descriptors,
+					.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+				},
+			};
+
+			std::array<VkDescriptorBindingFlags, 1> binding_flags{
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+			};
+
+			VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
+				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+				.bindingCount = 1,
+				.pBindingFlags = binding_flags.data()
+			};
+
+			VkDescriptorSetLayoutCreateInfo create_info{
+				.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+				.pNext = &binding_flags_info,
+				.bindingCount = uint32_t(bindings.size()),
+				.pBindings = bindings.data(),
+			};
+
+			VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set2_TEXTURE) );
+		}
+
+		{ // allocate texture descriptor and update data
+			{ // the set2_TEXTURE_instance
+                VkDescriptorSetVariableDescriptorCountAllocateInfo var_count_alloc_info{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
+                    .descriptorSetCount = 1,
+                    .pDescriptorCounts = &total_2d_descriptors  // runtime-defined size
+                };
+
+                VkDescriptorSetAllocateInfo alloc_info{
+                        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                        .pNext = &var_count_alloc_info,
+                        .descriptorPool = texture_manager.texture_descriptor_pool,
+                        .descriptorSetCount = 1,
+                        .pSetLayouts = &set2_TEXTURE,
+				};
+
+                VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_TEXTURE_instance));
+            }
+
+			{ //update the set2_TEXTURE_instance descriptor set
+                std::vector<VkDescriptorImageInfo> image_info(total_2d_descriptors);
+                size_t index = 0;
+
+                for(const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
+                    for (const auto &texture_opt : material_slots) {
+                        if (texture_opt) {
+                            const auto &texture = texture_opt.value();
+                            image_info[index] = VkDescriptorImageInfo{
+                                .sampler = texture->sampler,
+                                .imageView = texture->image_view,
+                                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            };
+                            ++index;
+                        }
+                    }
+                }
+
+                VkWriteDescriptorSet write_2d{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_TEXTURE_instance,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = total_2d_descriptors,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = image_info.data(),
+                };
+
+                vkUpdateDescriptorSets(rtg.device, 1, &write_2d, 0, nullptr); 
+            }
+		}
 	}
 
 	{ //create pipeline layout:
 		std::array< VkDescriptorSetLayout, 3 > layouts{
-			set0_World, //we'd like to say "VK_NULL_HANDLE" here, but that's not valid without an extension
+			set0_PV, //we'd like to say "VK_NULL_HANDLE" here, but that's not valid without an extension
 			set1_Transforms,
 			set2_TEXTURE,
+		};
+
+		VkPushConstantRange range{
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			.offset = 0,
+			.size = sizeof(Push),
 		};
 
 		VkPipelineLayoutCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.setLayoutCount = uint32_t(layouts.size()),
 			.pSetLayouts = layouts.data(),
-			.pushConstantRangeCount = 0,
-			.pPushConstantRanges = nullptr,
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges = &range,
 		};
 
 		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
 	}
 
-	{ //create pipeline:
+	create_pipeline(rtg, render_pass, subpass, true);
 
-		//shader code for vertex and fragment pipeline stages:
-		std::array< VkPipelineShaderStageCreateInfo, 2 > stages{
-			VkPipelineShaderStageCreateInfo{
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.stage = VK_SHADER_STAGE_VERTEX_BIT,
-				.module = vert_module,
-				.pName = "main"
-			},
-			VkPipelineShaderStageCreateInfo{
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.module = frag_module,
-				.pName = "main"
-			},
-		};
+	vkDestroyShaderModule(rtg.device, frag_module, nullptr);
+    vkDestroyShaderModule(rtg.device, vert_module, nullptr);
+    frag_module = VK_NULL_HANDLE;
+    vert_module = VK_NULL_HANDLE;
 
-		//the viewport and scissor state will be set at runtime for the pipeline:
-		std::vector< VkDynamicState > dynamic_states{
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
-		};
-		VkPipelineDynamicStateCreateInfo dynamic_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-			.dynamicStateCount = uint32_t(dynamic_states.size()),
-			.pDynamicStates = dynamic_states.data()
-		};
-
-		//this pipeline will draw triangles:
-		VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.primitiveRestartEnable = VK_FALSE
-		};
-
-		//this pipeline will render to one viewport and scissor rectangle:
-		VkPipelineViewportStateCreateInfo viewport_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-			.viewportCount = 1,
-			.scissorCount = 1,
-		};
-
-		//the rasterizer will cull back faces and fill polygons:
-		VkPipelineRasterizationStateCreateInfo rasterization_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-			.depthClampEnable = VK_FALSE,
-			.rasterizerDiscardEnable = VK_FALSE,
-			.polygonMode = VK_POLYGON_MODE_FILL,
-			.cullMode = VK_CULL_MODE_NONE,
-			.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-			.depthBiasEnable = VK_FALSE,
-			.lineWidth = 1.0f,
-		};
-
-		//multisampling will be disabled (one sample per pixel):
-		VkPipelineMultisampleStateCreateInfo multisample_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-			.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-			.sampleShadingEnable = VK_FALSE,
-		};
-
-		//depth and stencil tests will be disabled:
-		VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-			.depthTestEnable = VK_TRUE,
-			.depthWriteEnable = VK_TRUE,
-			.depthCompareOp = VK_COMPARE_OP_LESS,
-			.depthBoundsTestEnable = VK_FALSE,
-			.stencilTestEnable = VK_FALSE,
-		};
-
-		//there will be one color attachment with blending disabled:
-		std::array< VkPipelineColorBlendAttachmentState, 1 > attachment_states{
-			VkPipelineColorBlendAttachmentState{
-				.blendEnable = VK_FALSE,
-				.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-			},
-		};
-		VkPipelineColorBlendStateCreateInfo color_blend_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-			.logicOpEnable = VK_FALSE,
-			.attachmentCount = uint32_t(attachment_states.size()),
-			.pAttachments = attachment_states.data(),
-			.blendConstants{0.0f, 0.0f, 0.0f, 0.0f},
-		};
-
-		//all of the above structures get bundled together into one very large create_info:
-		VkGraphicsPipelineCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-			.stageCount = uint32_t(stages.size()),
-			.pStages = stages.data(),
-			.pVertexInputState = &Vertex::array_input_state,
-			.pInputAssemblyState = &input_assembly_state,
-			.pViewportState = &viewport_state,
-			.pRasterizationState = &rasterization_state,
-			.pMultisampleState = &multisample_state,
-			.pDepthStencilState = &depth_stencil_state,
-			.pColorBlendState = &color_blend_state,
-			.pDynamicState = &dynamic_state,
-			.layout = layout,
-			.renderPass = render_pass,
-			.subpass = subpass,
-		};
-
-		VK( vkCreateGraphicsPipelines(rtg.device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) );
-
-		vkDestroyShaderModule(rtg.device, frag_module, nullptr);
-		vkDestroyShaderModule(rtg.device, vert_module, nullptr);
-	}
-
-	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER , .layout = set0_World}); //World
-	block_descriptor_configs.push_back(BlockDescriptorConfig{ .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .layout = set1_Transforms}); //Transform
+	block_descriptor_configs.push_back(
+        BlockDescriptorConfig{
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
+        .layout = set0_PV, 
+        .bindings_count = 1
+    }); //Global
+    block_descriptor_configs.push_back(
+        BlockDescriptorConfig{
+        .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 
+        .layout = set1_Transforms, 
+        .bindings_count = 1
+    }); //Transform
 	
-	// Configure texture layout bindings for TextureManager
-	texture_descriptor_configs.push_back(Pipeline::TextureDescriptorConfig{
-		.slot = TextureSlot::Albedo,
-		.layout = set2_TEXTURE
-	});
+	block_descriptor_set_name_to_index = {
+        {"PV", 0},
+        {"Transforms", 1}
+    };
+
+    block_binding_name_to_index = {
+        // PV
+        {"PV", 0},
+        // Transforms
+        {"Transforms", 0},
+    };
 
 	pipeline_name_to_index["A1ObjectsPipeline"] = 0;
 }
@@ -235,13 +235,23 @@ void A1ObjectsPipeline::destroy(RTG &rtg) {
 		pipeline = VK_NULL_HANDLE;
 	}
 
+	if (set0_PV != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set0_PV, nullptr);
+		set0_PV = VK_NULL_HANDLE;
+	}
+
+	if(set1_Transforms != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set1_Transforms, nullptr);
+		set1_Transforms = VK_NULL_HANDLE;
+	}
+
 	if (set2_TEXTURE != VK_NULL_HANDLE) {
 		vkDestroyDescriptorSetLayout(rtg.device, set2_TEXTURE, nullptr);
 		set2_TEXTURE = VK_NULL_HANDLE;
 	}
 
-	if (set0_World != VK_NULL_HANDLE) {
-		vkDestroyDescriptorSetLayout(rtg.device, set0_World, nullptr);
-		set0_World = VK_NULL_HANDLE;
+	if( set2_TEXTURE_instance != VK_NULL_HANDLE) {
+		// Note: Descriptor sets are freed when the descriptor pool is destroyed or reset.
+		set2_TEXTURE_instance = VK_NULL_HANDLE;
 	}
 }

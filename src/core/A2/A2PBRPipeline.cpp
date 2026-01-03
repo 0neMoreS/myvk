@@ -103,13 +103,15 @@ void A2PBRPipeline::create(
                 }
             };
 
+            std::array<VkDescriptorBindingFlags, 2> binding_flags{
+                0,  // binding 0: fixed size
+                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT  // binding 1: variable size
+			};
+
             VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = 2,
-                .pBindingFlags = std::array<VkDescriptorBindingFlags, 2>{
-                    0,  // binding 0: fixed size
-                    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT  // binding 1: variable size
-                }.data()
+                .pBindingFlags = binding_flags.data(),
             };
             
             VkDescriptorSetLayoutCreateInfo create_info{
@@ -124,10 +126,11 @@ void A2PBRPipeline::create(
 
         { // allocate texture descriptor and update data
             { // the set2_Textures_instance
+                uint32_t total_descriptors = total_2d_descriptors + total_cubemap_descriptors;
                 VkDescriptorSetVariableDescriptorCountAllocateInfo var_count_alloc_info{
                     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
                     .descriptorSetCount = 1,
-                    .pDescriptorCounts = &total_2d_descriptors  // runtime-defined size
+                    .pDescriptorCounts = &total_descriptors  // runtime-defined size
                 };
 
                 VkDescriptorSetAllocateInfo alloc_info{
@@ -136,7 +139,7 @@ void A2PBRPipeline::create(
                         .descriptorPool = texture_manager.texture_descriptor_pool,
                         .descriptorSetCount = 1,
                         .pSetLayouts = &set2_Textures,
-                    };
+                };
 
                 VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_Textures_instance));
             }
@@ -241,12 +244,14 @@ void A2PBRPipeline::create(
     frag_module = VK_NULL_HANDLE;
     vert_module = VK_NULL_HANDLE;
 
-    block_descriptor_configs.push_back(BlockDescriptorConfig{
+    block_descriptor_configs.push_back(
+        BlockDescriptorConfig{
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
         .layout = set0_Global, 
         .bindings_count = 2
     }); //Global
-    block_descriptor_configs.push_back(BlockDescriptorConfig{
+    block_descriptor_configs.push_back(
+        BlockDescriptorConfig{
         .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 
         .layout = set1_Transforms, 
         .bindings_count = 1

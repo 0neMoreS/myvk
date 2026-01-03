@@ -60,7 +60,7 @@ struct A1 : RTG::Application {
 
 	float time = 0.0f;
 
-	A1ObjectsPipeline::World world;
+	A1ObjectsPipeline::PV pv_matrix;
 
 	struct ObjectInstance {
 		SceneManager::ObjectRange object_ranges;

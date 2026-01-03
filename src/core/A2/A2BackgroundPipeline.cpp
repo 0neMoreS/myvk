@@ -43,7 +43,7 @@ void A2BackgroundPipeline::create(
 		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_PV) );
     }
 
-	{ // bind texture descriptors: cubemaps and 2D textures
+	{ // bind texture descriptors: cubemaps
 		assert(texture_manager.raw_environment_cubemap_texture.size() > 0);
 
 		{ // Cubemap sampler layout
@@ -123,7 +123,8 @@ void A2BackgroundPipeline::create(
 	frag_module = VK_NULL_HANDLE;
 	vert_module = VK_NULL_HANDLE;
 
-	block_descriptor_configs.push_back(BlockDescriptorConfig{
+	block_descriptor_configs.push_back(
+		BlockDescriptorConfig{
 		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
 		.layout = set0_PV, 
 		.bindings_count = 1

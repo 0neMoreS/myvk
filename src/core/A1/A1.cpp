@@ -29,20 +29,32 @@ A1::A1(RTG &rtg, const std::string &filename) :
 {
 	render_pass_manager.create(rtg);
 
-	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0);
+	texture_manager.create(rtg, doc);
+
+	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline;
 	block_descriptor_configs_by_pipeline.push_back(objects_pipeline.block_descriptor_configs);
-	std::vector< std::vector< Pipeline::TextureDescriptorConfig > > texture_descriptor_configs_by_pipeline;
-	texture_descriptor_configs_by_pipeline.push_back(objects_pipeline.texture_descriptor_configs);
 
-	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), 2);
-	workspace_manager.update_all_descriptors(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
+	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "PV",
+			.size = sizeof(A1ObjectsPipeline::PV),
+			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+		}
+	};
+
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A1ObjectsPipeline"], 
+		objects_pipeline.block_descriptor_set_name_to_index["PV"], 
+		objects_pipeline.block_binding_name_to_index["PV"], 
+		"PV",
+		sizeof(A1ObjectsPipeline::PV)
+	);
 
 	scene_manager.create(rtg, doc);
-
-	// Create texture manager to load all textures from document and create descriptor pool
-	texture_manager.create(rtg, doc, std::move(texture_descriptor_configs_by_pipeline));
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
@@ -90,38 +102,46 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		workspace.begin_recording();
 
 		{ //upload world info:
-			assert(workspace.pipeline_buffer_pairs[0][0].host.size == sizeof(world));
-
-			//host-side copy into World_src:
-			memcpy(workspace.pipeline_buffer_pairs[0][0].host.allocation.data(), &world, sizeof(world));
-
-			//add device-side copy from World_src -> World:
-			assert(workspace.pipeline_buffer_pairs[0][0].host.size == workspace.pipeline_buffer_pairs[0][0].device.size);
-
-			workspace.write_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 0, sizeof(world));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1ObjectsPipeline::PV));
+			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A1ObjectsPipeline::PV));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 		}
 
 		{ //upload object transforms
 			if (!object_instances.empty()) { 
 				size_t needed_bytes = object_instances.size() * sizeof(A1ObjectsPipeline::Transform);
-				if (workspace.pipeline_buffer_pairs[0][1].host.handle == VK_NULL_HANDLE || workspace.pipeline_buffer_pairs[0][1].host.size < needed_bytes) {
+
+				auto& buffer_pair = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A1ObjectsPipeline"]][objects_pipeline.block_descriptor_set_name_to_index["Transforms"]].buffer_pairs[objects_pipeline.block_binding_name_to_index["Transforms"]];
+				if (buffer_pair->host.handle == VK_NULL_HANDLE || buffer_pair->host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, new_bytes);
+					workspace.update_descriptor(
+						rtg, 
+						pipeline_name_to_index["A1ObjectsPipeline"], 
+						objects_pipeline.block_descriptor_set_name_to_index["Transforms"], 
+						objects_pipeline.block_binding_name_to_index["Transforms"],
+						new_bytes
+					);
 				}
 
-				assert(workspace.pipeline_buffer_pairs[0][1].host.size == workspace.pipeline_buffer_pairs[0][1].device.size);
-				assert(workspace.pipeline_buffer_pairs[0][1].host.size >= needed_bytes);
-				{ //copy transforms into Transforms_src:
-					assert(workspace.pipeline_buffer_pairs[0][1].host.allocation.mapped);
-					A1ObjectsPipeline::Transform *out = reinterpret_cast< A1ObjectsPipeline::Transform * >(workspace.pipeline_buffer_pairs[0][1].host.allocation.data()); // Strict aliasing violation, but it doesn't matter
-					for (ObjectInstance const &inst : object_instances) {
-						*out = inst.transform;
-						++out;
+				{
+					assert(buffer_pair->host.size == buffer_pair->device.size);
+					assert(buffer_pair->host.size >= needed_bytes);
+					assert(buffer_pair->host.allocation.mapped);
+
+					std::vector<A1ObjectsPipeline::Transform> transform_data;
+
+					for (const auto& inst : object_instances) {
+						transform_data.push_back(inst.transform);
 					}
-				}
-
-				workspace.write_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 1, needed_bytes);
+					
+					workspace.write_buffer(rtg, pipeline_name_to_index["A1ObjectsPipeline"], 
+						objects_pipeline.block_descriptor_set_name_to_index["Transforms"], 
+						objects_pipeline.block_binding_name_to_index["Transforms"],
+						transform_data.data(),
+						needed_bytes
+					);
+				}	
 			}
 		}
 
@@ -177,9 +197,13 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						{ //bind Transforms descriptor set:
-							std::array< VkDescriptorSet, 2 > descriptor_sets{
-								workspace.pipeline_buffer_pairs[0][0].descriptor_set, //0: World
-								workspace.pipeline_buffer_pairs[0][1].descriptor_set, //1: Transforms
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A1ObjectsPipeline"]][objects_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A1ObjectsPipeline"]][objects_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+							auto &textures_descriptor_set = objects_pipeline.set2_TEXTURE_instance;
+							std::array< VkDescriptorSet, 3 > descriptor_sets{
+								global_descriptor_set, //0: World
+								transform_descriptor_set, //1: Transforms
+								textures_descriptor_set //2: Textures
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer
@@ -192,24 +216,14 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						//draw all instances:
-						for (ObjectInstance const &inst : object_instances) {
-							uint32_t index = uint32_t(&inst - &object_instances[0]);
+						for(size_t i = 0; i < object_instances.size(); ++i) {
+							//draw all instances:
+							A1ObjectsPipeline::Push push{
+								.MATERIAL_INDEX = static_cast<uint32_t>(object_instances[i].material_index)
+							};
 
-							//bind texture descriptor set:
-							auto &material_textures = texture_manager.texture_bindings_by_pipeline[pipeline_name_to_index["A1ObjectsPipeline"]][inst.material_index];
-							auto &diffuse_binding_opt = material_textures[(TextureSlot::Albedo)];
-							if (!diffuse_binding_opt || !diffuse_binding_opt->texture || diffuse_binding_opt->descriptor_set == VK_NULL_HANDLE) continue;
-
-							vkCmdBindDescriptorSets(
-								workspace.command_buffer, //command buffer
-								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								objects_pipeline.layout, //pipeline layout
-								2, //second set
-								1, &diffuse_binding_opt->descriptor_set, //descriptor sets count, ptr
-								0, nullptr //dynamic offsets count, ptr
-							);
-
-							vkCmdDraw(workspace.command_buffer, inst.object_ranges.count, 1, inst.object_ranges.first, index);
+							vkCmdPushConstants(workspace.command_buffer, objects_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+							vkCmdDraw(workspace.command_buffer, object_instances[i].object_ranges.count, 1, object_instances[i].object_ranges.first, i);
 						}
 					}
 				}
@@ -253,34 +267,18 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	{ //static sun and sky:
-		world.SKY_DIRECTION.x = 0.0f;
-		world.SKY_DIRECTION.y = 0.0f;
-		world.SKY_DIRECTION.z = 1.0f;
-
-		world.SKY_ENERGY.r = 0.1f;
-		world.SKY_ENERGY.g = 0.1f;
-		world.SKY_ENERGY.b = 0.2f;
-
-		world.SUN_DIRECTION.x = 6.0f / 23.0f;
-		world.SUN_DIRECTION.y = 13.0f / 23.0f;
-		world.SUN_DIRECTION.z = 18.0f / 23.0f;
-
-		world.SUN_ENERGY.r = 1.0f;
-		world.SUN_ENERGY.g = 1.0f;
-		world.SUN_ENERGY.b = 0.9f;
-	}
-
 	// Update camera
 	camera_manager.update(dt);
 
+	{ // update global data
+		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
+		pv_matrix.VIEW = camera_manager.get_view();
+	}
+
 	{
-		object_instances.clear();
-		glm::mat4 PERSPECTIVE = camera_manager.get_perspective();
-		glm::mat4 VIEW = camera_manager.get_view();
-		
+		object_instances.clear();	
 		// Get frustum for culling
-		auto frustum = camera_manager.get_frustum();
+		// auto frustum = camera_manager.get_frustum();
 
 		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
 		{
@@ -291,32 +289,30 @@ void A1::update(float dt) {
 				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
 
 				// Transform local AABB to world AABB (8 corners method)
-				const glm::vec3& bmin = object_range.aabb_min;
-				const glm::vec3& bmax = object_range.aabb_max;
-				glm::vec3 corners[8] = {
-					{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-					{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-				};
-				glm::vec3 world_min(FLT_MAX);
-				glm::vec3 world_max(-FLT_MAX);
-				for (int c = 0; c < 8; ++c) {
-					glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-					world_min = glm::min(world_min, wp);
-					world_max = glm::max(world_max, wp);
-				}
+				// const glm::vec3& bmin = object_range.aabb_min;
+				// const glm::vec3& bmax = object_range.aabb_max;
+				// glm::vec3 corners[8] = {
+				// 	{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+				// 	{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+				// };
+				// glm::vec3 world_min(FLT_MAX);
+				// glm::vec3 world_max(-FLT_MAX);
+				// for (int c = 0; c < 8; ++c) {
+				// 	glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+				// 	world_min = glm::min(world_min, wp);
+				// 	world_max = glm::max(world_max, wp);
+				// }
 
 				// Frustum culling check with world-space AABB
-				if (!frustum.is_box_visible(world_min, world_max)) {
-					continue;
-				}
+				// if (!frustum.is_box_visible(world_min, world_max)) {
+				// 	continue;
+				// }
 
 				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 
 				object_instances.emplace_back(ObjectInstance{
 					.object_ranges = object_range,
 					.transform{
-						.PERSPECTIVE = PERSPECTIVE,
-						.VIEW = VIEW,
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
 					},

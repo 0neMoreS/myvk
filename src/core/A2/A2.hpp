@@ -12,6 +12,7 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "A2BackgroundPipeline.hpp"
+#include "A2LambertianPipeline.hpp"
 #include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
 #include "CommonData.hpp"
@@ -39,9 +40,10 @@ struct A2 : RTG::Application {
 	RenderPassManager render_pass_manager;
 
 	//--------------------------------------------------------------------
-	//Resources that last the lifetime of the application:
+	// Pipelines used in this application:
 
 	A2BackgroundPipeline background_pipeline;
+	A2LambertianPipeline lambertian_pipeline;
 	A2PBRPipeline pbr_pipeline;
 	A2ReflectionPipeline reflection_pipeline;
 
@@ -51,10 +53,7 @@ struct A2 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	CommonData::Light global_light{
-		.LIGHT_POSITION = { 10.0f, 10.0f, 10.0f, 0.0f },
-		.LIGHT_ENERGY = { 1.0f, 1.0f, 1.0f, 0.0f }
-	};
+	CommonData::Light global_light;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -79,6 +78,13 @@ struct A2 : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
+
+	struct LambertianInstance {
+		SceneManager::ObjectRange object_ranges;
+		CommonData::Transform object_transform;
+		size_t material_index;
+	};
+	std::vector< LambertianInstance > lambertian_object_instances;
 
 	struct PBRInstance {
 		SceneManager::ObjectRange object_ranges;

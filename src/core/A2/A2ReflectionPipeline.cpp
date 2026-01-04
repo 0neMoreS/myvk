@@ -171,7 +171,7 @@ void A2ReflectionPipeline::create(
 		{"Transforms", 0},
     };
 
-	pipeline_name_to_index["A2ReflectionPipeline"] = 2;
+	pipeline_name_to_index["A2ReflectionPipeline"] = 3;
 }
 
 void A2ReflectionPipeline::destroy(RTG &rtg) {

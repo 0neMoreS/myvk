@@ -50,6 +50,11 @@ const a2_background_shaders = [
 	maek.GLSLC('./src/shaders/A2-background.frag'),
 ];
 
+const a2_lambertian_shaders = [
+	maek.GLSLC('./src/shaders/A2-lambertian.vert'),
+	maek.GLSLC('./src/shaders/A2-lambertian.frag'),
+];
+
 const a2_pbr_shaders = [
 	maek.GLSLC('./src/shaders/A2-pbr.vert'),
 	maek.GLSLC('./src/shaders/A2-pbr.frag'),
@@ -76,6 +81,7 @@ const main_objs = [
 	// A2 files
 	maek.CPP('./src/core/A2/A2.cpp'),
 	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends:[...a2_background_shaders] } ),
+	maek.CPP('./src/core/A2/A2LambertianPipeline.cpp', undefined, { depends:[...a2_lambertian_shaders] } ),
 	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends:[...a2_pbr_shaders] } ),
 	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends:[...a2_reflection_shaders] } ),
 	// utility files

@@ -23,6 +23,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	workspace_manager{}, 
 	render_pass_manager{},
 	background_pipeline{},
+	lambertian_pipeline{},
 	pbr_pipeline{},
 	reflection_pipeline{},
 	scene_manager{},
@@ -35,12 +36,15 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
+	lambertian_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+
 	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{3};
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2ReflectionPipeline"]] = reflection_pipeline.block_descriptor_configs;
 
@@ -65,6 +69,22 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		background_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
 		sizeof(CommonData::PV)
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2LambertianPipeline"], 
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
+		lambertian_pipeline.block_binding_name_to_index["PV"], 
+		"PV",
+		sizeof(CommonData::PV)
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2LambertianPipeline"], 
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
+		lambertian_pipeline.block_binding_name_to_index["Light"], 
+		"Light",
+		sizeof(CommonData::Light)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -111,6 +131,8 @@ A2::~A2() {
 
 	background_pipeline.destroy(rtg);
 
+	lambertian_pipeline.destroy(rtg);
+
 	pbr_pipeline.destroy(rtg);
 
 	reflection_pipeline.destroy(rtg);
@@ -152,80 +174,38 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["Light"]->host.size == workspace.global_buffer_pairs["Light"]->device.size);
 		}
 
-		{ //upload reflection transforms
-			if (!reflection_object_instances.empty()) { 
-				size_t needed_bytes = reflection_object_instances.size() * sizeof(CommonData::Transform);
-
-				auto& buffer_pair = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Transforms"]].buffer_pairs[reflection_pipeline.block_binding_name_to_index["Transforms"]];
-				if (buffer_pair->host.handle == VK_NULL_HANDLE || buffer_pair->host.size < needed_bytes) {
-					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
-					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(
-						rtg, 
-						pipeline_name_to_index["A2ReflectionPipeline"], 
-						reflection_pipeline.block_descriptor_set_name_to_index["Transforms"], 
-						reflection_pipeline.block_binding_name_to_index["Transforms"],
-						new_bytes
-					);
-				}
-
-				{
-					assert(buffer_pair->host.size == buffer_pair->device.size);
-					assert(buffer_pair->host.size >= needed_bytes);
-					assert(buffer_pair->host.allocation.mapped);
-
-					std::vector<CommonData::Transform> transform_data;
-
-					for (const auto& inst : reflection_object_instances) {
-						transform_data.push_back(inst.object_transform);
-					}
-					
-					workspace.write_buffer(rtg, pipeline_name_to_index["A2ReflectionPipeline"], 
-						reflection_pipeline.block_descriptor_set_name_to_index["Transforms"], 
-						reflection_pipeline.block_binding_name_to_index["Transforms"],
-						transform_data.data(),
-						needed_bytes
-					);
-				}	
-			}
-		}
-
-		{ //upload pbr transforms
-			if (!pbr_object_instances.empty()) { 
-				size_t needed_bytes = pbr_object_instances.size() * sizeof(CommonData::Transform);
+		{ //upload transforms for all pipelines
+			auto upload_transforms = [&](const char* pipeline_name, auto& instances, const auto& pipeline) {
+				if (instances.empty()) return;
 				
-				auto& buffer_pair = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2PBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].buffer_pairs[pbr_pipeline.block_binding_name_to_index["Transforms"]];
+				size_t needed_bytes = instances.size() * sizeof(CommonData::Transform);
+				uint32_t pipeline_idx = pipeline_name_to_index[pipeline_name];
+				uint32_t set_idx = pipeline.block_descriptor_set_name_to_index.at("Transforms");
+				uint32_t binding_idx = pipeline.block_binding_name_to_index.at("Transforms");
+
+				auto& buffer_pair = workspace.pipeline_descriptor_set_groups[pipeline_idx][set_idx].buffer_pairs[binding_idx];
 				if (buffer_pair->host.handle == VK_NULL_HANDLE || buffer_pair->host.size < needed_bytes) {
 					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
 					size_t new_bytes = ((needed_bytes + 4096) / 4096) * 4096;
-					workspace.update_descriptor(
-						rtg, 
-						pipeline_name_to_index["A2PBRPipeline"], 
-						pbr_pipeline.block_descriptor_set_name_to_index["Transforms"], 
-						pbr_pipeline.block_binding_name_to_index["Transforms"],
-						new_bytes
-					);
+					workspace.update_descriptor(rtg, pipeline_idx, set_idx, binding_idx, new_bytes);
 				}
 
-				{
-					assert(buffer_pair->host.size == buffer_pair->device.size);
-					assert(buffer_pair->host.size >= needed_bytes);
-					assert(buffer_pair->host.allocation.mapped);
+				assert(buffer_pair->host.size == buffer_pair->device.size);
+				assert(buffer_pair->host.size >= needed_bytes);
+				assert(buffer_pair->host.allocation.mapped);
 
-					std::vector<CommonData::Transform> transform_data;
+				std::vector<CommonData::Transform> transform_data;
+				transform_data.reserve(instances.size());
+				for (const auto& inst : instances) {
+					transform_data.push_back(inst.object_transform);
+				}
+				
+				workspace.write_buffer(rtg, pipeline_idx, set_idx, binding_idx, transform_data.data(), needed_bytes);
+			};
 
-					for (const auto& inst : pbr_object_instances) {
-						transform_data.push_back(inst.object_transform);
-					}
-					
-					workspace.write_buffer(rtg, pipeline_name_to_index["A2PBRPipeline"], 
-						pbr_pipeline.block_descriptor_set_name_to_index["Transforms"], 
-						pbr_pipeline.block_binding_name_to_index["Transforms"],
-						transform_data.data(),
-						needed_bytes
-					);
-				}	
-			}
+			upload_transforms("A2LambertianPipeline", lambertian_object_instances, lambertian_pipeline);
+			upload_transforms("A2PBRPipeline", pbr_object_instances, pbr_pipeline);
+			upload_transforms("A2ReflectionPipeline", reflection_object_instances, reflection_pipeline);
 		}
 
 		{ //memory barrier to make sure copies complete before rendering happens:
@@ -299,9 +279,9 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 				}
 
-				{ //draw with the reflection pipeline:
-					if (!reflection_object_instances.empty()) { //draw with the objects pipeline:
-						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, reflection_pipeline.pipeline);
+				{ // draw with the lambertian pipeline:
+					if (!lambertian_object_instances.empty()) { //draw with the objects pipeline:
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lambertian_pipeline.pipeline);
 
 						{ //use object_vertices (offset 0) as vertex buffer binding 0:
 							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
@@ -309,28 +289,33 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
 						}
 
-						{ //bind Transforms descriptor_set set:
-							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
-							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
-							auto &textures_descriptor_set = reflection_pipeline.set2_CUBEMAP_instance;
+						{ //bind Global and Transforms descriptor_set sets:
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2LambertianPipeline"]][lambertian_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2LambertianPipeline"]][lambertian_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+							auto &textures_descriptor_set = lambertian_pipeline.set2_Textures_instance;
+
 							std::array< VkDescriptorSet, 3 > descriptor_sets{
-								global_descriptor_set, //0: Global (PV)
+								global_descriptor_set, //0: Global (PV, Light)
 								transform_descriptor_set, //1: Transforms
-								textures_descriptor_set, //2: CUBEMAP
+								textures_descriptor_set, //2: Textures
 							};
 							vkCmdBindDescriptorSets(
 								workspace.command_buffer, //command buffer
 								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								reflection_pipeline.layout, //pipeline layout
+								lambertian_pipeline.layout, //pipeline layout
 								0, //first set
 								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
 								0, nullptr //dynamic offsets count, ptr
 							);
 						}
 
-						//draw all instances:
-						for (size_t i = 0; i < reflection_object_instances.size(); ++i) {
-							vkCmdDraw(workspace.command_buffer, reflection_object_instances[i].object_ranges.count, 1, reflection_object_instances[i].object_ranges.first, i);
+						for(size_t i = 0; i < lambertian_object_instances.size(); ++i) {
+							//draw all instances:
+							A2LambertianPipeline::Push push{
+								.MATERIAL_INDEX = static_cast<uint32_t>(lambertian_object_instances[i].material_index)
+							};
+							vkCmdPushConstants(workspace.command_buffer, lambertian_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+							vkCmdDraw(workspace.command_buffer, lambertian_object_instances[i].object_ranges.count, 1, lambertian_object_instances[i].object_ranges.first, i);
 						}
 					}
 				}
@@ -372,6 +357,42 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							};
 							vkCmdPushConstants(workspace.command_buffer, pbr_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 							vkCmdDraw(workspace.command_buffer, pbr_object_instances[i].object_ranges.count, 1, pbr_object_instances[i].object_ranges.first, i);
+						}
+					}
+				}
+
+				{ //draw with the reflection pipeline:
+					if (!reflection_object_instances.empty()) { //draw with the objects pipeline:
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, reflection_pipeline.pipeline);
+
+						{ //use object_vertices (offset 0) as vertex buffer binding 0:
+							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
+							std::array< VkDeviceSize, 1 > offsets{ 0 };
+							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+						}
+
+						{ //bind Transforms descriptor_set set:
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+							auto &textures_descriptor_set = reflection_pipeline.set2_CUBEMAP_instance;
+							std::array< VkDescriptorSet, 3 > descriptor_sets{
+								global_descriptor_set, //0: Global (PV)
+								transform_descriptor_set, //1: Transforms
+								textures_descriptor_set, //2: CUBEMAP
+							};
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								reflection_pipeline.layout, //pipeline layout
+								0, //first set
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
+								0, nullptr //dynamic offsets count, ptr
+							);
+						}
+
+						//draw all instances:
+						for (size_t i = 0; i < reflection_object_instances.size(); ++i) {
+							vkCmdDraw(workspace.command_buffer, reflection_object_instances[i].object_ranges.count, 1, reflection_object_instances[i].object_ranges.first, i);
 						}
 					}
 				}
@@ -432,7 +453,7 @@ void A2::update(float dt) {
 	{ // update object instances with frustum culling
 		reflection_object_instances.clear();
 		pbr_object_instances.clear();
-		
+		lambertian_object_instances.clear();
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();
 
@@ -487,6 +508,21 @@ void A2::update(float dt) {
 					reflection_object_instances.emplace_back(std::move(reflection_inst));
 				}
 
+				// Lambertian material instance
+				if(material.has_value() && material->lambertian) {
+					LambertianInstance lambertian_inst{
+						.object_ranges = object_range,
+						.object_transform{
+							.MODEL = MODEL,
+							.MODEL_NORMAL = MODEL_NORMAL,
+						},
+						.material_index = mesh.material_index.value_or(0),
+					};
+
+					lambertian_object_instances.emplace_back(std::move(lambertian_inst));
+				}
+
+				// PBR material instance
 				if(material.has_value() && material->pbr) {
 					PBRInstance pbr_inst{
 						.object_ranges = object_range,

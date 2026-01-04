@@ -1,14 +1,14 @@
-#include "A2PBRPipeline.hpp"
+#include "A2LambertianPipeline.hpp"
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/A2-pbr.vert.inl"
+#include "../../shaders/spv/A2-lambertian.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/A2-pbr.frag.inl"
+#include "../../shaders/spv/A2-lambertian.frag.inl"
 };
 
-A2PBRPipeline::~A2PBRPipeline(){
+A2LambertianPipeline::~A2LambertianPipeline(){
     assert(layout == VK_NULL_HANDLE); //should have been destroyed already
     assert(pipeline == VK_NULL_HANDLE);
 
@@ -21,7 +21,7 @@ A2PBRPipeline::~A2PBRPipeline(){
     assert(set2_Textures_instance == VK_NULL_HANDLE);
 }
 
-void A2PBRPipeline::create(
+void A2LambertianPipeline::create(
     class RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
@@ -270,10 +270,10 @@ void A2PBRPipeline::create(
         {"Transforms", 0},
     };
     
-    pipeline_name_to_index["A2PBRPipeline"] = 2;
+    pipeline_name_to_index["A2PBRPipeline"] = 1;
 }
 
-void A2PBRPipeline::destroy(RTG &rtg) {
+void A2LambertianPipeline::destroy(RTG &rtg) {
     if(pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(rtg.device, pipeline, nullptr);
         pipeline = VK_NULL_HANDLE;

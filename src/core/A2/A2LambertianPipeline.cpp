@@ -75,8 +75,7 @@ void A2LambertianPipeline::create(
     }
 
     { // bind texture descriptors: cubemaps and 2D textures
-        uint32_t total_2d_descriptors = 1; // BRDF LUT
-        uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
+        uint32_t total_2d_descriptors = 0;
         assert(texture_manager.raw_environment_cubemap_texture.size() > 1);
 
         for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
@@ -92,7 +91,7 @@ void A2LambertianPipeline::create(
                 VkDescriptorSetLayoutBinding{
                     .binding = 0,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_cubemap_descriptors, // IrradianceMap + PrefilterMap
+                    .descriptorCount = 1, // IrradianceMap
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                 },
                 VkDescriptorSetLayoutBinding{
@@ -145,17 +144,11 @@ void A2LambertianPipeline::create(
             }
 
             { // update cubemap descriptors
-                std::vector<VkDescriptorImageInfo> image_info(2);
+                std::vector<VkDescriptorImageInfo> image_info(1);
                 // IrradianceMap
                 image_info[0] = VkDescriptorImageInfo{
                     .sampler = texture_manager.raw_environment_cubemap_texture[1]->sampler,
                     .imageView = texture_manager.raw_environment_cubemap_texture[1]->image_view,
-                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                };
-                // PrefilterMap
-                image_info[1] = VkDescriptorImageInfo{
-                    .sampler = texture_manager.raw_environment_cubemap_texture[2]->sampler,
-                    .imageView = texture_manager.raw_environment_cubemap_texture[2]->image_view,
                     .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 };
 
@@ -164,7 +157,7 @@ void A2LambertianPipeline::create(
                     .dstSet = set2_Textures_instance,
                     .dstBinding = 0,
                     .dstArrayElement = 0,
-                    .descriptorCount = 2,
+                    .descriptorCount = 1,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     .pImageInfo = image_info.data(),
                 };
@@ -175,14 +168,6 @@ void A2LambertianPipeline::create(
             { //update the set2_Textures_instance descriptor set
                 std::vector<VkDescriptorImageInfo> image_info(total_2d_descriptors);
                 size_t index = 0;
-
-                // PBRTLUT
-                image_info[index] = VkDescriptorImageInfo{
-                    .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                    .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
-                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                };
-                ++index;
 
                 for(const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
                     for (const auto &texture_opt : material_slots) {
@@ -270,7 +255,7 @@ void A2LambertianPipeline::create(
         {"Transforms", 0},
     };
     
-    pipeline_name_to_index["A2PBRPipeline"] = 1;
+    pipeline_name_to_index["A2LambertianPipeline"] = 1;
 }
 
 void A2LambertianPipeline::destroy(RTG &rtg) {

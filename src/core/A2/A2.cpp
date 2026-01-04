@@ -312,7 +312,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						for(size_t i = 0; i < lambertian_object_instances.size(); ++i) {
 							//draw all instances:
 							A2LambertianPipeline::Push push{
-								.MATERIAL_INDEX = static_cast<uint32_t>(lambertian_object_instances[i].material_index)
+								.MATERIAL_INDEX = static_cast<uint32_t>(lambertian_object_instances[i].material_index * 5)
 							};
 							vkCmdPushConstants(workspace.command_buffer, lambertian_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 							vkCmdDraw(workspace.command_buffer, lambertian_object_instances[i].object_ranges.count, 1, lambertian_object_instances[i].object_ranges.first, i);

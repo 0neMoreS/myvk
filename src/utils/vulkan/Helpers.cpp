@@ -152,7 +152,7 @@ Helpers::AllocatedImage Helpers::create_image(
 		.extent{
 			.width = extent.width,
 			.height = extent.height,
-			.depth = 1
+			.depth = 1u
 		},
 		.mipLevels = mipmap_levels,
 		.arrayLayers = is_cube ? 6u : 1u,
@@ -235,146 +235,6 @@ void Helpers::transfer_to_buffer(void *data, size_t size, AllocatedBuffer &targe
 	//don't leak buffer memory:
 	destroy_buffer(std::move(transfer_src));
 }
-
-// void Helpers::transfer_to_image(void *data, size_t size, AllocatedImage &target, uint32_t face_count) {
-// 	assert(target.handle != VK_NULL_HANDLE); //target image should be allocated already
-// 	assert(face_count >= 1);
-
-// 	//check data is the right size:
-// 	size_t bytes_per_pixel = vkuFormatElementSize(target.format);
-// 	size_t expected_size = static_cast<size_t>(target.extent.width) * target.extent.height * bytes_per_pixel * face_count;
-// 	assert(size == expected_size);
-
-// 	//create a host-coherent source buffer
-// 	AllocatedBuffer transfer_src = create_buffer(
-// 		size,
-// 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-// 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-// 		Mapped
-// 	);
-
-// 	//copy image data into the source buffer
-// 	std::memcpy(transfer_src.allocation.data(), data, size);
-
-// 	//begin recording a command buffer
-// 	VK( vkResetCommandBuffer(transfer_command_buffer, 0) );
-
-// 	VkCommandBufferBeginInfo begin_info{
-// 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-// 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
-// 	};
-
-// 	VK( vkBeginCommandBuffer(transfer_command_buffer, &begin_info) );
-
-// 	VkImageSubresourceRange whole_image{
-// 		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-// 		.baseMipLevel = 0,
-// 		.levelCount = 1,
-// 		.baseArrayLayer = 0,
-// 		.layerCount = face_count,
-// 	};
-
-// 	{ //put the receiving image in destination-optimal layout
-// 		VkImageMemoryBarrier barrier{
-// 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-// 			.srcAccessMask = 0,
-// 			.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-// 			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED, //throw away old image
-// 			.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-// 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-// 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-// 			.image = target.handle,
-// 			.subresourceRange = whole_image,
-// 		};
-
-// 		vkCmdPipelineBarrier(
-// 			transfer_command_buffer, //commandBuffer
-// 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, //srcStageMask
-// 			VK_PIPELINE_STAGE_TRANSFER_BIT, //dstStageMask
-// 			0, //dependencyFlags
-// 			0, nullptr, //memory barrier count, pointer
-// 			0, nullptr, //buffer memory barrier count, pointer
-// 			1, &barrier //image memory barrier count, pointer
-// 		);
-// 	}
-
-// 	{ // copy the source buffer to the image (all faces/layers)
-// 		size_t face_size_bytes = static_cast<size_t>(target.extent.width) * target.extent.height * vkuFormatElementSize(target.format);
-// 		std::vector<VkBufferImageCopy> regions;
-// 		regions.reserve(face_count);
-// 		for (uint32_t face = 0; face < face_count; ++face) {
-// 			VkBufferImageCopy region{
-// 				.bufferOffset = static_cast<VkDeviceSize>(face) * face_size_bytes,
-// 				.bufferRowLength = target.extent.width,
-// 				.bufferImageHeight = target.extent.height,
-// 				.imageSubresource{
-// 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-// 					.mipLevel = 0,
-// 					.baseArrayLayer = face,
-// 					.layerCount = 1,
-// 				},
-// 				.imageOffset{ .x = 0, .y = 0, .z = 0 },
-// 				.imageExtent{
-// 					.width = target.extent.width,
-// 					.height = target.extent.height,
-// 					.depth = 1
-// 				},
-// 			};
-// 			regions.push_back(region);
-// 		}
-
-// 		vkCmdCopyBufferToImage(
-// 			transfer_command_buffer,
-// 			transfer_src.handle,
-// 			target.handle,
-// 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-// 			static_cast<uint32_t>(regions.size()), regions.data()
-// 		);
-
-// 		//NOTE: if image had mip levels, would need to copy as additional regions here.
-// 	}
-	
-// 	{ // transition the image memory to shader-read-only-optimal layout:
-// 		VkImageMemoryBarrier barrier{
-// 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-// 			.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-// 			.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-// 			.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-// 			.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-// 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-// 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-// 			.image = target.handle,
-// 			.subresourceRange = whole_image,
-// 		};
-
-// 		vkCmdPipelineBarrier(
-// 			transfer_command_buffer, //commandBuffer
-// 			VK_PIPELINE_STAGE_TRANSFER_BIT, //srcStageMask
-// 			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, //dstStageMask
-// 			0, //dependencyFlags
-// 			0, nullptr, //memory barrier count, pointer
-// 			0, nullptr, //buffer memory barrier count, pointer
-// 			1, &barrier //image memory barrier count, pointer
-// 		);
-// 	}
-
-// 	//end and submit the command buffer
-// 	VK( vkEndCommandBuffer(transfer_command_buffer) );
-
-// 	VkSubmitInfo submit_info{
-// 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-// 		.commandBufferCount = 1,
-// 		.pCommandBuffers = &transfer_command_buffer
-// 	};
-
-// 	VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, VK_NULL_HANDLE) );
-
-// 	//wait for command buffer to finish executing
-// 	VK( vkQueueWaitIdle(rtg.graphics_queue) );
-
-// 	//destroy the source buffer
-// 	destroy_buffer(std::move(transfer_src));
-// }
 
 //----------------------------
 
@@ -467,7 +327,7 @@ void Helpers::transfer_to_image(
             size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * vkuFormatElementSize(target.format);
 
             for (uint32_t face = 0; face < face_count; ++face) {
-                VkBufferImageCopy region{
+                VkBufferImageCopy region {
                     .bufferOffset = buffer_offset_vk + static_cast<VkDeviceSize>(face) * face_size_bytes,
                     .bufferRowLength = mip_width,
                     .bufferImageHeight = mip_height,

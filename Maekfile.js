@@ -142,6 +142,7 @@ function custom_flags_and_rules() {
 			'-lX11',
 			`-lvulkan`,
 			`-lglfw3`,
+			`pre/${maek.OS}-${process.arch}/refsol.o`
 		];
 
 	} else if (maek.OS === 'windows') {

@@ -13,7 +13,7 @@ struct A2BackgroundPipeline : Pipeline {
     VkDescriptorSet set1_CUBEMAP_instance = VK_NULL_HANDLE;
 
     void create(
-		class RTG &, 
+		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
 		const TextureManager& texture_manager

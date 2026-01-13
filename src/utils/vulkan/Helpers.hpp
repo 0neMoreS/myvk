@@ -118,4 +118,3 @@ struct Helpers {
 	void create(); //create vulkan resources (after GPU-held handles are created)
 	void destroy(); //destroy vulkan resources (before GPU-held handles are destroyed)
 };
-

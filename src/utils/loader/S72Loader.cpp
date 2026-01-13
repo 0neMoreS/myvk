@@ -47,7 +47,7 @@ float expect_number(Object const &obj, std::string_view key, std::string_view ct
 	if (it == obj.end()) S72_ERROR(ctx, std::string("missing '") + std::string(key) + "'");
 	auto n = it->second.as_number();
 	if (!n) S72_ERROR(ctx, std::string("'") + std::string(key) + "' must be number");
-	return *n;
+	return static_cast< float >(*n);
 }
 
 std::optional< float > optional_number(Object const &obj, std::string_view key) {
@@ -55,7 +55,7 @@ std::optional< float > optional_number(Object const &obj, std::string_view key) 
 	if (it == obj.end()) return std::nullopt;
 	auto n = it->second.as_number();
 	if (!n) S72_ERROR(key, "must be number");
-	return *n;
+	return static_cast< float >(*n);
 }
 
 uint32_t to_u32(float value, std::string_view ctx) {
@@ -75,7 +75,7 @@ glm::vec<N, float> parse_vec(sejp::value const &v, std::string_view ctx) {
 	for (size_t i = 0; i < N; ++i) {
 		auto n = (*arr)[i].as_number();
 		if (!n) S72_ERROR(ctx, "vector elements must be numbers");
-		out[i] = *n;
+		out[static_cast<typename glm::vec<N, float>::length_type>(i)] = static_cast< float >(*n);
 	}
 	return out;
 }
@@ -95,7 +95,7 @@ std::vector< float > parse_number_array(sejp::value const &v, std::string_view c
 	for (auto const &entry : *arr) {
 		auto n = entry.as_number();
 		if (!n) S72_ERROR(ctx, "array entries must be numbers");
-		out.push_back(*n);
+		out.push_back(static_cast< float >(*n));
 	}
 	return out;
 }
@@ -108,7 +108,7 @@ std::vector< std::string > parse_string_array(sejp::value const &v, std::string_
 	for (auto const &entry : *arr) {
 		auto s = entry.as_string();
 		if (!s) S72_ERROR(ctx, "array entries must be strings");
-		out.push_back(*s);
+		out.push_back(static_cast< std::string >(*s));
 	}
 	return out;
 }
@@ -138,7 +138,7 @@ Material::PBR parse_pbr(sejp::value const &v, std::string_view ctx) {
 	if (it != obj.end()) {
 		auto n = it->second.as_number();
 		if (n) {
-			p.roughness_value = *n;
+			p.roughness_value = static_cast<float>(*n);
 		} else {
 			p.roughness_texture = parse_texture(it->second, std::string(ctx) + ".roughness");
 		}
@@ -147,7 +147,7 @@ Material::PBR parse_pbr(sejp::value const &v, std::string_view ctx) {
 	if (it != obj.end()) {
 		auto n = it->second.as_number();
 		if (n) {
-			p.metalness_value = *n;
+			p.metalness_value = static_cast<float>(*n);
 		} else {
 			p.metalness_texture = parse_texture(it->second, std::string(ctx) + ".metalness");
 		}

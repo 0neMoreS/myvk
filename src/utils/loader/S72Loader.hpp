@@ -54,9 +54,9 @@ struct Mesh {
 
 struct Camera {
 	struct Perspective {
-		float aspect = 1.0;
-		float vfov = 1.0;
-		float near = 0.1;
+		float aspect = 1.0f;
+		float vfov = 1.0f;
+		float near = 0.1f;
 		std::optional<float> far;
 	};
 
@@ -112,26 +112,26 @@ struct Environment {
 
 struct Light {
 	struct Sun {
-		float angle = 0.0;
-		float strength = 0.0;
+		float angle = 0.0f;
+		float strength = 0.0f;
 	};
 
 	struct Sphere {
-		float radius = 0.0;
-		float power = 0.0;
+		float radius = 0.0f;
+		float power = 0.0f;
 		std::optional<float> limit;
 	};
 
 	struct Spot {
-		float radius = 0.0;
-		float power = 0.0;
+		float radius = 0.0f;
+		float power = 0.0f;
 		std::optional<float> limit;
-		float fov = 0.0;
-		float blend = 0.0;
+		float fov = 0.0f;
+		float blend = 0.0f;
 	};
 
 	std::string name;
-	glm::vec3 tint{1.0, 1.0, 1.0};
+	glm::vec3 tint{1.0f, 1.0f, 1.0f};
 	uint32_t shadow = 0;
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;

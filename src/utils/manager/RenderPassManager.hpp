@@ -3,10 +3,10 @@
 #include "VK.hpp"
 
 #include <vulkan/vulkan.h>
-#include <vector>
+#include <array>
 #include <iostream>
 
-class RTG;
+struct RTG;
 
 class RenderPassManager {
 public:

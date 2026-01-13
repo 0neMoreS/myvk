@@ -10,6 +10,11 @@
 #include <cstring>
 #include <iostream>
 
+inline std::unordered_map<VkFormat, size_t> format_to_size = {
+	{VK_FORMAT_R8G8B8A8_UNORM, 4},
+	{VK_FORMAT_R32G32B32A32_SFLOAT, 16},
+};
+
 Helpers::Allocation::Allocation(Allocation &&from) {
 	assert(handle == VK_NULL_HANDLE && offset == 0 && size == 0 && mapped == nullptr);
 
@@ -324,7 +329,7 @@ void Helpers::transfer_to_image(
         uint32_t mip_height = target.extent.height;
 
         for (uint32_t mip_level = 0; mip_level < mipmap_data.size(); ++mip_level) {
-            size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * vkuFormatElementSize(target.format);
+            size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * format_to_size[target.format];
 
             for (uint32_t face = 0; face < face_count; ++face) {
                 VkBufferImageCopy region {

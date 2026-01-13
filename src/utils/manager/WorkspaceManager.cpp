@@ -313,8 +313,8 @@ void WorkspaceManager::Workspace::reset_recording(){
 
 void WorkspaceManager::create(
     RTG& rtg, 
-    const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline, 
-    const std::vector<GlobalBufferConfig> &&global_buffer_configs, 
+    const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline_, 
+    const std::vector<GlobalBufferConfig> &&global_buffer_configs_, 
     uint32_t num_workspaces
 ) {
     { //create command pool
@@ -329,7 +329,7 @@ void WorkspaceManager::create(
     { //create descriptor pool:
         std::unordered_map<VkDescriptorType, uint32_t> descriptor_map;
         // Count all descriptor types from all pipelines
-        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline) {
+        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline_) {
             for (const auto& config : pipeline_configs) {
                 descriptor_map[config.type]++;
             }
@@ -348,8 +348,8 @@ void WorkspaceManager::create(
 
         // Calculate total descriptor sets needed
         uint32_t total_descriptors = 0;
-        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline) {
-            total_descriptors += pipeline_configs.size();
+        for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline_) {
+            total_descriptors += static_cast<uint32_t>(pipeline_configs.size());
         }
 
         VkDescriptorPoolCreateInfo create_info{
@@ -363,8 +363,8 @@ void WorkspaceManager::create(
 		VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &descriptor_pool) );
     }
 
-    this->block_descriptor_configs_by_pipeline = std::move(block_descriptor_configs_by_pipeline);
-    this->global_buffer_configs = std::move(global_buffer_configs);
+    this->block_descriptor_configs_by_pipeline = std::move(block_descriptor_configs_by_pipeline_);
+    this->global_buffer_configs = std::move(global_buffer_configs_);
 
     for(uint32_t i = 0; i < num_workspaces; i++) {
         workspaces.emplace_back(std::move(Workspace{*this}));

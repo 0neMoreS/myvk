@@ -6,3 +6,4 @@ bin/main.exe
 bin/main.pdb
 external/
 .vscode/
+.vs/

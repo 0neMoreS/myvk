@@ -79,10 +79,10 @@ A1::~A1() {
 	render_pass_manager.destroy(rtg);
 }
 
-void A1::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.create(rtg, swapchain, render_pass_manager);
+void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
+	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
-	render_pass_manager.update_scissor_and_viewport(rtg, swapchain.extent);
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
 }
 
 
@@ -216,7 +216,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						//draw all instances:
-						for(size_t i = 0; i < object_instances.size(); ++i) {
+						for(uint32_t i = 0; i < object_instances.size(); ++i) {
 							//draw all instances:
 							A1ObjectsPipeline::Push push{
 								.MATERIAL_INDEX = static_cast<uint32_t>(object_instances[i].material_index * 5 + 2) // albedo is at texture slot 2 + 5 * material_index

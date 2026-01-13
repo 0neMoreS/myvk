@@ -142,10 +142,10 @@ A2::~A2() {
 	render_pass_manager.destroy(rtg);
 }
 
-void A2::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.create(rtg, swapchain, render_pass_manager);
+void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
+	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
-	render_pass_manager.update_scissor_and_viewport(rtg, swapchain.extent);
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
 }
 
 
@@ -309,7 +309,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							);
 						}
 
-						for(size_t i = 0; i < lambertian_object_instances.size(); ++i) {
+						for(uint32_t i = 0; i < lambertian_object_instances.size(); ++i) {
 							//draw all instances:
 							A2LambertianPipeline::Push push{
 								.MATERIAL_INDEX = static_cast<uint32_t>(lambertian_object_instances[i].material_index * 5)
@@ -350,7 +350,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							);
 						}
 
-						for(size_t i = 0; i < pbr_object_instances.size(); ++i) {
+						for(uint32_t i = 0; i < pbr_object_instances.size(); ++i) {
 							//draw all instances:
 							A2PBRPipeline::Push push{
 								.MATERIAL_INDEX = static_cast<uint32_t>(1 + pbr_object_instances[i].material_index * 5)
@@ -391,7 +391,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						//draw all instances:
-						for (size_t i = 0; i < reflection_object_instances.size(); ++i) {
+						for (uint32_t i = 0; i < reflection_object_instances.size(); ++i) {
 							vkCmdDraw(workspace.command_buffer, reflection_object_instances[i].object_ranges.count, 1, reflection_object_instances[i].object_ranges.first, i);
 						}
 					}

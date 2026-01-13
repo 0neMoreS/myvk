@@ -19,7 +19,7 @@ A2ReflectionPipeline::~A2ReflectionPipeline(){
 }
 
 void A2ReflectionPipeline::create(
-    class RTG &rtg, 
+    RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
     const TextureManager& texture_manager

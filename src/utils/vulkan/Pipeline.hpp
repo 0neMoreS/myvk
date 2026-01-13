@@ -28,12 +28,12 @@ struct Pipeline
     VkShaderModule vert_module;
 
     virtual void create(
-		class RTG &, 
+		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
 		const TextureManager& texture_manager
 	) = 0;
-    virtual void destroy(class RTG &) = 0;
+    virtual void destroy(RTG &) = 0;
     
     void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true) {
         //shader code for vertex and fragment pipeline stages:

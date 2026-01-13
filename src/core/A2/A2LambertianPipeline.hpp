@@ -39,7 +39,7 @@ struct A2LambertianPipeline : Pipeline {
 
     //no push constants
     void create(
-		class RTG &, 
+		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
 		const TextureManager& texture_manager

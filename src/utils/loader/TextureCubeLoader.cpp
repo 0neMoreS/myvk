@@ -144,10 +144,10 @@ std::shared_ptr<Texture> load_from_png_atlas(
         // Blit each of the 6 faces
         for (int tile = 0; tile < 6; ++tile) {
             const int tx = 0;
-            const int ty = tile_for_vulkan_face[tile].first * face_h;
+            const int ty = static_cast<int>(tile_for_vulkan_face[tile].first) * face_h;
             float* dst = all_mipmap_data[level].data() + tile * face_offset;
             blit_tile_rgba8(pixel_data_levels[level], widths[level], heights[level], 
-                           tx, ty, face_w, face_h, dst, tile_for_vulkan_face[tile].second);
+                           tx, ty, face_w, face_h, dst, static_cast<int>(tile_for_vulkan_face[tile].second));
         }
     }
     

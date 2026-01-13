@@ -22,7 +22,7 @@ A2PBRPipeline::~A2PBRPipeline(){
 }
 
 void A2PBRPipeline::create(
-    class RTG &rtg, 
+    RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
     const TextureManager& texture_manager

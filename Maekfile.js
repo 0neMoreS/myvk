@@ -146,33 +146,39 @@ function custom_flags_and_rules() {
 		];
 
 	} else if (maek.OS === 'windows') {
-		VULKAN_SDK = process.env.VULKAN_SDK || `${process.env.USERPROFILE}/VulkanSDK/1.3.290.0`;
+		VULKAN_SDK = process.env.VULKAN_SDK || `${process.env.USERPROFILE}/VulkanSDK/1.4.335.0`;
 		console.log(`Using VULKAN_SDK='${VULKAN_SDK}'; set VULKAN_SDK environment variable to override.`);
 
-		maek.options.CPP = [
-			'cl.exe', '/nologo', '/EHsc', '/Z7', '/std:c++20', '/W4', '/WX', '/MD',
+		maek.options.CPP = ['cl.exe', '/nologo', '/EHsc', '/Z7', '/std:c++20', '/W4', '/WX', '/MD'];
+		maek.options.LINK = ['link.exe', '/nologo', '/SUBSYSTEM:CONSOLE', '/DEBUG:FASTLINK', '/INCREMENTAL:NO', '/MACHINE:X64'];
+
+		maek.options.CPPFlags = [
+			'/O2',
 			'/wd4100', //unused formal parameter
 			'/wd4201', //nameless struct/union
 			'/wd4146', //-1U is unsigned
+			'/utf-8',
+			`/I${VULKAN_SDK}/Include`,
+			`/I./external/glfw-3.4.bin.WIN64/include`,
+			`/I./external/glm-1.0.3`,
+			`/I./external/stb`,
+			`/I./src/core/Tutorial`,
+			`/I./src/core/A1`,
+			`/I./src/core/A2`,
+			`/I./src/utils/general`,
+			`/I./src/utils/loader`,
+			`/I./src/utils/manager`,
+			`/I./src/utils/vulkan`,
 		];
-		maek.options.LINK = [
-			'link.exe', '/nologo',
-			'/SUBSYSTEM:CONSOLE', //yes, you don't need WinMain to use the win32 API (!)
-			'/DEBUG:FASTLINK', '/INCREMENTAL:NO'
-		];
+
 		maek.options.LINKLibs = [
 			'User32.lib',
 			`/LIBPATH:${VULKAN_SDK}/Lib`,
 			'vulkan-1.lib',
-			`/LIBPATH:../glfw-3.4.bin.WIN64/lib-vc2022`,
+			`/LIBPATH:./external/glfw-3.4.bin.WIN64/lib-vc2022`,
 			'glfw3.lib',
 			'gdi32.lib',
 			'Shell32.lib'
-		];
-		maek.options.CPPFlags = [
-			`/I${VULKAN_SDK}/Include`,
-			`/I../glfw-3.4.bin.WIN64/include`,
-			'/O2'
 		];
 
 	} else if (maek.OS === 'macos') {

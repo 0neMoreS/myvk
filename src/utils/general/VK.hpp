@@ -22,7 +22,7 @@
 
 #define MAX_TEXTURES 128
 
-// Coordinate system conversion matrix: Blender → Vulkan
+// Coordinate system conversion matrix: Blender -> Vulkan
 static const glm::mat3 BLENDER_TO_VULKAN_3 = glm::mat3(
     0.0f,  0.0f,  -1.0f,
     1.0f,  0.0f,  0.0f,
@@ -36,7 +36,7 @@ static const glm::mat4 BLENDER_TO_VULKAN_4 = glm::mat4(
     0.0f,  0.0f,  0.0f, 1.0f
 );
 
-// Coordinate system conversion matrix: Vulkan → Blender
+// Coordinate system conversion matrix: Vulkan -> Blender
 static const glm::mat3 VULKAN_TO_BLENDER_3 = glm::mat3(
     0.0f,  1.0f,  0.0f,
     0.0f,  0.0f, -1.0f,

@@ -311,7 +311,7 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 
 				//texture repeats around the torus:
 				constexpr float V_REPEATS = 2.0f;
-				constexpr float U_REPEATS = std::ceil(V_REPEATS / R2 * R1);
+				constexpr float U_REPEATS = V_REPEATS / (R2 * R1);
 
 				auto emplace_vertex = [&](uint32_t ui, uint32_t vi) {
 					//convert steps to angles:
@@ -743,12 +743,12 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	VK( vkResetCommandBuffer(workspace.command_buffer, 0) );
 	
 	{ //begin recording:
-		VkCommandBufferBeginInfo begin_info{
+		VkCommandBufferBeginInfo command_buffer_begin_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, //will record again every submit
 		};
 		
-		VK( vkBeginCommandBuffer(workspace.command_buffer, &begin_info) );
+		VK( vkBeginCommandBuffer(workspace.command_buffer, &command_buffer_begin_info) );
 
 		{ //allocate and upload dynamic lines vertex data:
 			if (!lines_vertices.empty()) { //upload lines vertices:

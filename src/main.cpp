@@ -41,6 +41,8 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
+		// Tutorial application(rtg);
+		// A1 application(rtg, "origin-check.s72");
 		A2 application(rtg, "materials.s72");
 
 		//main loop -- handles events, renders frames, etc:

@@ -24,7 +24,8 @@ class TextureManager {
             
         void create(
             RTG & rtg,
-            std::shared_ptr<S72Loader::Document> &doc
+            std::shared_ptr<S72Loader::Document> &doc,
+            uint32_t pipeline_count
         );
         void destroy(RTG &rtg);
 

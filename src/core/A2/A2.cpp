@@ -19,28 +19,31 @@ A2::A2(RTG &rtg) : A2(rtg, "origin-check.s72") {
 A2::A2(RTG &rtg, const std::string &filename) : 
 	rtg{rtg}, 
 	doc{S72Loader::load_file(s72_dir + filename)}, 
-	camera_manager{}, 
-	workspace_manager{}, 
 	render_pass_manager{},
+	texture_manager{}, 
 	background_pipeline{},
 	lambertian_pipeline{},
 	pbr_pipeline{},
 	reflection_pipeline{},
+	workspace_manager{}, 
 	scene_manager{},
-	texture_manager{},
+	camera_manager{},
 	framebuffer_manager{}
 {
 	render_pass_manager.create(rtg);
 
-	texture_manager.create(rtg, doc);
+	texture_manager.create(rtg, doc, 4);
 
 	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	lambertian_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	assert(lambertian_pipeline.pipeline != VK_NULL_HANDLE);
 
 	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	assert(pbr_pipeline.pipeline != VK_NULL_HANDLE);
 
 	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	assert(reflection_pipeline.pipeline != VK_NULL_HANDLE);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;

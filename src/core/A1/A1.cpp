@@ -29,7 +29,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 {
 	render_pass_manager.create(rtg);
 
-	texture_manager.create(rtg, doc);
+	texture_manager.create(rtg, doc, 1);
 
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 

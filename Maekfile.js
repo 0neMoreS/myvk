@@ -109,6 +109,7 @@ maek.TARGETS = [main_exe];
 
 //- - - - - - - - - - - - - - - - - - - - -
 function custom_flags_and_rules() {
+	const IS_DEBUG = true;
 
 	let VULKAN_SDK; //this will also be set to point to the location of the Vulkan SDK (needed for running glslc)
 
@@ -146,14 +147,41 @@ function custom_flags_and_rules() {
 		];
 
 	} else if (maek.OS === 'windows') {
-		VULKAN_SDK = process.env.VULKAN_SDK || `${process.env.USERPROFILE}/VulkanSDK/1.4.335.0`;
+		VULKAN_SDK = process.env.VULKAN_SDK || `${process.env.USERPROFILE}/VulkanSDK/1.3.290.0`;
 		console.log(`Using VULKAN_SDK='${VULKAN_SDK}'; set VULKAN_SDK environment variable to override.`);
 
-		maek.options.CPP = ['cl.exe', '/nologo', '/EHsc', '/Z7', '/std:c++20', '/W4', '/WX', '/MD'];
-		maek.options.LINK = ['link.exe', '/nologo', '/SUBSYSTEM:CONSOLE', '/DEBUG:FASTLINK', '/INCREMENTAL:NO', '/MACHINE:X64'];
+		// maek.options.CPP = ['cl.exe', '/nologo', '/EHsc', '/Z7', '/std:c++20', '/W4', '/WX', '/MD'];
+		maek.options.CPP = ['cl.exe', '/nologo', '/EHsc', '/std:c++20', '/W4', '/WX', '/utf-8', '/MD'];
+		maek.options.LINK = ['link.exe', '/nologo', '/SUBSYSTEM:CONSOLE', '/MACHINE:X64'];
+
+		if (IS_DEBUG) {
+            // Debug 配置
+            maek.options.CPP.push(
+                '/Z7',            // 调试信息（C7 兼容格式）
+                '/Od',            // 禁用优化
+                '/RTC1'           // 运行时检查（栈帧、未初始化变量）
+            );
+            maek.options.LINK.push(
+                '/DEBUG:FULL',    // 完整调试信息
+                '/INCREMENTAL:NO' // 禁用增量链接
+            );
+        } else {
+            // Release 配置
+            maek.options.CPP.push(
+                '/O2',            // 最大速度优化
+                '/Oi',            // 启用内部函数
+                '/GL',            // 全程序优化
+                '/DNDEBUG'        // 定义 NDEBUG 宏
+            );
+            maek.options.LINK.push(
+                '/LTCG',          // 链接时代码生成
+                '/OPT:REF',       // 移除未引用函数/数据
+                '/OPT:ICF',       // 合并相同的 COMDAT
+                '/INCREMENTAL:NO'
+            );
+        }
 
 		maek.options.CPPFlags = [
-			'/O2',
 			'/wd4100', //unused formal parameter
 			'/wd4201', //nameless struct/union
 			'/wd4146', //-1U is unsigned

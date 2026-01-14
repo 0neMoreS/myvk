@@ -30,7 +30,8 @@ void TextureManager::destroy(RTG &rtg) {
 
 void TextureManager::create(
     RTG &rtg,
-    std::shared_ptr<S72Loader::Document> &doc
+    std::shared_ptr<S72Loader::Document> &doc,
+    uint32_t pipeline_count
 ) {
     // Clean previous data
     destroy(rtg);
@@ -139,7 +140,7 @@ void TextureManager::create(
             VkDescriptorPoolCreateInfo pool_create_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-                .maxSets = 1,
+                .maxSets = pipeline_count,
                 .poolSizeCount = uint32_t(pool_sizes.size()),
                 .pPoolSizes = pool_sizes.data(),
             };

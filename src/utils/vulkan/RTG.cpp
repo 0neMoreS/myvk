@@ -41,7 +41,13 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			};
 			surface_extent.width = conv("width");
 			surface_extent.height = conv("height");
-		} else {
+		} else if (arg == "--headless"){
+			if(argi + 1 >= argc) throw std::runtime_error("--headless requires a parameter (events file name).");
+			argi += 1;
+			headless_events_filename = argv[argi];
+			headless = true;
+		}
+		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
 	}
@@ -51,6 +57,7 @@ void RTG::Configuration::usage(std::function< void(const char *, const char *) >
 	callback("--debug, --no-debug", "Turn on/off debug and validation layers.");
 	callback("--physical-device <name>", "Run on the named physical device (guesses, otherwise).");
 	callback("--drawing-size <w> <h>", "Set the size of the surface to draw to.");
+	callback("--headless <events file>", "Run in headless mode, reading events from the given file.");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
@@ -100,19 +107,21 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			instance_layers.emplace_back("VK_LAYER_KHRONOS_validation");
 		}
 
-		{ //add extensions needed by glfw:
-			glfwInit();
-			if (!glfwVulkanSupported()) {
-				throw std::runtime_error("GLFW reports Vulkan is not supported.");
-			}
+		{ //add extensions needed by glfw (only in windowed mode):
+			if (!configuration.headless) {
+				glfwInit();
+				if (!glfwVulkanSupported()) {
+					throw std::runtime_error("GLFW reports Vulkan is not supported.");
+				}
 
-			uint32_t count;
-			const char **extensions = glfwGetRequiredInstanceExtensions(&count);
-			if (extensions == nullptr) {
-				throw std::runtime_error("GLFW failed to return a list of requested instance extensions. Perhaps it was not compiled with Vulkan support.");
-			}
-			for (uint32_t i = 0; i < count; ++i) {
-				instance_extensions.emplace_back(extensions[i]);
+				uint32_t count;
+				const char **extensions = glfwGetRequiredInstanceExtensions(&count);
+				if (extensions == nullptr) {
+					throw std::runtime_error("GLFW failed to return a list of requested instance extensions. Perhaps it was not compiled with Vulkan support.");
+				}
+				for (uint32_t i = 0; i < count; ++i) {
+					instance_extensions.emplace_back(extensions[i]);
+				}
 			}
 		}
 
@@ -155,6 +164,7 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 	}
 
 	//create the `window` and `surface` (where things get drawn):
+	if (!configuration.headless)
 	{
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
@@ -165,6 +175,9 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 		}
 
 		VK( glfwCreateWindowSurface(instance, window, nullptr, &surface) );
+	} else {
+		//in headless mode, initialize GLFW but don't create a window
+		glfwInit();
 	}
 	{
 		std::vector< std::string > physical_device_names; //for later error message
@@ -228,7 +241,8 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 		}
 	}
 
-	{//select the `surface_format` and `present_mode` which control how colors are represented on the surface and how new images are supplied to the surface:
+	if(!configuration.headless) {
+		//select the `surface_format` and `present_mode` which control how colors are represented on the surface and how new images are supplied to the surface:
 		std::vector< VkSurfaceFormatKHR > formats;
 		std::vector< VkPresentModeKHR > present_modes;
 		
@@ -269,6 +283,10 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			}
 			throw std::runtime_error("No present mode matching requested mode(s) found.");
 		}();
+	} else {
+		//in headless mode, use default format and extent
+		surface_format.format = VK_FORMAT_B8G8R8A8_SRGB;
+		surface_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	}
 
 	{//create the `device` (logical interface to the GPU) and the `queue`s to which we can submit commands:
@@ -287,10 +305,17 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 				}
 
 				//if it has present support, set the present queue family:
-				VkBool32 present_support = VK_FALSE;
-				VK( vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface, &present_support) );
-				if (present_support == VK_TRUE) {
-					if (!present_queue_family) present_queue_family = i;
+				if (!configuration.headless) {
+					VkBool32 present_support = VK_FALSE;
+					VK( vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface, &present_support) );
+					if (present_support == VK_TRUE) {
+						if (!present_queue_family) present_queue_family = i;
+					}
+				} else {
+					//in headless mode, use graphics queue for present as well
+					if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+						if (!present_queue_family) present_queue_family = i;
+					}
 				}
 			}
 
@@ -299,7 +324,11 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			}
 
 			if (!present_queue_family) {
-				throw std::runtime_error("No queue with present support.");
+				if (configuration.headless) {
+					present_queue_family = graphics_queue_family;
+				} else {
+					throw std::runtime_error("No queue with present support.");
+				}
 			}
 		}
 
@@ -308,8 +337,10 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 		#if defined(__APPLE__)
 		device_extensions.emplace_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
 		#endif
-		//Add the swapchain extension:
-		device_extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+		//Add the swapchain extension (only in windowed mode):
+		if (!configuration.headless) {
+			device_extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+		}
 
 		{ //create the logical device:
 			std::vector< VkDeviceQueueCreateInfo > queue_create_infos;
@@ -360,8 +391,12 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 		}
 	}
 
-	//create initial swapchain:
-	recreate_swapchain();
+	//create initial swapchain or headless images:
+	if(!configuration.headless) {
+		recreate_swapchain();
+	} else {
+		create_headless_images();
+	}
 
 	//create workspace resources:
 	workspaces.resize(configuration.workspaces);
@@ -416,8 +451,12 @@ RTG::~RTG() {
 	}
 	workspaces.clear();
 
-	//destroy the swapchain:
-	destroy_swapchain();
+	//destroy the swapchain or headless images:
+	if (!configuration.headless) {
+		destroy_swapchain();
+	} else {
+		destroy_headless_images();
+	}
 
 	//destroy the rest of the resources:
 	if (device != VK_NULL_HANDLE) {
@@ -664,110 +703,336 @@ void RTG::run(Application &application) {
 	};
 	on_swapchain();
 
-	//setup event handling:
-	std::vector< InputEvent > event_queue;
-	glfwSetWindowUserPointer(window, &event_queue);
-
-	glfwSetCursorPosCallback(window, cursor_pos_callback);
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	glfwSetScrollCallback(window, scroll_callback);
-	glfwSetKeyCallback(window, key_callback);
-
-	//setup time handling
-	std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
-
-	while (!glfwWindowShouldClose(window)) {
-		//event handling:
-		glfwPollEvents();
-
-		//deliver all input events to application:
-		for (InputEvent const &input : event_queue) {
-			application.on_input(input);
+	if (configuration.headless) {
+		//Headless mode: read events from file and render
+		std::vector< InputEvent > event_queue;
+		
+		//load events from file if specified
+		if (!configuration.headless_events_filename.empty()) {
+			//TODO: implement event file reading
+			std::cerr << "NOTE: event file reading not yet implemented, running in headless mode without events." << std::endl;
 		}
-		event_queue.clear();
+		
+		//setup time handling
+		std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
+		
+		uint32_t next_image_index = 0;
+		uint32_t frame_count = 0;
+		const uint32_t max_frames = 100; //render 100 frames in headless mode by default
+		
+		while (frame_count < max_frames) {
+			//deliver all input events to application:
+			for (InputEvent const &input : event_queue) {
+				application.on_input(input);
+			}
+			event_queue.clear();
+			
+			{ //elapsed time handling:
+				std::chrono::high_resolution_clock::time_point after = std::chrono::high_resolution_clock::now();
+				float dt = float(std::chrono::duration< double >(after - before).count());
+				before = after;
+				
+				dt = std::min(dt, 0.1f); //lag if frame rate dips too low
+				
+				application.update(dt);
+			}
+			
+			uint32_t workspace_index;
+			{ //acquire a workspace:
+				assert(next_workspace < workspaces.size());
+				workspace_index = next_workspace;
+				next_workspace = (next_workspace + 1) % workspaces.size();
+				
+				//wait until the workspace is not being used:
+				VK( vkWaitForFences(device, 1, &workspaces[workspace_index].workspace_available, VK_TRUE, UINT64_MAX) );
+				
+				//mark the workspace as in use:
+				VK( vkResetFences(device, 1, &workspaces[workspace_index].workspace_available) );
+			}
+			
+			//simulate acquiring an image by cycling through indices:
+			uint32_t image_index = next_image_index;
+			next_image_index = (next_image_index + 1) % headless_images.size();
+			
+			//In headless mode, manually signal the image_available semaphore
+			//This simulates what vkAcquireNextImageKHR does in windowed mode
+			{
+				VkSubmitInfo signal_info{
+					.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+					.commandBufferCount = 0, //no commands to execute
+					.signalSemaphoreCount = 1,
+					.pSignalSemaphores = &workspaces[workspace_index].image_available,
+				};
+				
+				VK( vkQueueSubmit(graphics_queue, 1, &signal_info, VK_NULL_HANDLE) );
+			}
+			
+			//call render function:
+			application.render(*this, RenderParams{
+				.workspace_index = workspace_index,
+				.image_index = image_index,
+				.image_available = workspaces[workspace_index].image_available,
+				.image_done = workspaces[workspace_index].image_done,
+				.workspace_available = workspaces[workspace_index].workspace_available,
+			});
+			
+			//In headless mode, wait for rendering to complete
+			//This simulates what vkQueuePresentKHR does in windowed mode
+			{
+				VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				VkSubmitInfo wait_info{
+					.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+					.waitSemaphoreCount = 1,
+					.pWaitSemaphores = &workspaces[workspace_index].image_done,
+					.pWaitDstStageMask = &wait_stage,
+					.commandBufferCount = 0, //no commands to execute
+				};
+				
+				//Use a fence to signal when this "presentation" is done
+				VK( vkQueueSubmit(graphics_queue, 1, &wait_info, VK_NULL_HANDLE) );
+			}
 
-		{ //elapsed time handling:
-            std::chrono::high_resolution_clock::time_point after = std::chrono::high_resolution_clock::now();
-            float dt = float(std::chrono::duration< double >(after - before).count());
-            before = after;
+			++frame_count;
 
-            dt = std::min(dt, 0.1f); //lag if frame rate dips too low
-
-            application.update(dt);
-        }
-
-		uint32_t workspace_index;
-		{ //acquire a workspace:
-			assert(next_workspace < workspaces.size());
-			workspace_index = next_workspace;
-			next_workspace = (next_workspace + 1) % workspaces.size();
-
-			//wait until the workspace is not being used:
-			VK( vkWaitForFences(device, 1, &workspaces[workspace_index].workspace_available, VK_TRUE, UINT64_MAX) );
-
-			//mark the workspace as in use:
-			VK( vkResetFences(device, 1, &workspaces[workspace_index].workspace_available) );
+			std::cout << "Headless: rendered " << frame_count << " frames." << std::endl;
 		}
+		//wait for all work to complete:
+		VK(vkDeviceWaitIdle(device));
+	} else {
+		//Windowed mode: original implementation
+		//setup event handling:
+		std::vector< InputEvent > event_queue;
+		glfwSetWindowUserPointer(window, &event_queue);
 
-		uint32_t image_index = -1U;
+		glfwSetCursorPosCallback(window, cursor_pos_callback);
+		glfwSetMouseButtonCallback(window, mouse_button_callback);
+		glfwSetScrollCallback(window, scroll_callback);
+		glfwSetKeyCallback(window, key_callback);
+
+		//setup time handling
+		std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
+
+		while (!glfwWindowShouldClose(window)) {
+			//event handling:
+			glfwPollEvents();
+
+			//deliver all input events to application:
+			for (InputEvent const &input : event_queue) {
+				application.on_input(input);
+			}
+			event_queue.clear();
+
+			{ //elapsed time handling:
+				std::chrono::high_resolution_clock::time_point after = std::chrono::high_resolution_clock::now();
+				float dt = float(std::chrono::duration< double >(after - before).count());
+				before = after;
+
+				dt = std::min(dt, 0.1f); //lag if frame rate dips too low
+
+				application.update(dt);
+			}
+
+			uint32_t workspace_index;
+			{ //acquire a workspace:
+				assert(next_workspace < workspaces.size());
+				workspace_index = next_workspace;
+				next_workspace = (next_workspace + 1) % workspaces.size();
+
+				//wait until the workspace is not being used:
+				VK( vkWaitForFences(device, 1, &workspaces[workspace_index].workspace_available, VK_TRUE, UINT64_MAX) );
+
+				//mark the workspace as in use:
+				VK( vkResetFences(device, 1, &workspaces[workspace_index].workspace_available) );
+			}
+
+			uint32_t image_index = -1U;
 		//acquire an image:
 retry:
-		//Ask the swapchain for the next image index -- note careful return handling:
-		if (VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, workspaces[workspace_index].image_available, VK_NULL_HANDLE, &image_index);
-		    result == VK_ERROR_OUT_OF_DATE_KHR) {
-			//if the swapchain is out-of-date, recreate it and run the loop again:
-			std::cerr << "Recreating swapchain because vkAcquireNextImageKHR returned " << string_VkResult(result) << "." << std::endl;
-			
-			recreate_swapchain();
-			on_swapchain();
-
-			goto retry;
-		} else if (result == VK_SUBOPTIMAL_KHR) {
-			//if the swapchain is suboptimal, render to it and recreate it later:
-			std::cerr << "Suboptimal swapchain format -- ignoring for the moment." << std::endl;
-		} else if (result != VK_SUCCESS) {
-			//other non-success results are genuine errors:
-			throw std::runtime_error("Failed to acquire swapchain image (" + std::string(string_VkResult(result)) + ")!");
-		}
-
-		//call render function:
-		application.render(*this, RenderParams{
-			.workspace_index = workspace_index,
-			.image_index = image_index,
-			.image_available = workspaces[workspace_index].image_available,
-			.image_done = workspaces[workspace_index].image_done,
-			.workspace_available = workspaces[workspace_index].workspace_available,
-		});
-
-		{ //queue the work for presentation:
-			VkPresentInfoKHR present_info{
-				.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-				.waitSemaphoreCount = 1,
-				.pWaitSemaphores = &workspaces[workspace_index].image_done,
-				.swapchainCount = 1,
-				.pSwapchains = &swapchain,
-				.pImageIndices = &image_index,
-			};
-
-			assert(present_queue);
-
-			//note, again, the careful return handling:
-			if (VkResult result = vkQueuePresentKHR(present_queue, &present_info);
-			    result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-				std::cerr << "Recreating swapchain because vkQueuePresentKHR returned " << string_VkResult(result) << "." << std::endl;
+			//Ask the swapchain for the next image index -- note careful return handling:
+			if (VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, workspaces[workspace_index].image_available, VK_NULL_HANDLE, &image_index);
+				result == VK_ERROR_OUT_OF_DATE_KHR) {
+				//if the swapchain is out-of-date, recreate it and run the loop again:
+				std::cerr << "Recreating swapchain because vkAcquireNextImageKHR returned " << string_VkResult(result) << "." << std::endl;
+				
 				recreate_swapchain();
 				on_swapchain();
+
+				goto retry;
+			} else if (result == VK_SUBOPTIMAL_KHR) {
+				//if the swapchain is suboptimal, render to it and recreate it later:
+				std::cerr << "Suboptimal swapchain format -- ignoring for the moment." << std::endl;
 			} else if (result != VK_SUCCESS) {
-				throw std::runtime_error("failed to queue presentation of image (" + std::string(string_VkResult(result)) + ")!");
+				//other non-success results are genuine errors:
+				throw std::runtime_error("Failed to acquire swapchain image (" + std::string(string_VkResult(result)) + ")!");
+			}
+
+			//call render function:
+			application.render(*this, RenderParams{
+				.workspace_index = workspace_index,
+				.image_index = image_index,
+				.image_available = workspaces[workspace_index].image_available,
+				.image_done = workspaces[workspace_index].image_done,
+				.workspace_available = workspaces[workspace_index].workspace_available,
+			});
+
+			{ //queue the work for presentation:
+				VkPresentInfoKHR present_info{
+					.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+					.waitSemaphoreCount = 1,
+					.pWaitSemaphores = &workspaces[workspace_index].image_done,
+					.swapchainCount = 1,
+					.pSwapchains = &swapchain,
+					.pImageIndices = &image_index,
+				};
+
+				assert(present_queue);
+
+				//note, again, the careful return handling:
+				if (VkResult result = vkQueuePresentKHR(present_queue, &present_info);
+					result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+					std::cerr << "Recreating swapchain because vkQueuePresentKHR returned " << string_VkResult(result) << "." << std::endl;
+					recreate_swapchain();
+					on_swapchain();
+				} else if (result != VK_SUCCESS) {
+					throw std::runtime_error("failed to queue presentation of image (" + std::string(string_VkResult(result)) + ")!");
+				}
+			}
+		} //end while (!glfwWindowShouldClose(window))
+	} //end else (windowed mode)
+
+	//tear down event handling (windowed mode only):
+	if (!configuration.headless) {
+		glfwSetMouseButtonCallback(window, nullptr);
+		glfwSetCursorPosCallback(window, nullptr);
+		glfwSetScrollCallback(window, nullptr);
+		glfwSetKeyCallback(window, nullptr);
+
+		glfwSetWindowUserPointer(window, nullptr);
+	}
+}
+
+void RTG::create_headless_images() {
+	// Create a fixed number of images (e.g., 3 for triple buffering)
+	uint32_t image_count = 3;
+	
+	headless_images.resize(image_count);
+	headless_image_memory.resize(image_count);
+	headless_image_views.resize(image_count);
+
+	swapchain_extent = configuration.surface_extent;
+	
+	for (uint32_t i = 0; i < image_count; ++i) {
+		// Create image
+		VkImageCreateInfo image_info{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.imageType = VK_IMAGE_TYPE_2D,
+			.format = surface_format.format,
+			.extent = {
+				.width = swapchain_extent.width,
+				.height = swapchain_extent.height,
+				.depth = 1
+			},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.tiling = VK_IMAGE_TILING_OPTIMAL,
+			.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		};
+		
+		VK(vkCreateImage(device, &image_info, nullptr, &headless_images[i]));
+		
+		// Allocate memory for image
+		VkMemoryRequirements mem_requirements;
+		vkGetImageMemoryRequirements(device, headless_images[i], &mem_requirements);
+		
+		VkPhysicalDeviceMemoryProperties mem_properties;
+		vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
+		
+		uint32_t memory_type_index = uint32_t(-1);
+		for (uint32_t j = 0; j < mem_properties.memoryTypeCount; ++j) {
+			if ((mem_requirements.memoryTypeBits & (1 << j)) &&
+				(mem_properties.memoryTypes[j].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+				memory_type_index = j;
+				break;
 			}
 		}
+		
+		if (memory_type_index == uint32_t(-1)) {
+			throw std::runtime_error("Failed to find suitable memory type for headless image.");
+		}
+		
+		VkMemoryAllocateInfo alloc_info{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = mem_requirements.size,
+			.memoryTypeIndex = memory_type_index,
+		};
+		
+		VK(vkAllocateMemory(device, &alloc_info, nullptr, &headless_image_memory[i]));
+		VK(vkBindImageMemory(device, headless_images[i], headless_image_memory[i], 0));
+		
+		// Create image view
+		VkImageViewCreateInfo view_info{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = headless_images[i],
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = surface_format.format,
+			.components{
+				.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+				.a = VK_COMPONENT_SWIZZLE_IDENTITY
+			},
+			.subresourceRange = {
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1,
+			},
+		};
+		
+		VK(vkCreateImageView(device, &view_info, nullptr, &headless_image_views[i]));
 	}
+	
+	// Populate swapchain_images and swapchain_image_views for compatibility
+	swapchain_images = headless_images;
+	swapchain_image_views = headless_image_views;
+	
+	if (configuration.debug) {
+		std::cout << "Created " << image_count << " headless images of size " 
+				  << swapchain_extent.width << "x" << swapchain_extent.height << "." << std::endl;
+	}
+}
 
-	//tear down event handling:
-	glfwSetMouseButtonCallback(window, nullptr);
-	glfwSetCursorPosCallback(window, nullptr);
-	glfwSetScrollCallback(window, nullptr);
-	glfwSetKeyCallback(window, nullptr);
-
-	glfwSetWindowUserPointer(window, nullptr);
+void RTG::destroy_headless_images() {
+	VK(vkDeviceWaitIdle(device));
+	
+	for (auto &image_view : headless_image_views) {
+		if (image_view != VK_NULL_HANDLE) {
+			vkDestroyImageView(device, image_view, nullptr);
+			image_view = VK_NULL_HANDLE;
+		}
+	}
+	
+	for (auto &image : headless_images) {
+		if (image != VK_NULL_HANDLE) {
+			vkDestroyImage(device, image, nullptr);
+			image = VK_NULL_HANDLE;
+		}
+	}
+	
+	for (auto &memory : headless_image_memory) {
+		if (memory != VK_NULL_HANDLE) {
+			vkFreeMemory(device, memory, nullptr);
+			memory = VK_NULL_HANDLE;
+		}
+	}
+	
+	headless_image_views.clear();
+	headless_images.clear();
+	headless_image_memory.clear();
+	swapchain_images.clear();
+	swapchain_image_views.clear();
 }

@@ -62,6 +62,11 @@ struct RTG {
 		// `--physical-device <name>` command-line flag
 		std::string physical_device_name = "";
 
+		//if set, run in headless mode, reading events from the given file:
+		// `--headless <events file>` command-line flag
+		std::string headless_events_filename = "";
+		bool headless = false;
+
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{
 			VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -130,6 +135,14 @@ struct RTG {
 	//swapchain management: (used from RTG::RTG(), RTG::~RTG(), and RTG::run() [on resize])
 	void recreate_swapchain();
 	void destroy_swapchain(); //NOTE: swapchain must exist
+
+	//headless mode: manually managed images (instead of swapchain)
+	std::vector< VkImage > headless_images;
+	std::vector< VkDeviceMemory > headless_image_memory;
+	std::vector< VkImageView > headless_image_views;
+
+	void create_headless_images();
+	void destroy_headless_images();
 	
 	//Workspaces hold dynamic state that must be kept separate between frames.
 	// RTG stores some synchronization primitives per workspace.

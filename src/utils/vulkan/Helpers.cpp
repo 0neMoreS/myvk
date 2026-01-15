@@ -329,8 +329,8 @@ void Helpers::transfer_to_image(
         uint32_t mip_height = target.extent.height;
 
         for (uint32_t mip_level = 0; mip_level < mipmap_data.size(); ++mip_level) {
-			size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * vkuFormatElementSize(target.format);
-            // size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * format_to_size[target.format];
+			// size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * vkuFormatElementSize(target.format);
+            size_t face_size_bytes = static_cast<size_t>(mip_width) * mip_height * format_to_size[target.format];
 
             for (uint32_t face = 0; face < face_count; ++face) {
                 VkBufferImageCopy region {

@@ -337,10 +337,8 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 		#if defined(__APPLE__)
 		device_extensions.emplace_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
 		#endif
-		//Add the swapchain extension (only in windowed mode):
-		if (!configuration.headless) {
-			device_extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-		}
+		//Add the swapchain extension
+		device_extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
 		{ //create the logical device:
 			std::vector< VkDeviceQueueCreateInfo > queue_create_infos;
@@ -416,7 +414,6 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			};
 
 			VK( vkCreateSemaphore(device, &create_info, nullptr, &workspace.image_available) );
-			VK( vkCreateSemaphore(device, &create_info, nullptr, &workspace.image_done) );
 		}
 	}
 
@@ -443,10 +440,6 @@ RTG::~RTG() {
 		if (workspace.image_available != VK_NULL_HANDLE) {
 			vkDestroySemaphore(device, workspace.image_available, nullptr);
 			workspace.image_available = VK_NULL_HANDLE;
-		}
-		if (workspace.image_done != VK_NULL_HANDLE) {
-			vkDestroySemaphore(device, workspace.image_done, nullptr);
-			workspace.image_done = VK_NULL_HANDLE;
 		}
 	}
 	workspaces.clear();
@@ -572,6 +565,17 @@ void RTG::recreate_swapchain() {
 		VK( vkCreateImageView(device, &create_info, nullptr, &swapchain_image_views[i]) );
 	}
 
+	//create one "image done" semaphore per swapchain image:
+	swapchain_image_done_semaphores.assign(swapchain_images.size(), VK_NULL_HANDLE);
+	{
+		VkSemaphoreCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		};
+		for (size_t i = 0; i < swapchain_image_done_semaphores.size(); ++i) {
+			VK( vkCreateSemaphore(device, &create_info, nullptr, &swapchain_image_done_semaphores[i]) );
+		}
+	}
+
 	if (configuration.debug) {
 		std::cout << "Swapchain is now " << swapchain_images.size() << " images of size " << swapchain_extent.width << "x" << swapchain_extent.height << "." << std::endl;
 	}
@@ -580,6 +584,15 @@ void RTG::recreate_swapchain() {
 
 void RTG::destroy_swapchain() {
 	VK( vkDeviceWaitIdle(device) ); //wait for any rendering to old swapchain to finish
+
+	//destroy per-swapchain-image semaphores:
+	for (auto &semaphore : swapchain_image_done_semaphores) {
+		if (semaphore != VK_NULL_HANDLE) {
+			vkDestroySemaphore(device, semaphore, nullptr);
+			semaphore = VK_NULL_HANDLE;
+		}
+	}
+	swapchain_image_done_semaphores.clear();
 
 	//clean up image views referencing the swapchain:
 	for (auto &image_view : swapchain_image_views) {
@@ -772,7 +785,7 @@ void RTG::run(Application &application) {
 				.workspace_index = workspace_index,
 				.image_index = image_index,
 				.image_available = workspaces[workspace_index].image_available,
-				.image_done = workspaces[workspace_index].image_done,
+				.image_done = swapchain_image_done_semaphores.at(image_index),
 				.workspace_available = workspaces[workspace_index].workspace_available,
 			});
 			
@@ -783,7 +796,7 @@ void RTG::run(Application &application) {
 				VkSubmitInfo wait_info{
 					.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 					.waitSemaphoreCount = 1,
-					.pWaitSemaphores = &workspaces[workspace_index].image_done,
+					.pWaitSemaphores = &swapchain_image_done_semaphores.at(image_index),
 					.pWaitDstStageMask = &wait_stage,
 					.commandBufferCount = 0, //no commands to execute
 				};
@@ -866,12 +879,14 @@ retry:
 				throw std::runtime_error("Failed to acquire swapchain image (" + std::string(string_VkResult(result)) + ")!");
 			}
 
+			VkSemaphore image_done = swapchain_image_done_semaphores.at(image_index);
+
 			//call render function:
 			application.render(*this, RenderParams{
 				.workspace_index = workspace_index,
 				.image_index = image_index,
 				.image_available = workspaces[workspace_index].image_available,
-				.image_done = workspaces[workspace_index].image_done,
+				.image_done = image_done,
 				.workspace_available = workspaces[workspace_index].workspace_available,
 			});
 
@@ -879,7 +894,7 @@ retry:
 				VkPresentInfoKHR present_info{
 					.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 					.waitSemaphoreCount = 1,
-					.pWaitSemaphores = &workspaces[workspace_index].image_done,
+					.pWaitSemaphores = &image_done,
 					.swapchainCount = 1,
 					.pSwapchains = &swapchain,
 					.pImageIndices = &image_index,
@@ -999,6 +1014,17 @@ void RTG::create_headless_images() {
 	// Populate swapchain_images and swapchain_image_views for compatibility
 	swapchain_images = headless_images;
 	swapchain_image_views = headless_image_views;
+
+	//create one "image done" semaphore per swapchain image:
+	swapchain_image_done_semaphores.assign(swapchain_images.size(), VK_NULL_HANDLE);
+	{
+		VkSemaphoreCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		};
+		for (size_t i = 0; i < swapchain_image_done_semaphores.size(); ++i) {
+			VK( vkCreateSemaphore(device, &create_info, nullptr, &swapchain_image_done_semaphores[i]) );
+		}
+	}
 	
 	if (configuration.debug) {
 		std::cout << "Created " << image_count << " headless images of size " 

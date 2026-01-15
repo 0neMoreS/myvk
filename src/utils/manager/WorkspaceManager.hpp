@@ -41,6 +41,7 @@ class WorkspaceManager {
             WorkspaceManager *manager = nullptr;
             std::vector<std::vector<DescriptorSetGroup>> pipeline_descriptor_set_groups; // [pipelines_index][descriptor_set_index]
             std::unordered_map<std::string, std::shared_ptr<BufferPair>> global_buffer_pairs; // buffer pairs not tied to any descriptor set
+            // unique_ptr
 
             void create(RTG& rtg);
             void destroy(RTG& rtg);

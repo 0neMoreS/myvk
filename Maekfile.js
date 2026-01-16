@@ -67,7 +67,7 @@ const a2_reflection_shaders = [
 
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
-const main_objs = [
+const common_objs = [
 	// Tutorial files
 	maek.CPP('./src/core/Tutorial/Tutorial.cpp'),
 	maek.CPP('./src/core/Tutorial/PosColVertex.cpp'),
@@ -99,13 +99,17 @@ const main_objs = [
 	maek.CPP('./src/utils/vulkan/RTG.cpp'),
 	maek.CPP('./src/utils/vulkan/Helpers.cpp'),
 	maek.CPP('./src/utils/vulkan/Vertex.cpp'),
-	maek.CPP('./src/main.cpp'),
 ];
 
-const main_exe = maek.LINK([...main_objs], 'bin/main');
+const main_obj = maek.CPP('./src/main.cpp');
+const cube_obj = maek.CPP('./src/cube.cpp');
+
+const main_exe = maek.LINK([...common_objs, main_obj], 'bin/main');
+const cube_exe = maek.LINK([...common_objs, cube_obj], 'bin/cube');
+
 
 //default targets:
-maek.TARGETS = [main_exe];
+maek.TARGETS = [main_exe, cube_exe];
 
 //- - - - - - - - - - - - - - - - - - - - -
 function custom_flags_and_rules() {

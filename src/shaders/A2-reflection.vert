@@ -33,9 +33,9 @@ void main() {
 	texCoord = TexCoord;
 
 	if(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL[3][3] == 1.0){
-		camera_view = position - CAMERA_POSITION.xyz;
+		camera_view = CAMERA_POSITION.xyz - position;
 	}
 	else{
-		camera_view = -normal;
+		camera_view = normal;
 	}
 }

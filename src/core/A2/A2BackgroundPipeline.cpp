@@ -116,7 +116,7 @@ void A2BackgroundPipeline::create(
 		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
 	}
 
-	create_pipeline(rtg, render_pass, subpass, false);
+	create_pipeline(rtg, render_pass, subpass, false, false); //disable depth and cull for background pipeline
 
 	vkDestroyShaderModule(rtg.device, frag_module, nullptr);
 	vkDestroyShaderModule(rtg.device, vert_module, nullptr);

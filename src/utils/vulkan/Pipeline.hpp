@@ -35,7 +35,7 @@ struct Pipeline
 	) = 0;
     virtual void destroy(RTG &) = 0;
     
-    void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true) {
+    void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true) {
         //shader code for vertex and fragment pipeline stages:
 		std::array< VkPipelineShaderStageCreateInfo, 2 > stages{
 			VkPipelineShaderStageCreateInfo{
@@ -83,7 +83,9 @@ struct Pipeline
 			.depthClampEnable = VK_FALSE,
 			.rasterizerDiscardEnable = VK_FALSE,
 			.polygonMode = VK_POLYGON_MODE_FILL,
-			.cullMode = VK_CULL_MODE_NONE,
+			.cullMode = static_cast<VkCullModeFlags>(
+				enable_cull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE
+			),
 			.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 			.depthBiasEnable = VK_FALSE,
 			.lineWidth = 1.0f,

@@ -10,7 +10,7 @@
 
 namespace Texture2DLoader {
 
-std::shared_ptr<Texture> load_image(
+std::unique_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
 	VkFilter filter
@@ -37,7 +37,7 @@ std::shared_ptr<Texture> load_image(
 	}
 
 	// Create GPU texture resource
-	auto texture = std::make_shared<Texture>();
+	auto texture = std::make_unique<Texture>();
 
 	// Create GPU image with transfer destination flag
 	texture->image = helpers.create_image(
@@ -67,7 +67,7 @@ std::shared_ptr<Texture> load_image(
 	return texture;
 }
 
-std::shared_ptr<Texture> create_rgb_texture(
+std::unique_ptr<Texture> create_rgb_texture(
     Helpers &helpers,
     const glm::vec3 &color,
     VkFilter filter
@@ -79,7 +79,7 @@ std::shared_ptr<Texture> create_rgb_texture(
         255, // alpha = 1.0
     };
 
-    auto texture = std::make_shared<Texture>();
+    auto texture = std::make_unique<Texture>();
     
     texture->image = helpers.create_image(
         VkExtent2D{.width = 1, .height = 1},
@@ -104,7 +104,7 @@ std::shared_ptr<Texture> create_rgb_texture(
     return texture;
 }
 
-void destroy(const std::shared_ptr<Texture> &texture, RTG& rtg) {
+void destroy(std::unique_ptr<Texture> texture, RTG& rtg) {
 	if (!texture) return;
 
 	if (texture->sampler != VK_NULL_HANDLE) {

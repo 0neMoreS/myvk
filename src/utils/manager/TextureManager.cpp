@@ -6,7 +6,7 @@ void TextureManager::destroy(RTG &rtg) {
     for (auto &material_slots : raw_2d_textures_by_material) {
         for (auto &texture_opt : material_slots) {
             if (texture_opt) {
-                Texture2DLoader::destroy(*texture_opt, rtg);
+                Texture2DLoader::destroy(std::move(*texture_opt), rtg);
             }
             texture_opt.reset();
         }
@@ -15,11 +15,11 @@ void TextureManager::destroy(RTG &rtg) {
     raw_2d_textures_by_material.clear();
 
     for (auto &cubemap_texture : raw_environment_cubemap_texture) {
-        TextureCubeLoader::destroy(cubemap_texture, rtg);
+        TextureCubeLoader::destroy(std::move(cubemap_texture), rtg);
     }
     raw_environment_cubemap_texture.clear();
 
-    Texture2DLoader::destroy(raw_brdf_LUT_texture, rtg);
+    Texture2DLoader::destroy(std::move(raw_brdf_LUT_texture), rtg);
     raw_brdf_LUT_texture = nullptr;
 
     if(texture_descriptor_pool != VK_NULL_HANDLE) {

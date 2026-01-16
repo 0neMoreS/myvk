@@ -29,7 +29,7 @@ class WorkspaceManager {
 
             struct DescriptorSetGroup {
                 VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-                std::vector<std::shared_ptr<Workspace::BufferPair>> buffer_pairs;
+                std::vector<Workspace::BufferPair*> buffer_pairs;
 
                 DescriptorSetGroup() = default;
                 ~DescriptorSetGroup();
@@ -40,7 +40,7 @@ class WorkspaceManager {
             VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
             WorkspaceManager *manager = nullptr;
             std::vector<std::vector<DescriptorSetGroup>> pipeline_descriptor_set_groups; // [pipelines_index][descriptor_set_index]
-            std::unordered_map<std::string, std::shared_ptr<BufferPair>> global_buffer_pairs; // buffer pairs not tied to any descriptor set
+            std::unordered_map<std::string, std::unique_ptr<BufferPair>> global_buffer_pairs; // buffer pairs not tied to any descriptor set
             // unique_ptr
 
             void create(RTG& rtg);

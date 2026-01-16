@@ -87,14 +87,14 @@ void WorkspaceManager::Workspace::create(RTG& rtg) {
 
             for(size_t binding_index = 0; binding_index < config.bindings_count; ++binding_index) {
                 // Initialize empty BufferPair
-                auto buffer_pair = std::make_shared<BufferPair>();
-                descriptor_set_group.buffer_pairs.push_back(buffer_pair);
+                // auto buffer_pair = std::make_shared<BufferPair>();
+                descriptor_set_group.buffer_pairs.push_back(nullptr);
             }
         }
     }
 
     for(auto &global_buffer_config : manager->global_buffer_configs) {
-        auto new_pair = std::make_shared<BufferPair>();
+        auto new_pair = std::make_unique<BufferPair>();
 
         new_pair->host = rtg.helpers.create_buffer(
             global_buffer_config.size, 
@@ -224,7 +224,7 @@ void WorkspaceManager::Workspace::update_global_descriptor(
     auto& buffer_pair = global_buffer_pairs[buffer_name];
     auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_set_index];
 
-    pipeline_descriptor_set_group.buffer_pairs[descriptor_index] = buffer_pair;
+    pipeline_descriptor_set_group.buffer_pairs[descriptor_index] = buffer_pair.get();
 
     { //point descriptor to the buffer:
         VkDescriptorBufferInfo buffer_info{

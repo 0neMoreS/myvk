@@ -56,7 +56,7 @@ void blit_tile_rgba8(
 
 } // namespace
 
-std::shared_ptr<Texture> load_from_png_atlas(
+std::unique_ptr<Texture> load_from_png_atlas(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter,
@@ -152,7 +152,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
     }
     
     // Create GPU cubemap image with mipmaps
-    auto texture = std::make_shared<Texture>();
+    auto texture = std::make_unique<Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = static_cast<uint32_t>(widths[0]), .height = static_cast<uint32_t>(heights[0] / 6) },
         VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -196,7 +196,7 @@ std::shared_ptr<Texture> load_from_png_atlas(
     return texture;
 }
 
-void destroy(const std::shared_ptr<Texture> &texture, RTG &rtg) {
+void destroy(std::unique_ptr<Texture> texture, RTG &rtg) {
     if (!texture) return;
 
     if (texture->sampler != VK_NULL_HANDLE) {

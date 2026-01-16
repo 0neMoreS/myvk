@@ -14,13 +14,13 @@ class TextureManager {
     public:
         VkDescriptorPool texture_descriptor_pool = VK_NULL_HANDLE;
         // Raw textures from document: textures_by_material[material_index][texture_slot]
-        std::vector< std::array< std::optional<std::shared_ptr<Texture2DLoader::Texture>>, 5 > > raw_2d_textures_by_material;
+        std::vector< std::array< std::optional<std::unique_ptr<Texture2DLoader::Texture>>, 5 > > raw_2d_textures_by_material;
 
         // 0: cubemaps, 1: irradiance map, 2 : prefilter map(with mipmaps)
-        std::vector<std::shared_ptr<TextureCubeLoader::Texture>> raw_environment_cubemap_texture;
+        std::vector<std::unique_ptr<TextureCubeLoader::Texture>> raw_environment_cubemap_texture;
 
         // BRDF LUT texture
-        std::shared_ptr<Texture2DLoader::Texture> raw_brdf_LUT_texture;
+        std::unique_ptr<Texture2DLoader::Texture> raw_brdf_LUT_texture;
             
         void create(
             RTG & rtg,

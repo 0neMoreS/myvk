@@ -22,7 +22,7 @@ void RenderPassManager::create(RTG& rtg) {
 				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+				.finalLayout = rtg.present_layout,
 			},
 			VkAttachmentDescription{ //1 - depth attachment:
 				.format = depth_format,

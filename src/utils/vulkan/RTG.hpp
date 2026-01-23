@@ -5,6 +5,7 @@
 #include "sejp.hpp"
 
 #include <vulkan/vulkan_core.h>
+#include <vulkan/utility/vk_format_utils.h>
 
 #include <array>
 #include <optional>
@@ -14,6 +15,8 @@
 #include <string>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <sstream>
+#include <fstream>
 
 
 struct GLFWwindow;
@@ -63,8 +66,6 @@ struct RTG {
 		std::string physical_device_name = "";
 
 		//if set, run in headless mode, reading events from the given file:
-		// `--headless <events file>` command-line flag
-		std::string headless_events_filename = "";
 		bool headless = false;
 
 		//requested (priority-ranked) formats for output surface: (will use first available)
@@ -121,6 +122,7 @@ struct RTG {
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkSurfaceFormatKHR surface_format{};
 	VkPresentModeKHR present_mode{};
+	VkImageLayout present_layout = VK_IMAGE_LAYOUT_UNDEFINED; //layout to put images in after render
 
 	//-------------------------------------------------
 	//Stuff used by 'run' to run the main loop (swapchain and workspaces):
@@ -139,13 +141,17 @@ struct RTG {
 	void recreate_swapchain();
 	void destroy_swapchain(); //NOTE: swapchain must exist
 
-	//headless mode: manually managed images (instead of swapchain)
-	std::vector< VkImage > headless_images;
-	std::vector< VkDeviceMemory > headless_image_memory;
-	std::vector< VkImageView > headless_image_views;
-
-	void create_headless_images();
-	void destroy_headless_images();
+	//in headless mode, we maintain our own swapchain:
+	VkCommandPool headless_command_pool = VK_NULL_HANDLE;
+	struct HeadlessSwapchainImage {
+		Helpers::AllocatedImage image; //on-GPU rendering target
+		Helpers::AllocatedBuffer buffer; //host memory to copy image to after rendering
+		VkCommandBuffer copy_command = VK_NULL_HANDLE; //copy image -> buffer
+		VkFence image_presented = VK_NULL_HANDLE; //fence to signal after copy finishes
+		std::string save_to = ""; //(if non-"") file to save to
+		void save() const; //save buffer to save_to
+	};
+	std::vector< HeadlessSwapchainImage > headless_swapchain;
 	
 	//Workspaces hold dynamic state that must be kept separate between frames.
 	// RTG stores some synchronization primitives per workspace.

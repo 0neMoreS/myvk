@@ -34,7 +34,7 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+				.finalLayout = rtg.present_layout,
 			},
 			VkAttachmentDescription{ //1 - depth attachment:
 				.format = depth_format,
@@ -1034,7 +1034,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						//draw all instances:
 						for (ObjectInstance const &inst : object_instances) {
-							uint32_t index = uint32_t(&inst - &object_instances[0]);
+							// uint32_t index = uint32_t(&inst - &object_instances[0]);
 
 							//bind texture descriptor set:
 							vkCmdBindDescriptorSets(
@@ -1046,7 +1046,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								0, nullptr //dynamic offsets count, ptr
 							);
 
-							vkCmdDraw(workspace.command_buffer, inst.vertices.count, 1, inst.vertices.first, index);
+							// vkCmdDraw(workspace.command_buffer, inst.vertices.count, 1, inst.vertices.first, index);
 						}
 					}
 				}

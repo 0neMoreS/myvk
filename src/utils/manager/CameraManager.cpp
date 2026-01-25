@@ -3,6 +3,7 @@
 #include "RTG.hpp"
 
 #include <cmath>
+#include <glm/gtc/constants.hpp>
 
 void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height) {
     cameras.clear();
@@ -61,6 +62,20 @@ void CameraManager::update(float dt) {
 	if (keys_down[GLFW_KEY_K]) {
 		theta += rotate_speed * dt;
 	}
+
+	// Mouse rotation (accumulated deltas from on_input)
+	if (mouse_look_enabled && mouse_look_held) {
+		// +dx to the right should yaw to the right; if this feels inverted, flip the sign.
+		phi -= pending_mouse_dx * mouse_sensitivity;
+		// +dy downward should pitch downward; if you prefer inverted Y, flip the sign.
+		theta += pending_mouse_dy * mouse_sensitivity;
+		pending_mouse_dx = 0.0f;
+		pending_mouse_dy = 0.0f;
+	}
+
+	// Clamp theta away from the poles to avoid flipping / NaNs
+	const float eps = 1e-3f;
+	theta = glm::clamp(theta, eps, glm::pi<float>() - eps);
 
 	// Calculate forward direction
 	active_camera.camera_forward = glm::normalize(glm::vec3(
@@ -192,14 +207,36 @@ void CameraManager::on_input(const InputEvent& event) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = false;
 		}
+	} else if (event.type == InputEvent::MouseButtonDown) {
+		if (mouse_look_enabled && event.button.button == GLFW_MOUSE_BUTTON_LEFT) {
+			mouse_look_held = true;
+			has_last_mouse_pos = false; // reset delta on first motion after press
+			pending_mouse_dx = 0.0f;
+			pending_mouse_dy = 0.0f;
+		}
+	} else if (event.type == InputEvent::MouseButtonUp) {
+		if (event.button.button == GLFW_MOUSE_BUTTON_LEFT) {
+			mouse_look_held = false;
+			has_last_mouse_pos = false;
+			pending_mouse_dx = 0.0f;
+			pending_mouse_dy = 0.0f;
+		}
 	} else if (event.type == InputEvent::MouseMotion) {
-		// Mouse motion handling can be added here if needed
-		// float dx = event.motion.x - last_mouse_x;
-		// float dy = event.motion.y - last_mouse_y;
-		// const float sensitivity = 0.0005f;
-		// camera_phi += dx * sensitivity;
-		// camera_theta += dy * sensitivity;
-		// last_mouse_x = event.motion.x;
-		// last_mouse_y = event.motion.y;
+		if (!mouse_look_enabled || !mouse_look_held) return;
+
+		const float x = event.motion.x;
+		const float y = event.motion.y;
+
+		if (!has_last_mouse_pos) {
+			has_last_mouse_pos = true;
+			last_mouse_x = x;
+			last_mouse_y = y;
+			return;
+		}
+
+		pending_mouse_dx += (x - last_mouse_x);
+		pending_mouse_dy += (y - last_mouse_y);
+		last_mouse_x = x;
+		last_mouse_y = y;
 	}
 }

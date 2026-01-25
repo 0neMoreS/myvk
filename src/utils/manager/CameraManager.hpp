@@ -79,6 +79,14 @@ private:
 	bool keys_down[GLFW_KEY_LAST + 1] = {};
 	float last_mouse_x = 0.0f;
 	float last_mouse_y = 0.0f;
+	bool has_last_mouse_pos = false;
+
+	// Right-mouse drag to control camera orientation:
+	bool mouse_look_enabled = true;
+	bool mouse_look_held = false;
+	float pending_mouse_dx = 0.0f;
+	float pending_mouse_dy = 0.0f;
+	float mouse_sensitivity = 0.0025f; // radians per pixel
 
 	// Camera parameters
 	const float move_speed = 10.0f;

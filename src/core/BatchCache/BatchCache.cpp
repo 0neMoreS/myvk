@@ -406,26 +406,25 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
-
-	VK( vkWaitForFences(rtg.device, 1, &render_params.workspace_available, VK_TRUE, UINT64_MAX) );
-    uint64_t query_result = 0;
-    VK( vkGetQueryPoolResults(
-        rtg.device,
-        queryPool,
-        0, 1,
-        sizeof(query_result),
-        &query_result,
-        sizeof(query_result),
-        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
-    ) );
-    std::cout << "VS invocations: " << query_result << std::endl;
 }
 
 
 void BatchCache::update(float dt) {
-
 }
 
 
-void BatchCache::on_input(InputEvent const &) {
+void BatchCache::on_input(InputEvent const & event) {
+	if(event.type == InputEvent::KeyDown && event.key.key == GLFW_KEY_TAB){
+		uint64_t query_result = 0;
+		VK( vkGetQueryPoolResults(
+			rtg.device,
+			queryPool,
+			0, 1,
+			sizeof(query_result),
+			&query_result,
+			sizeof(query_result),
+			VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
+		) );
+		std::cout << "VS invocations: " << query_result << std::endl;
+	}
 }

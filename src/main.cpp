@@ -17,8 +17,10 @@ int main(int argc, char **argv) {
 			.applicationVersion = VK_MAKE_VERSION(0,0,0),
 			.pEngineName = "Unknown",
 			.engineVersion = VK_MAKE_VERSION(0,0,0),
-			.apiVersion = VK_API_VERSION_1_3
+			.apiVersion = VK_API_VERSION_1_4
 		};
+
+		// configuration.workspaces = 1;
 
 		bool print_usage = false;
 
@@ -41,9 +43,9 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		// Tutorial application(rtg);
+		Tutorial application(rtg);
 		// A1 application(rtg, "origin-check.s72");
-		A2 application(rtg, "materials.s72");
+		// A2 application(rtg, "materials.s72");
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

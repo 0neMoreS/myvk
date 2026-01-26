@@ -1002,7 +1002,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 
 					//draw lines vertices:
-					vkCmdDraw(workspace.command_buffer, uint32_t(lines_vertices.size()), 1, 0, 0);
+					// vkCmdDraw(workspace.command_buffer, uint32_t(lines_vertices.size()), 1, 0, 0);
 				}
 
 				{ //draw with the objects pipeline:
@@ -1034,7 +1034,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 						//draw all instances:
 						for (ObjectInstance const &inst : object_instances) {
-							// uint32_t index = uint32_t(&inst - &object_instances[0]);
+							uint32_t index = uint32_t(&inst - &object_instances[0]);
 
 							//bind texture descriptor set:
 							vkCmdBindDescriptorSets(
@@ -1046,7 +1046,7 @@ void Tutorial::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								0, nullptr //dynamic offsets count, ptr
 							);
 
-							// vkCmdDraw(workspace.command_buffer, inst.vertices.count, 1, inst.vertices.first, index);
+							vkCmdDraw(workspace.command_buffer, inst.vertices.count, 1, inst.vertices.first, index);
 						}
 					}
 				}
@@ -1114,17 +1114,46 @@ void Tutorial::update(float dt) {
 		world.SKY_DIRECTION.y = 0.0f;
 		world.SKY_DIRECTION.z = 1.0f;
 
-		world.SKY_ENERGY.r = 0.1f;
-		world.SKY_ENERGY.g = 0.1f;
-		world.SKY_ENERGY.b = 0.2f;
+		constexpr float PERIOD = 2.0f; // seconds for full cycle
+        float phase = std::fmod(time, PERIOD) / PERIOD; // [0,1)
+
+        auto smooth01 = [](float x) {
+            // smoothstep(0,1,x)
+            x = std::max(0.0f, std::min(1.0f, x));
+            return x * x * (3.0f - 2.0f * x);
+        };
+        auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
+
+        float r = 0.0f, g = 0.0f, b = 0.0f;
+
+        if (phase < 1.0f / 3.0f) { // Red -> Green
+            float u = smooth01(phase * 3.0f);
+            r = lerp(1.0f, 0.0f, u);
+            g = lerp(0.0f, 1.0f, u);
+            b = 0.0f;
+        } else if (phase < 2.0f / 3.0f) { // Green -> Yellow
+            float u = smooth01((phase - 1.0f / 3.0f) * 3.0f);
+            r = lerp(0.0f, 1.0f, u);
+            g = 1.0f;
+            b = 0.0f;
+        } else { // Yellow -> Red
+            float u = smooth01((phase - 2.0f / 3.0f) * 3.0f);
+            r = 1.0f;
+            g = lerp(1.0f, 0.0f, u);
+            b = 0.0f;
+        }
+
+        world.SKY_ENERGY.r = r;
+        world.SKY_ENERGY.g = g;
+        world.SKY_ENERGY.b = b;
 
 		world.SUN_DIRECTION.x = 6.0f / 23.0f;
 		world.SUN_DIRECTION.y = 13.0f / 23.0f;
 		world.SUN_DIRECTION.z = 18.0f / 23.0f;
 
-		world.SUN_ENERGY.r = 1.0f;
-		world.SUN_ENERGY.g = 1.0f;
-		world.SUN_ENERGY.b = 0.9f;
+		world.SUN_ENERGY.r = 0.5f;
+		world.SUN_ENERGY.g = 0.5f;
+		world.SUN_ENERGY.b = 0.5f;
 	}
 
 	//make an 'x':

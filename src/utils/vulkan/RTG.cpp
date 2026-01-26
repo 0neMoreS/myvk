@@ -380,9 +380,14 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 				.runtimeDescriptorArray = VK_TRUE,
 			};
 
+			VkPhysicalDeviceFeatures device_features{
+				.pipelineStatisticsQuery = VK_TRUE
+			};
+
 			VkPhysicalDeviceFeatures2 device_features2{
 				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
 				.pNext = &indexing_features,
+				.features = device_features,
 			};
 
 			VkDeviceCreateInfo create_info{

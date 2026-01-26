@@ -4,11 +4,11 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/background.vert.inl"
+#include "../../shaders/spv/batch_cache.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/background.frag.inl"
+#include "../../shaders/spv/batch_cache.frag.inl"
 };
 
 void BatchCache::BatchCachePipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass) {
@@ -54,15 +54,6 @@ void BatchCache::BatchCachePipeline::create(RTG &rtg, VkRenderPass render_pass, 
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 			.dynamicStateCount = uint32_t(dynamic_states.size()),
 			.pDynamicStates = dynamic_states.data()
-		};
-
-		//this pipeline will take no per-vertex inputs:
-		VkPipelineVertexInputStateCreateInfo vertex_input_state{
-			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.vertexBindingDescriptionCount = 0,
-			.pVertexBindingDescriptions = nullptr,
-			.vertexAttributeDescriptionCount = 0,
-			.pVertexAttributeDescriptions = nullptr,
 		};
 
 		//this pipeline will draw triangles:
@@ -126,7 +117,7 @@ void BatchCache::BatchCachePipeline::create(RTG &rtg, VkRenderPass render_pass, 
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 			.stageCount = uint32_t(stages.size()),
 			.pStages = stages.data(),
-			.pVertexInputState = &vertex_input_state,
+			.pVertexInputState = &Vertex::array_input_state,
 			.pInputAssemblyState = &input_assembly_state,
 			.pViewportState = &viewport_state,
 			.pRasterizationState = &rasterization_state,

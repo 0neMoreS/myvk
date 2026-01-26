@@ -10,8 +10,11 @@
 struct BatchCache : RTG::Application {
 
 	BatchCache(RTG &);
+	BatchCache(RTG &, uint32_t max_indices);
 	BatchCache(BatchCache const &) = delete; //you shouldn't be copying this object
 	~BatchCache();
+
+	uint32_t MAX_INDICES;
 
 	//kept for use in destructor:
 	RTG &rtg;
@@ -42,23 +45,21 @@ struct BatchCache : RTG::Application {
 
 	//pools from which per-workspace things are allocated:
 	VkCommandPool command_pool = VK_NULL_HANDLE;
-	VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+	VkQueryPool queryPool = VK_NULL_HANDLE;
 	
 	//STEPX: Add descriptor pool here.
 
 	//workspaces hold per-render resources:
 	struct Workspace {
 		VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
-		
-		//location for lines data: (streamed to GPU per-frame)
-		Helpers::AllocatedBuffer vertices_src; //host coherent; mapped
-		Helpers::AllocatedBuffer vertices; //device-local
 	};
 	std::vector< Workspace > workspaces;
 
 	//-------------------------------------------------------------------
 	//static scene resources:
-
+	//location for lines data: (streamed to GPU per-frame)
+	Helpers::AllocatedBuffer vertices_buffer; //device-local
+	Helpers::AllocatedBuffer indices_buffer; //device-local
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
 
@@ -77,6 +78,7 @@ struct BatchCache : RTG::Application {
 	virtual void on_input(InputEvent const &) override;
 
 	std::vector< BatchCachePipeline::Vertex > vertices;
+	std::vector< uint32_t > indices;
 
 	//--------------------------------------------------------------------
 	//Rendering function, uses all the resources above to queue work to draw a frame:

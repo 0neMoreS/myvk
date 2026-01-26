@@ -44,8 +44,8 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		// BatchCache application(rtg);
-		Tutorial application(rtg);
+		BatchCache application(rtg, 100);
+		// Tutorial application(rtg);
 		// A1 application(rtg, "origin-check.s72");
 		// A2 application(rtg, "materials.s72");
 

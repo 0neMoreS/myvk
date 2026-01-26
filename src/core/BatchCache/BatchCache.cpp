@@ -14,7 +14,11 @@
 #include <cstring>
 #include <iostream>
 
-BatchCache::BatchCache(RTG &rtg_) : rtg(rtg_) {
+BatchCache::BatchCache(RTG &rtg_) : BatchCache(rtg_, 300000) {
+	//delegates to the other constructor
+}
+
+BatchCache::BatchCache(RTG &rtg_, uint32_t max_indices) : rtg(rtg_), MAX_INDICES(max_indices) {
 	//select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -111,32 +115,17 @@ BatchCache::BatchCache(RTG &rtg_) : rtg(rtg_) {
 		VK( vkCreateCommandPool(rtg.device, &create_info, nullptr, &command_pool) );
 	}
 
-	batchcache_pipeline.create(rtg, render_pass, 0);
-
-	{ //create descriptor pool:
-		uint32_t per_workspace = uint32_t(rtg.workspaces.size()); //for easier-to-read counting
-
-		std::array< VkDescriptorPoolSize, 2> pool_sizes{
-			VkDescriptorPoolSize{
-				.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount = 2 * per_workspace, //one descriptor per set, one set per workspace
-			},
-			VkDescriptorPoolSize{
-				.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1 * per_workspace, //one descriptor per set, one set per workspace
-			},
+	{ // create query pool
+		VkQueryPoolCreateInfo queryPoolInfo{
+			.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+			.queryType = VK_QUERY_TYPE_PIPELINE_STATISTICS,
+			.queryCount = 1,
+			.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT
 		};
-		
-		VkDescriptorPoolCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-			.flags = 0, //because CREATE_FREE_DESCRIPTOR_SET_BIT isn't included, *can't* free individual descriptors allocated from this pool
-			.maxSets = 3 * per_workspace, //one set per workspace
-			.poolSizeCount = uint32_t(pool_sizes.size()),
-			.pPoolSizes = pool_sizes.data(),
-		};
-
-		VK( vkCreateDescriptorPool(rtg.device, &create_info, nullptr, &descriptor_pool) );
+		VK( vkCreateQueryPool(rtg.device, &queryPoolInfo, nullptr, &queryPool) );
 	}
+
+	batchcache_pipeline.create(rtg, render_pass, 0);
 
 	workspaces.resize(rtg.workspaces.size());
 	for (Workspace &workspace : workspaces) {
@@ -150,6 +139,38 @@ BatchCache::BatchCache(RTG &rtg_) : rtg(rtg_) {
 			VK( vkAllocateCommandBuffers(rtg.device, &alloc_info, &workspace.command_buffer) );
 		}
 
+	}
+
+	{ // Three vertices and a bunch of indexes
+		vertices.push_back( {{-0.5f, -0.5f, 0.0f}} );
+		vertices.push_back( {{ 0.5f, -0.5f, 0.0f}} );
+		vertices.push_back( {{ 0.0f,  0.5f, 0.0f}} );
+
+		MAX_INDICES = max_indices;
+		
+		indices.resize(MAX_INDICES);
+		for (size_t i = 0; i < MAX_INDICES; i++) {
+			indices[i] = i % 3;
+		}
+	}
+
+	{ // create and copy buffers
+		size_t vertices_bytes = sizeof(vertices[0]) * vertices.size();
+		size_t indices_bytes = sizeof(indices[0]) * indices.size();
+
+		vertices_buffer = rtg.helpers.create_buffer(
+			vertices_bytes,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		);
+		indices_buffer = rtg.helpers.create_buffer(
+			indices_bytes,
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		);
+
+		rtg.helpers.transfer_to_buffer(vertices.data(), vertices_bytes, vertices_buffer);
+		rtg.helpers.transfer_to_buffer(indices.data(), indices_bytes, indices_buffer);
 	}
 }
 
@@ -169,22 +190,9 @@ BatchCache::~BatchCache() {
 			vkFreeCommandBuffers(rtg.device, command_pool, 1, &workspace.command_buffer);
 			workspace.command_buffer = VK_NULL_HANDLE;
 		}
-
-		if( workspace.vertices_src.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.vertices_src));
-		}
-		if( workspace.vertices.handle != VK_NULL_HANDLE) {
-			rtg.helpers.destroy_buffer(std::move(workspace.vertices));
-		}
 		//Transforms_descriptors freed when pool is destroyed.
 	}
 	workspaces.clear();
-
-	if (descriptor_pool) {
-		vkDestroyDescriptorPool(rtg.device, descriptor_pool, nullptr);
-		descriptor_pool = nullptr;
-		//(this also frees the descriptor sets allocated from the pool)
-	}
 
 	batchcache_pipeline.destroy(rtg);
 
@@ -193,10 +201,18 @@ BatchCache::~BatchCache() {
 		command_pool = VK_NULL_HANDLE;
 	}
 
+	if( queryPool != VK_NULL_HANDLE) {
+		vkDestroyQueryPool(rtg.device, queryPool, nullptr);
+		queryPool = VK_NULL_HANDLE;
+	}
+
 	if (render_pass != VK_NULL_HANDLE) {
 		vkDestroyRenderPass(rtg.device, render_pass, nullptr);
 		render_pass = VK_NULL_HANDLE;
 	}
+
+	rtg.helpers.destroy_buffer(std::move(vertices_buffer));
+	rtg.helpers.destroy_buffer(std::move(indices_buffer));
 }
 
 void BatchCache::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
@@ -292,27 +308,10 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		
 		VK( vkBeginCommandBuffer(workspace.command_buffer, &command_buffer_begin_info) );
 
-		{ //memory barrier to make sure copies complete before rendering happens:
-			VkMemoryBarrier memory_barrier{
-				.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-				.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-				.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
-			};
-
-			vkCmdPipelineBarrier( workspace.command_buffer,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, //srcStageMask
-				VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, //dstStageMask
-				0, //dependencyFlags
-				1, &memory_barrier, //memoryBarriers (count, data)
-				0, nullptr, //bufferMemoryBarriers (count, data)
-				0, nullptr //imageMemoryBarriers (count, data)
-			);
-		}
-
 		//render pass
 		{
 			std::array< VkClearValue, 2 > clear_values{
-				VkClearValue{ .color{ .float32{1.0f, 0.0f, 1.0f, 1.0f} } },
+				VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
 				VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
 			};
 			
@@ -327,6 +326,8 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.clearValueCount = uint32_t(clear_values.size()),
 				.pClearValues = clear_values.data(),
 			};
+
+			vkCmdResetQueryPool(workspace.command_buffer, queryPool, 0, 1);
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
@@ -355,13 +356,21 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, batchcache_pipeline.handle);
 
 					{ //use vertices (offset 0) as vertex buffer binding 0:
-						std::array< VkBuffer, 1 > vertex_buffers{ workspace.vertices.handle };
+						std::array< VkBuffer, 1 > vertex_buffers{ vertices_buffer.handle };
 						std::array< VkDeviceSize, 1 > offsets{ 0 };
 						vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
 					}
 
-					//draw lines vertices:
-					vkCmdDraw(workspace.command_buffer, uint32_t(vertices.size()), 1, 0, 0);
+					//bind index buffer:
+                	vkCmdBindIndexBuffer(workspace.command_buffer, indices_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+
+					vkCmdBeginQuery(workspace.command_buffer, queryPool, 0, 0);
+
+					{//draw lines vertices:
+						vkCmdDrawIndexed(workspace.command_buffer, uint32_t(indices.size()), 1, 0, 0, 0);
+					}
+					
+					vkCmdEndQuery(workspace.command_buffer, queryPool, 0);
 				}
 			}
 
@@ -397,6 +406,19 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
+
+	VK( vkWaitForFences(rtg.device, 1, &render_params.workspace_available, VK_TRUE, UINT64_MAX) );
+    uint64_t query_result = 0;
+    VK( vkGetQueryPoolResults(
+        rtg.device,
+        queryPool,
+        0, 1,
+        sizeof(query_result),
+        &query_result,
+        sizeof(query_result),
+        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
+    ) );
+    std::cout << "VS invocations: " << query_result << std::endl;
 }
 
 

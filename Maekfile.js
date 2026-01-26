@@ -25,6 +25,11 @@ custom_flags_and_rules();
 //(moved to a function so the build definition is closer to the top of the file)
 
 // shaders
+const batch_cache_shaders = [
+	maek.GLSLC('./src/shaders/batch_cache.vert'),
+	maek.GLSLC('./src/shaders/batch_cache.frag'),
+];
+
 const background_shaders = [
 	maek.GLSLC('./src/shaders/background.vert'),
 	maek.GLSLC('./src/shaders/background.frag'),
@@ -68,22 +73,25 @@ const a2_reflection_shaders = [
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
+	maek.CPP('./src/core/BatchCache/BatchCache.cpp'),
+	maek.CPP('./src/core/BatchCache/PosVertex.cpp'),
+	maek.CPP('./src/core/BatchCache/BatchCache-Pipeline.cpp', undefined, { depends: [...batch_cache_shaders] }),
 	// Tutorial files
 	maek.CPP('./src/core/Tutorial/Tutorial.cpp'),
 	maek.CPP('./src/core/Tutorial/PosColVertex.cpp'),
 	maek.CPP('./src/core/Tutorial/PosNorTexVertex.cpp'),
-	maek.CPP('./src/core/Tutorial/Tutorial-BackgroundPipeline.cpp', undefined, { depends:[...background_shaders] } ),
-	maek.CPP('./src/core/Tutorial/Tutorial-LinesPipeline.cpp', undefined, { depends:[...lines_shaders] } ),
-	maek.CPP('./src/core/Tutorial/Tutorial-ObjectsPipeline.cpp', undefined, { depends:[...objects_shaders] } ),
+	maek.CPP('./src/core/Tutorial/Tutorial-BackgroundPipeline.cpp', undefined, { depends: [...background_shaders] }),
+	maek.CPP('./src/core/Tutorial/Tutorial-LinesPipeline.cpp', undefined, { depends: [...lines_shaders] }),
+	maek.CPP('./src/core/Tutorial/Tutorial-ObjectsPipeline.cpp', undefined, { depends: [...objects_shaders] }),
 	// A1 files
 	maek.CPP('./src/core/A1/A1.cpp'),
-	maek.CPP('./src/core/A1/A1ObjectsPipeline.cpp', undefined, { depends:[...a1_load_shaders] } ),
+	maek.CPP('./src/core/A1/A1ObjectsPipeline.cpp', undefined, { depends: [...a1_load_shaders] }),
 	// A2 files
 	maek.CPP('./src/core/A2/A2.cpp'),
-	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends:[...a2_background_shaders] } ),
-	maek.CPP('./src/core/A2/A2LambertianPipeline.cpp', undefined, { depends:[...a2_lambertian_shaders] } ),
-	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends:[...a2_pbr_shaders] } ),
-	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends:[...a2_reflection_shaders] } ),
+	maek.CPP('./src/core/A2/A2BackgroundPipeline.cpp', undefined, { depends: [...a2_background_shaders] }),
+	maek.CPP('./src/core/A2/A2LambertianPipeline.cpp', undefined, { depends: [...a2_lambertian_shaders] }),
+	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends: [...a2_pbr_shaders] }),
+	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends: [...a2_reflection_shaders] }),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
@@ -159,31 +167,31 @@ function custom_flags_and_rules() {
 		maek.options.LINK = ['link.exe', '/nologo', '/SUBSYSTEM:CONSOLE', '/MACHINE:X64'];
 
 		if (IS_DEBUG) {
-            // Debug 配置
-            maek.options.CPP.push(
-                '/Z7',            // 调试信息（C7 兼容格式）
-                '/Od',            // 禁用优化
-                '/RTC1'           // 运行时检查（栈帧、未初始化变量）
-            );
-            maek.options.LINK.push(
-                '/DEBUG:FULL',    // 完整调试信息
-                '/INCREMENTAL:NO' // 禁用增量链接
-            );
-        } else {
-            // Release 配置
-            maek.options.CPP.push(
-                '/O2',            // 最大速度优化
-                '/Oi',            // 启用内部函数
-                '/GL',            // 全程序优化
-                '/DNDEBUG'        // 定义 NDEBUG 宏
-            );
-            maek.options.LINK.push(
-                '/LTCG',          // 链接时代码生成
-                '/OPT:REF',       // 移除未引用函数/数据
-                '/OPT:ICF',       // 合并相同的 COMDAT
-                '/INCREMENTAL:NO'
-            );
-        }
+			// Debug 配置
+			maek.options.CPP.push(
+				'/Z7',            // 调试信息（C7 兼容格式）
+				'/Od',            // 禁用优化
+				'/RTC1'           // 运行时检查（栈帧、未初始化变量）
+			);
+			maek.options.LINK.push(
+				'/DEBUG:FULL',    // 完整调试信息
+				'/INCREMENTAL:NO' // 禁用增量链接
+			);
+		} else {
+			// Release 配置
+			maek.options.CPP.push(
+				'/O2',            // 最大速度优化
+				'/Oi',            // 启用内部函数
+				'/GL',            // 全程序优化
+				'/DNDEBUG'        // 定义 NDEBUG 宏
+			);
+			maek.options.LINK.push(
+				'/LTCG',          // 链接时代码生成
+				'/OPT:REF',       // 移除未引用函数/数据
+				'/OPT:ICF',       // 合并相同的 COMDAT
+				'/INCREMENTAL:NO'
+			);
+		}
 
 		maek.options.CPPFlags = [
 			'/wd4100', //unused formal parameter
@@ -194,6 +202,7 @@ function custom_flags_and_rules() {
 			`/I./external/glfw-3.4.bin.WIN64/include`,
 			`/I./external/glm-1.0.3`,
 			`/I./external/stb`,
+			`/I./src/core/BatchCache`,
 			`/I./src/core/Tutorial`,
 			`/I./src/core/A1`,
 			`/I./src/core/A2`,
@@ -247,7 +256,7 @@ function custom_flags_and_rules() {
 
 	//- - - - - - - - - - - - -
 	//custom rule that runs glslc:
-	
+
 	maek.DEFAULT_OPTIONS.GLSLC = [`${VULKAN_SDK}/bin/glslc` + (maek.OS === 'windows' ? '.exe' : ''), '-Werror', '-g', '-mfmt=c', '--target-env=vulkan1.4'];
 	maek.DEFAULT_OPTIONS.GLSLCFlags = [];
 	maek.DEFAULT_OPTIONS.spirvSuffix = '.inl';
@@ -284,21 +293,21 @@ function custom_flags_and_rules() {
 			await maek.run(command, `${task.label}: compile`,
 				async () => {
 					return {
-						read:[glslFile],
-						written:[spirvFile]
+						read: [glslFile],
+						written: [spirvFile]
 					};
 				}
 			);
 
 			try {
-            let content = await fsPromises.readFile(spirvFile, "utf8");
+				let content = await fsPromises.readFile(spirvFile, "utf8");
 
-            content = content
-                .replace(/^\s*{\s*/, "")
-                .replace(/\s*};?\s*$/, "")
-                .trim();
+				content = content
+					.replace(/^\s*{\s*/, "")
+					.replace(/\s*};?\s*$/, "")
+					.trim();
 
-            await fsPromises.writeFile(spirvFile, content);
+				await fsPromises.writeFile(spirvFile, content);
 			} catch (err) {
 				console.error("Failed to strip braces from:", spirvFile, err);
 				throw err;
@@ -516,8 +525,8 @@ function init_maek() {
 			await run(command, `${task.label}: compile + prerequisites`,
 				async () => {
 					return {
-						read:[...await loadDeps()],
-						written:[objFile, depsFile]
+						read: [...await loadDeps()],
+						written: [objFile, depsFile]
 					};
 				}
 			);
@@ -558,8 +567,8 @@ function init_maek() {
 			await run(linkCommand, `${task.label}: link`,
 				async () => {
 					return {
-						read:[...objFiles],
-						written:[exeFile]
+						read: [...objFiles],
+						written: [exeFile]
 					};
 				}
 			);
@@ -596,8 +605,8 @@ function init_maek() {
 				//cache will have a 'files' and a 'hashes' line
 				if ('files' in loaded[command] && 'hashes' in loaded[command]) {
 					cache[command] = {
-						files:loaded[command].files,
-						hashes:loaded[command].hashes
+						files: loaded[command].files,
+						hashes: loaded[command].hashes
 					};
 					assigned += 1;
 				} else {
@@ -692,7 +701,7 @@ function init_maek() {
 
 		//store result in cache:
 		if (cacheInfoFn) {
-			const {read, written} = await cacheInfoFn();
+			const { read, written } = await cacheInfoFn();
 
 			//if hashed one of the written files before, can't rely on it:
 			for (const file of written) {
@@ -702,8 +711,8 @@ function init_maek() {
 			//update cache with file content hashes:
 			const files = [...read, ...written];
 			cache[cacheKey] = {
-				files:files,
-				hashes:await hashFiles([exe, ...files])
+				files: files,
+				hashes: await hashFiles([exe, ...files])
 			};
 		}
 
@@ -900,7 +909,7 @@ function init_maek() {
 			//remove task from 'running' list:
 			let i = running.indexOf(task);
 			console.assert(i !== -1, "running tasks must exist within running list");
-			running.splice(i,1);
+			running.splice(i, 1);
 		}
 
 		//ready up anything that can be:
@@ -911,7 +920,7 @@ function init_maek() {
 		}
 
 		//launch tasks until no more can be launched:
-		await new Promise((resolve,reject) => {
+		await new Promise((resolve, reject) => {
 			function pollTasks() {
 				//if can run something now, do so:
 				while (running.length < maek.JOBS && !CANCEL_ALL_TASKS && ready.length > 0) {

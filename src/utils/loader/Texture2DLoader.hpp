@@ -23,13 +23,15 @@ struct Texture {
 std::unique_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
-	VkFilter filter = VK_FILTER_LINEAR
+	VkFilter filter = VK_FILTER_LINEAR,
+	bool srgb = false
 );
 
 std::unique_ptr<Texture> create_rgb_texture(
     Helpers &helpers,
     const glm::vec3 &color,
-    VkFilter filter = VK_FILTER_LINEAR
+    VkFilter filter = VK_FILTER_LINEAR,
+	bool srgb = false
 );
 
 void destroy(std::unique_ptr<Texture> texture, RTG& rtg);

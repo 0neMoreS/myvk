@@ -49,13 +49,6 @@ const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
 //     {NY, 180},
 // };
 
-// Load a cubemap from a single PNG atlas containing 6 square faces stacked vertically
-std::unique_ptr<Texture> load_from_png_atlas(
-    Helpers &helpers,
-    const std::string &filepath,
-    VkFilter filter = VK_FILTER_LINEAR
-);
-
 std::unique_ptr<Texture> load_from_png_atlas(
     Helpers &helpers,
     const std::string &filepath,

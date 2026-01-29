@@ -223,6 +223,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							};
 
 							vkCmdPushConstants(workspace.command_buffer, objects_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+							std::cout << "Drawing object " << i << " with " << object_instances[i].object_ranges.count << " vertices. Begin at " << object_instances[i].object_ranges.first << std::endl;
 							vkCmdDraw(workspace.command_buffer, object_instances[i].object_ranges.count, 1, object_instances[i].object_ranges.first, i);
 						}
 					}

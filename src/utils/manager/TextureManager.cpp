@@ -44,7 +44,8 @@ void TextureManager::create(
             if (texture_opt.has_value()) {
                 const auto &texture = texture_opt.value();
                 std::string texture_path = s72_dir + texture.src;
-                texture_element = Texture2DLoader::load_image(rtg.helpers, texture_path, VK_FILTER_LINEAR);
+                std::cout << "Loading texture: " << texture_path << " with format: " << texture.format << std::endl;
+                texture_element = Texture2DLoader::load_image(rtg.helpers, texture_path, VK_FILTER_LINEAR, texture.format == "srgb");
             } else {
                 texture_element = Texture2DLoader::create_rgb_texture(rtg.helpers, fallback_color);
             }

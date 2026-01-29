@@ -87,7 +87,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main() {
 	// material properties
-	vec3 albedo = pow(texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz, vec3(2.2));
+	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
 	float roughness = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 3)], texCoord).x;
 	float metallic = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 4)], texCoord).x;
 
@@ -164,6 +164,7 @@ void main() {
 
 	// HDR tonemapping
 	vec3 ldr = aces_approx(color);
-	outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
+	// outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
+	outColor = vec4(ldr, 1.0);
 	// outColor = vec4(texture(Textures[nonuniformEXT(0)], vec2(max(dot(N, V), 0.0), roughness)).rg, 0.0, 1.0);
 }

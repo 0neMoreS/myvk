@@ -42,7 +42,7 @@ vec3 getNormalFromMap()
 
 void main() {
 	// material properties
-	vec3 albedo = pow(texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz, vec3(2.2));
+	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
 
 	// input lighting data
 	vec3 N = normalize(normal);
@@ -70,5 +70,6 @@ void main() {
 
 	// HDR tonemapping
 	vec3 ldr = aces_approx(color);
-	outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
+	// outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
+	outColor = vec4(ldr, 1.0);
 }

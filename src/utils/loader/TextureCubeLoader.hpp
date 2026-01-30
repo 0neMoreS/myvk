@@ -31,23 +31,23 @@ enum Face : size_t{
 
 // PNG atlas order: +X, -X, +Y, -Y, +Z, -Z (top to bottom)
 // Maps directly to Vulkan cubemap face order: PX, NX, PY, NY, PZ, NZ
-const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
-    {PX, 270}, // tile 0 (+X)  -> Vulkan layer 0 (PX)
-    {NX, 90},
-    {PZ, 0},
-    {NZ, 180},
-    {NY, 0},
-    {PY, 180},
-};
-
 // const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
-//     {PX, 90}, // tile 0 (+X)  -> Vulkan layer 0 (PX)
-//     {NX, 270},
-//     {NZ, 180},
+//     {PX, 270}, // tile 0 (+X)  -> Vulkan layer 0 (PX)
+//     {NX, 90},
 //     {PZ, 0},
-//     {PY, 0},
-//     {NY, 180},
+//     {NZ, 180},
+//     {NY, 0},
+//     {PY, 180},
 // };
+
+const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
+    {PY, 0}, // 4
+    {NY, 180}, // 5
+    {NZ, 270}, // 2
+    {PZ, 270}, // 3 
+    {NX, 270}, // 0
+    {PX, 90}, // 1
+};
 
 std::unique_ptr<Texture> load_from_png_atlas(
     Helpers &helpers,

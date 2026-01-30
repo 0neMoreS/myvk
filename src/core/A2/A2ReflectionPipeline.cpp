@@ -13,7 +13,7 @@ A2ReflectionPipeline::~A2ReflectionPipeline(){
 	assert(pipeline == VK_NULL_HANDLE);
 	assert(vert_module == VK_NULL_HANDLE);
 	assert(frag_module == VK_NULL_HANDLE);
-	assert(set0_PV == VK_NULL_HANDLE);
+	assert(set0_Global == VK_NULL_HANDLE);
     assert(set1_Transforms == VK_NULL_HANDLE);
 	assert(set2_CUBEMAP == VK_NULL_HANDLE);
 }
@@ -27,23 +27,29 @@ void A2ReflectionPipeline::create(
 	vert_module = rtg.helpers.create_shader_module(vert_code);
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 
-	{ // PV matrix layout
-        std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
-			VkDescriptorSetLayoutBinding{
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-			},
-		};
-		
-		VkDescriptorSetLayoutCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.bindingCount = uint32_t(bindings.size()),
-			.pBindings = bindings.data(),
-		};
+	{ //the set0_Global layout holds a PV matrix in a uniform buffer used in the vertex shader:
+        std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
+            VkDescriptorSetLayoutBinding{
+                .binding = 0,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1, // PV matrix
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1, // Light
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+        };
+        
+        VkDescriptorSetLayoutCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = uint32_t(bindings.size()),
+            .pBindings = bindings.data(),
+        };
 
-		VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_PV) );
+        VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_Global) );
     }
 
 	{ // the set1_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
@@ -123,7 +129,7 @@ void A2ReflectionPipeline::create(
 
 	{ //create pipeline layout:
 		std::array< VkDescriptorSetLayout, 3 > layouts{
-			set0_PV,
+			set0_Global,
 			set1_Transforms,
             set2_CUBEMAP,
 		};
@@ -149,7 +155,7 @@ void A2ReflectionPipeline::create(
 	block_descriptor_configs.push_back(
         BlockDescriptorConfig{
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
-        .layout = set0_PV, 
+        .layout = set0_Global, 
         .bindings_count = 2
     }); //Global
     block_descriptor_configs.push_back(
@@ -160,15 +166,16 @@ void A2ReflectionPipeline::create(
     }); //Transform
 
 	block_descriptor_set_name_to_index = {
-        {"PV", 0},
-		{"Transforms", 1},
+        {"Global", 0},
+        {"Transforms", 1}
     };
 
-	block_binding_name_to_index = {
-        // PV
+    block_binding_name_to_index = {
+        // Global
         {"PV", 0},
-		// Transforms
-		{"Transforms", 0},
+        {"Light", 1},
+        // Transforms
+        {"Transforms", 0},
     };
 
 	pipeline_name_to_index["A2ReflectionPipeline"] = 3;
@@ -184,9 +191,9 @@ void A2ReflectionPipeline::destroy(RTG &rtg) {
         layout = VK_NULL_HANDLE;
     }
 
-	if(set0_PV != VK_NULL_HANDLE) {
-		vkDestroyDescriptorSetLayout(rtg.device, set0_PV, nullptr);
-		set0_PV = VK_NULL_HANDLE;
+	if(set0_Global != VK_NULL_HANDLE) {
+		vkDestroyDescriptorSetLayout(rtg.device, set0_Global, nullptr);
+		set0_Global = VK_NULL_HANDLE;
 	}
 
     if (set1_Transforms != VK_NULL_HANDLE) {

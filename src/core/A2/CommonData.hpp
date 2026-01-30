@@ -9,17 +9,17 @@ namespace CommonData
     struct PV{
         glm::mat4 PERSPECTIVE;
         glm::mat4 VIEW;
-        glm::vec4 CAMERA_POSITION;
     };
 
-    static_assert(sizeof(PV) == 16*4 + 16*4 + 16, "PV is the expected size.");
+    static_assert(sizeof(PV) == 16*4 + 16*4, "PV is the expected size.");
 
     //types for descriptors:
     struct Light {
         glm::vec4 LIGHT_POSITION;
         glm::vec4 LIGHT_ENERGY;
+        glm::vec4 CAMERA_POSITION;
     };
-    static_assert(sizeof(Light) == 4*4 + 4*4, "Light is the expected size.");
+    static_assert(sizeof(Light) == 4*4 + 4*4 + 4*4, "Light is the expected size.");
 
     //types for descriptors:
     struct Transform {

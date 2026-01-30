@@ -13,7 +13,7 @@
 
 struct A2ReflectionPipeline : Pipeline {
     // type definitions
-    VkDescriptorSetLayout set0_PV = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set0_Global = VK_NULL_HANDLE;
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
     VkDescriptorSetLayout set2_CUBEMAP = VK_NULL_HANDLE;
     VkDescriptorSet set2_CUBEMAP_instance = VK_NULL_HANDLE;

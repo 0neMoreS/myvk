@@ -108,10 +108,18 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2ReflectionPipeline"], 
-		reflection_pipeline.block_descriptor_set_name_to_index["PV"], 
+		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
 		sizeof(CommonData::PV)
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A2ReflectionPipeline"], 
+		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
+		reflection_pipeline.block_binding_name_to_index["Light"], 
+		"Light",
+		sizeof(CommonData::Light)
 	);
 
 	scene_manager.create(rtg, doc);
@@ -375,7 +383,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						{ //bind Transforms descriptor_set set:
-							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
 							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A2ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
 							auto &textures_descriptor_set = reflection_pipeline.set2_CUBEMAP_instance;
 							std::array< VkDescriptorSet, 3 > descriptor_sets{
@@ -445,12 +453,10 @@ void A2::update(float dt) {
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
 		pv_matrix.VIEW = camera_manager.get_view();
-		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
-		light = CommonData::Light{
-			.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]),
-			.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f),
-		}; // assuming single light for now
+		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
+		light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
+		light.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 	}
 
 	{ // update object instances with frustum culling

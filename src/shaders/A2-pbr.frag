@@ -5,6 +5,7 @@
 layout(set=0,binding=1,std140) uniform Light {
     vec4 LIGHT_POSITION;
 	vec4 LIGHT_ENERGY;
+	vec4 CAMERA_POSITION;
 };
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
@@ -17,7 +18,6 @@ layout(push_constant) uniform Push {
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
 layout(location=2) in vec2 texCoord;
-layout(location=3) in vec3 camera_view;
 
 layout(location=0) out vec4 outColor;
 
@@ -93,7 +93,7 @@ void main() {
 
 	// input lighting data
 	vec3 N = getNormalFromMap();
-	vec3 V = normalize(camera_view);
+	vec3 V = normalize(CAMERA_POSITION.xyz - position);
 	vec3 R = reflect(-V, N); 
 
 	// calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
@@ -154,7 +154,7 @@ void main() {
 		// sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
 		const float MAX_REFLECTION_LOD = 5.0;
 		vec3 prefilteredColor = textureLod(ibl_cubemaps[1], R,  roughness * MAX_REFLECTION_LOD).xyz;    
-		vec2 brdf  = texture(Textures[nonuniformEXT(0)], vec2(max(dot(N, V), 0.0), roughness)).rg;
+		vec2 brdf  = texture(Textures[nonuniformEXT(0)], vec2(max(dot(N, V), 0.0), roughness)).xy;
 		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
 		vec3 ambient = kD * diffuse + specular;

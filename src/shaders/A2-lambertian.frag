@@ -5,6 +5,7 @@
 layout(set=0,binding=1,std140) uniform Light {
     vec4 LIGHT_POSITION;
 	vec4 LIGHT_ENERGY;
+	vec4 CAMERA_POSITION;
 };
 
 layout(set=2,binding=0) uniform samplerCube irradiance_map;
@@ -17,7 +18,6 @@ layout(push_constant) uniform Push {
 layout(location=0) in vec3 position;
 layout(location=1) in vec3 normal;
 layout(location=2) in vec2 texCoord;
-layout(location=3) in vec3 camera_view;
 
 layout(location=0) out vec4 outColor;
 

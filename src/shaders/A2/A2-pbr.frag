@@ -1,6 +1,6 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
-#include "tone_mapping.glsl"
+#include "../tone_mapping.glsl"
 
 layout(set=0,binding=1,std140) uniform Light {
     vec4 LIGHT_POSITION;

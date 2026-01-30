@@ -1,5 +1,5 @@
 #version 450
-#include "tone_mapping.glsl"
+#include "../tone_mapping.glsl"
 
 layout(set=0,binding=1,std140) uniform Light {
     vec4 LIGHT_POSITION;

@@ -41,12 +41,12 @@ enum Face : size_t{
 // };
 
 const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
-    {PY, 0}, // 4
-    {NY, 180}, // 5
-    {NZ, 270}, // 2
-    {PZ, 270}, // 3 
-    {NX, 270}, // 0
-    {PX, 90}, // 1
+    {PY, 0}, // front
+    {NY, 180}, // back
+    {NZ, 270}, // bottom
+    {PZ, 270}, // top 
+    {NX, 270}, // left
+    {PX, 90}, // right
 };
 
 std::unique_ptr<Texture> load_from_png_atlas(

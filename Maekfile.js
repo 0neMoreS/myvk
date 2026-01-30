@@ -26,48 +26,68 @@ custom_flags_and_rules();
 
 // shaders
 const batch_cache_shaders = [
-	maek.GLSLC('./src/shaders/batch_cache.vert'),
-	maek.GLSLC('./src/shaders/batch_cache.frag'),
+	maek.GLSLC('./src/shaders/Tutorial/batch_cache.vert'),
+	maek.GLSLC('./src/shaders/Tutorial/batch_cache.frag'),
 ];
 
 const background_shaders = [
-	maek.GLSLC('./src/shaders/background.vert'),
-	maek.GLSLC('./src/shaders/background.frag'),
+	maek.GLSLC('./src/shaders/Tutorial/background.vert'),
+	maek.GLSLC('./src/shaders/Tutorial/background.frag'),
 ];
 
 const lines_shaders = [
-	maek.GLSLC('./src/shaders/lines.vert'),
-	maek.GLSLC('./src/shaders/lines.frag'),
+	maek.GLSLC('./src/shaders/Tutorial/lines.vert'),
+	maek.GLSLC('./src/shaders/Tutorial/lines.frag'),
 ];
 
 const objects_shaders = [
-	maek.GLSLC('./src/shaders/objects.vert'),
-	maek.GLSLC('./src/shaders/objects.frag'),
+	maek.GLSLC('./src/shaders/Tutorial/objects.vert'),
+	maek.GLSLC('./src/shaders/Tutorial/objects.frag'),
 ];
 
 const a1_load_shaders = [
-	maek.GLSLC('./src/shaders/A1-load.vert'),
-	maek.GLSLC('./src/shaders/A1-load.frag'),
+	maek.GLSLC('./src/shaders/A1/A1-load.vert'),
+	maek.GLSLC('./src/shaders/A1/A1-load.frag'),
 ];
 
 const a2_background_shaders = [
-	maek.GLSLC('./src/shaders/A2-background.vert'),
-	maek.GLSLC('./src/shaders/A2-background.frag'),
+	maek.GLSLC('./src/shaders/A2/A2-background.vert'),
+	maek.GLSLC('./src/shaders/A2/A2-background.frag'),
 ];
 
 const a2_lambertian_shaders = [
-	maek.GLSLC('./src/shaders/A2-lambertian.vert'),
-	maek.GLSLC('./src/shaders/A2-lambertian.frag'),
+	maek.GLSLC('./src/shaders/A2/A2-lambertian.vert'),
+	maek.GLSLC('./src/shaders/A2/A2-lambertian.frag'),
 ];
 
 const a2_pbr_shaders = [
-	maek.GLSLC('./src/shaders/A2-pbr.vert'),
-	maek.GLSLC('./src/shaders/A2-pbr.frag'),
+	maek.GLSLC('./src/shaders/A2/A2-pbr.vert'),
+	maek.GLSLC('./src/shaders/A2/A2-pbr.frag'),
 ];
 
 const a2_reflection_shaders = [
-	maek.GLSLC('./src/shaders/A2-reflection.vert'),
-	maek.GLSLC('./src/shaders/A2-reflection.frag'),
+	maek.GLSLC('./src/shaders/A2/A2-reflection.vert'),
+	maek.GLSLC('./src/shaders/A2/A2-reflection.frag'),
+];
+
+const a3_background_shaders = [
+	maek.GLSLC('./src/shaders/A3/A3-background.vert'),
+	maek.GLSLC('./src/shaders/A3/A3-background.frag'),
+];
+
+const a3_lambertian_shaders = [
+	maek.GLSLC('./src/shaders/A3/A3-lambertian.vert'),
+	maek.GLSLC('./src/shaders/A3/A3-lambertian.frag'),
+];
+
+const a3_pbr_shaders = [
+	maek.GLSLC('./src/shaders/A3/A3-pbr.vert'),
+	maek.GLSLC('./src/shaders/A3/A3-pbr.frag'),
+];
+
+const a3_reflection_shaders = [
+	maek.GLSLC('./src/shaders/A3/A3-reflection.vert'),
+	maek.GLSLC('./src/shaders/A3/A3-reflection.frag'),
 ];
 
 //maek.CPP(...) builds a c++ file:
@@ -92,6 +112,12 @@ const common_objs = [
 	maek.CPP('./src/core/A2/A2LambertianPipeline.cpp', undefined, { depends: [...a2_lambertian_shaders] }),
 	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends: [...a2_pbr_shaders] }),
 	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends: [...a2_reflection_shaders] }),
+	// A3 files
+	maek.CPP('./src/core/A3/A3.cpp'),
+	maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),
+	maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
+	maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
+	maek.CPP('./src/core/A3/A3ReflectionPipeline.cpp', undefined, { depends: [...a3_reflection_shaders] }),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
@@ -260,7 +286,7 @@ function custom_flags_and_rules() {
 	maek.DEFAULT_OPTIONS.GLSLC = [`${VULKAN_SDK}/bin/glslc` + (maek.OS === 'windows' ? '.exe' : ''), '-Werror', '-g', '-mfmt=c', '--target-env=vulkan1.4'];
 	maek.DEFAULT_OPTIONS.GLSLCFlags = [];
 	maek.DEFAULT_OPTIONS.spirvSuffix = '.inl';
-	maek.DEFAULT_OPTIONS.spirvPrefix = '/spv/';
+	maek.DEFAULT_OPTIONS.spirvPrefix = '../spv/';
 
 	//maek.GLSLC is a rule to run google's "glslc" compiler:
 	// glslFile is the source file name (if it has a generic extension, make sure to add '-fshader-stage=...' option)
@@ -277,7 +303,7 @@ function custom_flags_and_rules() {
 			// spirvFileBase = path.relative('', options.spirvPrefix + glslFile, '');
 			const dir = path.dirname(glslFile);
 			const base = path.basename(glslFile);
-			spirvFileBase = path.join(dir, "spv", base);
+			spirvFileBase = path.join(dir, "../spv", base);
 		}
 
 		//object file gets os-dependent suffix:

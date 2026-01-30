@@ -44,7 +44,6 @@ void TextureManager::create(
             if (texture_opt.has_value()) {
                 const auto &texture = texture_opt.value();
                 std::string texture_path = s72_dir + texture.src;
-                std::cout << "Loading texture: " << texture_path << " with format: " << texture.format << std::endl;
                 texture_element = Texture2DLoader::load_image(rtg.helpers, texture_path, VK_FILTER_LINEAR, texture.format == "srgb");
             } else {
                 texture_element = Texture2DLoader::create_rgb_texture(rtg.helpers, fallback_color);
@@ -100,17 +99,21 @@ void TextureManager::create(
 
     {
         bool has_cubemap = doc->environments.size() > 0;
+        raw_environment_cubemap_texture.resize(3);
 
         { // Load environment and IBL cubemaps
             if(has_cubemap){
                 const auto &env = doc->environments[0];
                 const auto &radiance = env.radiance;
                 std::string texture_path = s72_dir + radiance.src;
-                raw_environment_cubemap_texture.resize(3);
                 
-                raw_environment_cubemap_texture[0] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
-                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
-                raw_environment_cubemap_texture[2] = TextureCubeLoader::load_from_png_atlas(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
+                raw_environment_cubemap_texture[0] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[2] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
+            } else {
+                raw_environment_cubemap_texture[0] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);
+                raw_environment_cubemap_texture[1] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);
+                raw_environment_cubemap_texture[2] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);
             }
         }
 

@@ -49,11 +49,16 @@ const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
     {PX, 90}, // right
 };
 
-std::unique_ptr<Texture> load_from_png_atlas(
+std::unique_ptr<Texture> load_cubemap(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter = VK_FILTER_LINEAR,
     uint32_t mipmap_levels = 1
+);
+
+std::unique_ptr<Texture> create_default_cubemap(
+    Helpers &helpers,
+    VkFilter filter
 );
 
 void destroy(std::unique_ptr<Texture> texture, RTG &rtg);

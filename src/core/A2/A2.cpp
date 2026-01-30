@@ -37,13 +37,10 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	lambertian_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
-	assert(lambertian_pipeline.pipeline != VK_NULL_HANDLE);
 
 	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
-	assert(pbr_pipeline.pipeline != VK_NULL_HANDLE);
 
 	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
-	assert(reflection_pipeline.pipeline != VK_NULL_HANDLE);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
@@ -455,7 +452,15 @@ void A2::update(float dt) {
 		pv_matrix.VIEW = camera_manager.get_view();
 
 		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
-		light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
+
+		if(doc->lights[0].sphere){
+			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
+		} else if(doc->lights[0].spot){
+			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].spot->power, 1.0f);
+		} else if(doc->lights[0].sun){
+			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sun->strength, 1.0f);
+		}
+
 		light.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 	}
 

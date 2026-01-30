@@ -56,7 +56,7 @@ void blit_tile_rgba8(
 
 } // namespace
 
-std::unique_ptr<Texture> load_from_png_atlas(
+std::unique_ptr<Texture> load_cubemap(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter,
@@ -192,6 +192,48 @@ std::unique_ptr<Texture> load_from_png_atlas(
     for (auto* data : pixel_data_levels) {
         stbi_image_free(data);
     }
+    
+    return texture;
+}
+
+std::unique_ptr<Texture> create_default_cubemap(
+    Helpers &helpers,
+    VkFilter filter
+) {
+    // Create a single black cubemap face
+    const size_t face_size = static_cast<size_t>(1) * static_cast<size_t>(1) * 4UL;
+    std::vector<float> face_data(face_size, 0.0f);
+    
+    // Create GPU cubemap image (single mipmap level)
+    auto texture = std::make_unique<Texture>();
+    texture->image = helpers.create_image(
+        VkExtent2D{ .width = 1, .height = 1 },
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        Helpers::Unmapped,
+        true,  // is_cube = true
+        1      // mipmap_levels = 1
+    );
+    
+    // Transfer black face data to GPU (6 faces, all identical)
+    std::vector<void*> mipmap_ptrs(1, face_data.data());
+    std::vector<size_t> mipmap_byte_sizes(1, face_data.size() * sizeof(float));
+    
+    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6);
+    
+    texture->image_view = TextureCommon::create_image_view(
+        helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true
+    );
+    texture->sampler = TextureCommon::create_sampler(
+        helpers.rtg.device,
+        filter,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+    );
     
     return texture;
 }

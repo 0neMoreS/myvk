@@ -232,6 +232,7 @@ function custom_flags_and_rules() {
 			`/I./src/core/Tutorial`,
 			`/I./src/core/A1`,
 			`/I./src/core/A2`,
+			`/I./src/core/A3`,
 			`/I./src/utils/general`,
 			`/I./src/utils/loader`,
 			`/I./src/utils/manager`,

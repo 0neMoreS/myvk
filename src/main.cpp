@@ -4,7 +4,7 @@
 #include "Tutorial.hpp"
 #include "A1.hpp"
 #include "A2.hpp"
-#include "A3.hpp"
+// #include "A3.hpp"
 
 #include <iostream>
 
@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
 		// BatchCache application(rtg, 1000000);
 		// Tutorial application(rtg);
 		// A1 application(rtg, "origin-check.s72");
-		// A2 application(rtg, "origin-check.s72");
-		A3 application(rtg, "origin-check.s72");
+		A2 application(rtg, "materials.s72");
+		// A3 application(rtg, "lights-Mix.s72");
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

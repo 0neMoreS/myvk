@@ -70,25 +70,25 @@ const a2_reflection_shaders = [
 	maek.GLSLC('./src/shaders/A2/A2-reflection.frag'),
 ];
 
-const a3_background_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-background.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-background.frag'),
-];
+// const a3_background_shaders = [
+// 	maek.GLSLC('./src/shaders/A3/A3-background.vert'),
+// 	maek.GLSLC('./src/shaders/A3/A3-background.frag'),
+// ];
 
-const a3_lambertian_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-lambertian.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-lambertian.frag'),
-];
+// const a3_lambertian_shaders = [
+// 	maek.GLSLC('./src/shaders/A3/A3-lambertian.vert'),
+// 	maek.GLSLC('./src/shaders/A3/A3-lambertian.frag'),
+// ];
 
-const a3_pbr_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-pbr.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-pbr.frag'),
-];
+// const a3_pbr_shaders = [
+// 	maek.GLSLC('./src/shaders/A3/A3-pbr.vert'),
+// 	maek.GLSLC('./src/shaders/A3/A3-pbr.frag'),
+// ];
 
-const a3_reflection_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-reflection.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-reflection.frag'),
-];
+// const a3_reflection_shaders = [
+// 	maek.GLSLC('./src/shaders/A3/A3-reflection.vert'),
+// 	maek.GLSLC('./src/shaders/A3/A3-reflection.frag'),
+// ];
 
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
@@ -113,11 +113,11 @@ const common_objs = [
 	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends: [...a2_pbr_shaders] }),
 	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends: [...a2_reflection_shaders] }),
 	// A3 files
-	maek.CPP('./src/core/A3/A3.cpp'),
-	maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),
-	maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
-	maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
-	maek.CPP('./src/core/A3/A3ReflectionPipeline.cpp', undefined, { depends: [...a3_reflection_shaders] }),
+	// maek.CPP('./src/core/A3/A3.cpp'),
+	// maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),
+	// maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
+	// maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
+	// maek.CPP('./src/core/A3/A3ReflectionPipeline.cpp', undefined, { depends: [...a3_reflection_shaders] }),
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),

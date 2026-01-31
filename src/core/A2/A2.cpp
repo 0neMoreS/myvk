@@ -450,6 +450,8 @@ void A2::update(float dt) {
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
 		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
+		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
 		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
 

@@ -15,22 +15,67 @@ layout(push_constant) uniform Push {
     uint MATERIAL_INDEX;
 } push;
 
-layout(location=0) in vec3 position;
+layout(location=0) in vec3 fragPos;
 layout(location=1) in vec3 normal;
 layout(location=2) in vec2 texCoord;
+layout(location=3) in vec3 tangentLightPos;
+layout(location=4) in vec3 tangentCameraPos;
+layout(location=5) in vec3 tangentFragPos;
 
 layout(location=0) out vec4 outColor;
 
 const float PI = 3.14159265359;
 
-vec3 getNormalFromMap()
-{
-    vec3 tangentNormal = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).xyz * 2.0 - 1.0; // sample nomal map
+vec2 ParallaxMapping(vec3 viewDir)
+{ 
+    // number of depth layers
+    const float minLayers = 8;
+    const float maxLayers = 32;
+    float numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 0.0, 1.0), viewDir)));  
+    // calculate the size of each layer
+    float layerDepth = 1.0 / numLayers;
+    // depth of current layer
+    float currentLayerDepth = 0.0;
+    // the amount to shift the texture coordinates per layer (from vector P)
+    vec2 P = viewDir.xy / viewDir.z * 0.001; // scale height
+    vec2 deltaTexCoords = P / numLayers;
+  
+    // get initial values
+    vec2  currentTexCoords = texCoord;
+    float currentDepthMapValue = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], currentTexCoords).r;
+      
+    while(currentLayerDepth < currentDepthMapValue)
+    {
+        // shift texture coordinates along direction of P
+        currentTexCoords -= deltaTexCoords;
+        // get depthmap value at current texture coordinates
+        currentDepthMapValue = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], currentTexCoords).r;  
+        // get depth of next layer
+        currentLayerDepth += layerDepth;  
+    }
+    
+    // get texture coordinates before collision (reverse operations)
+    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
 
-    vec3 Q1  = dFdx(position);
-    vec3 Q2  = dFdy(position);
-    vec2 st1 = dFdx(texCoord);
-    vec2 st2 = dFdy(texCoord);
+    // get depth after and before collision for linear interpolation
+    float afterDepth  = currentDepthMapValue - currentLayerDepth;
+    float beforeDepth = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], prevTexCoords).r - currentLayerDepth + layerDepth;
+ 
+    // interpolation of texture coordinates
+    float weight = afterDepth / (afterDepth - beforeDepth);
+    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
+
+    return finalTexCoords;
+}
+
+vec3 getNormalFromMap(vec2 mappedTexCoord)
+{
+    vec3 tangentNormal = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], mappedTexCoord).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(fragPos);
+    vec3 Q2  = dFdy(fragPos);
+    vec2 st1 = dFdx(mappedTexCoord);
+    vec2 st2 = dFdy(mappedTexCoord);
 
     vec3 N   = normalize(normal);
     vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
@@ -86,14 +131,21 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 }   
 
 void main() {
+	// offset texture coordinates with Parallax Mapping
+	vec3 viewDir = normalize(tangentCameraPos - tangentFragPos);
+	vec2 mappedTexCoord = ParallaxMapping(viewDir);       
+	// if(mappedTexCoord.x > 1.0 || mappedTexCoord.y > 1.0 || mappedTexCoord.x < 0.0 || mappedTexCoord.y < 0.0){
+	// 	discard; 
+	// }
+
 	// material properties
-	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
-	float roughness = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 3)], texCoord).x;
-	float metallic = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 4)], texCoord).x;
+	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], mappedTexCoord).xyz;
+	float roughness = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 3)], mappedTexCoord).x;
+	float metallic = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 4)], mappedTexCoord).x;
 
 	// input lighting data
-	vec3 N = getNormalFromMap();
-	vec3 V = normalize(CAMERA_POSITION.xyz - position);
+	vec3 N = getNormalFromMap(mappedTexCoord);
+	vec3 V = normalize(CAMERA_POSITION.xyz - fragPos);
 	vec3 R = reflect(-V, N); 
 
 	// calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
@@ -106,9 +158,9 @@ void main() {
 
 	{ // direct lighting
 		// calculate per-light radiance
-		vec3 L = normalize(LIGHT_POSITION.xyz - position);
+		vec3 L = normalize(LIGHT_POSITION.xyz - fragPos);
 		vec3 H = normalize(V + L);
-		float distance = length(LIGHT_POSITION.xyz - position);
+		float distance = length(LIGHT_POSITION.xyz - fragPos);
 		float attenuation = 1.0 / (distance * distance);
 		vec3 radiance = LIGHT_ENERGY.xyz * attenuation;
 		// Cook-Torrance BRDF

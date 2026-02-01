@@ -46,7 +46,7 @@ struct BatchCache : RTG::Application {
 
 	//pools from which per-workspace things are allocated:
 	VkCommandPool command_pool = VK_NULL_HANDLE;
-	VkQueryPool queryPool = VK_NULL_HANDLE;
+	VkQueryPool query_pool = VK_NULL_HANDLE;
 	
 	//STEPX: Add descriptor pool here.
 

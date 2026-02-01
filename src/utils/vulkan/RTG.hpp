@@ -68,6 +68,8 @@ struct RTG {
 		//if set, run in headless mode, reading events from the given file:
 		bool headless = false;
 
+		uint32_t index = 0;
+
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{
 			VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},

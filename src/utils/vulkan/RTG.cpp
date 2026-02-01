@@ -43,6 +43,11 @@ void RTG::Configuration::parse(int argc, char **argv) {
 		} else if (arg == "--headless"){
 			headless = true;
 		}
+		else if (arg == "--index") {
+			if (argi + 1 >= argc) throw std::runtime_error("--index requires a parameter (a index count).");
+			argi += 1;
+			index = std::stoul(argv[argi]);
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -54,6 +59,7 @@ void RTG::Configuration::usage(std::function< void(const char *, const char *) >
 	callback("--physical-device <name>", "Run on the named physical device (guesses, otherwise).");
 	callback("--drawing-size <w> <headless_image>", "Set the size of the surface to draw to.");
 	callback("--headless", "Don't create a window; read events from stdin.");
+	callback("--index <index>", "Set the index count.");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
@@ -272,6 +278,19 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			VK( vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &count, nullptr) );
 			present_modes.resize(count);
 			VK( vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &count, present_modes.data()) );
+		}
+
+		if(configuration.debug) {
+			std::cout << "Supported surface formats:\n";
+			for (size_t i = 0; i < formats.size(); ++i) {
+				auto const &format = formats[i];
+				std::cout << " [" << i << "] " << string_VkFormat(format.format) << "\n";
+			}
+			std::cout << "Supported present modes:\n";
+			for (size_t i = 0; i < present_modes.size(); ++i) {
+				auto const &mode = present_modes[i];
+				std::cout << " [" << i << "] " << string_VkPresentModeKHR(mode) << "\n";
+			}
 		}
 
 		//find first available surface format matching config:

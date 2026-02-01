@@ -122,7 +122,7 @@ BatchCache::BatchCache(RTG &rtg_, uint32_t max_indices) : rtg(rtg_), MAX_INDICES
 			.queryCount = 1,
 			.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT
 		};
-		VK( vkCreateQueryPool(rtg.device, &queryPoolInfo, nullptr, &queryPool) );
+		VK( vkCreateQueryPool(rtg.device, &queryPoolInfo, nullptr, &query_pool) );
 	}
 
 	batchcache_pipeline.create(rtg, render_pass, 0);
@@ -145,11 +145,9 @@ BatchCache::BatchCache(RTG &rtg_, uint32_t max_indices) : rtg(rtg_), MAX_INDICES
 		vertices.push_back( {{-0.5f, -0.5f, 0.0f}} );
 		vertices.push_back( {{ 0.5f, -0.5f, 0.0f}} );
 		vertices.push_back( {{ 0.0f,  0.5f, 0.0f}} );
-
-		MAX_INDICES = max_indices;
 		
-		indices.resize(MAX_INDICES);
-		for (size_t i = 0; i < MAX_INDICES; i++) {
+		indices.resize(max_indices);
+		for (size_t i = 0; i < max_indices; i++) {
 			indices[i] = i % 3;
 		}
 	}
@@ -201,9 +199,9 @@ BatchCache::~BatchCache() {
 		command_pool = VK_NULL_HANDLE;
 	}
 
-	if( queryPool != VK_NULL_HANDLE) {
-		vkDestroyQueryPool(rtg.device, queryPool, nullptr);
-		queryPool = VK_NULL_HANDLE;
+	if( query_pool != VK_NULL_HANDLE) {
+		vkDestroyQueryPool(rtg.device, query_pool, nullptr);
+		query_pool = VK_NULL_HANDLE;
 	}
 
 	if (render_pass != VK_NULL_HANDLE) {
@@ -327,7 +325,7 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.pClearValues = clear_values.data(),
 			};
 
-			vkCmdResetQueryPool(workspace.command_buffer, queryPool, 0, 1);
+			vkCmdResetQueryPool(workspace.command_buffer, query_pool, 0, 1);
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
@@ -364,13 +362,13 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					//bind index buffer:
                 	vkCmdBindIndexBuffer(workspace.command_buffer, indices_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
-					vkCmdBeginQuery(workspace.command_buffer, queryPool, 0, 0);
+					vkCmdBeginQuery(workspace.command_buffer, query_pool, 0, 0);
 
 					{//draw lines vertices:
 						vkCmdDrawIndexed(workspace.command_buffer, uint32_t(indices.size()), 1, 0, 0, 0);
 					}
 					
-					vkCmdEndQuery(workspace.command_buffer, queryPool, 0);
+					vkCmdEndQuery(workspace.command_buffer, query_pool, 0);
 				}
 			}
 
@@ -406,6 +404,18 @@ void BatchCache::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
+
+	uint64_t query_result = 0;
+		VK( vkGetQueryPoolResults(
+			rtg.device,
+			query_pool,
+			0, 1,
+			sizeof(query_result),
+			&query_result,
+			sizeof(query_result),
+			VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
+		) );
+	std::cout << "VS invocations: " << query_result << std::endl;
 }
 
 
@@ -414,17 +424,4 @@ void BatchCache::update(float dt) {
 
 
 void BatchCache::on_input(InputEvent const & event) {
-	if(event.type == InputEvent::KeyDown && event.key.key == GLFW_KEY_TAB){
-		uint64_t query_result = 0;
-		VK( vkGetQueryPoolResults(
-			rtg.device,
-			queryPool,
-			0, 1,
-			sizeof(query_result),
-			&query_result,
-			sizeof(query_result),
-			VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT
-		) );
-		std::cout << "VS invocations: " << query_result << std::endl;
-	}
 }

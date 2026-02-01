@@ -45,10 +45,10 @@ int main(int argc, char **argv) {
 		RTG rtg(configuration);
 
 		//initializes global (whole-life-of-application) resources:
-		// BatchCache application(rtg, 1000000);
-		// Tutorial application(rtg);
+		// BatchCache application(rtg, configuration.index);
+		Tutorial application(rtg);
 		// A1 application(rtg, "origin-check.s72");
-		A2 application(rtg, "materials.s72");
+		// A2 application(rtg, "materials.s72");
 		// A3 application(rtg, "lights-Mix.s72");
 
 		//main loop -- handles events, renders frames, etc:

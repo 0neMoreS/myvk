@@ -261,7 +261,10 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
 					std::vector<LightTreeData> &out_lights,
 					std::vector<CameraTreeData> &out_cameras,
 					std::vector<EnvironmentTreeData> &out_environments) {
-    
+    out_meshes.clear();
+    out_lights.clear();
+    out_cameras.clear();
+    out_environments.clear();
     // Start traversal from scene roots
     glm::mat4 identity(1.0f);
     

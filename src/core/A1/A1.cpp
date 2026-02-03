@@ -25,8 +25,14 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	objects_pipeline{},
 	scene_manager{},
 	texture_manager{},
-	framebuffer_manager{}
+	framebuffer_manager{},
+	mesh_tree_data{},
+	light_tree_data{},
+	camera_tree_data{},
+	environment_tree_data{}
 {
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
+
 	render_pass_manager.create(rtg);
 
 	texture_manager.create(rtg, doc, 1);
@@ -56,7 +62,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	scene_manager.create(rtg, doc);
 
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data);
 }
 
 A1::~A1() {
@@ -277,16 +283,15 @@ void A1::update(float dt) {
 
 	{
 		object_instances.clear();	
-		// Get frustum for culling
-		// auto frustum = camera_manager.get_frustum();
+		
+		SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
-		{
-			const auto& mesh = doc->meshes[i];
-			const auto& object_range = scene_manager.object_ranges[i];
-
-			for(auto &transform : mesh.transforms){
-				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
+		for(auto mtd : mesh_tree_data){
+			const size_t mesh_index = mtd.mesh_index;
+			const size_t material_index = mtd.material_index;
+			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
+			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			const auto& object_range = scene_manager.object_ranges[mesh_index];
 
 				// Transform local AABB to world AABB (8 corners method)
 				// const glm::vec3& bmin = object_range.aabb_min;
@@ -308,17 +313,14 @@ void A1::update(float dt) {
 				// 	continue;
 				// }
 
-				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-
-				object_instances.emplace_back(ObjectInstance{
-					.object_ranges = object_range,
-					.transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					},
-					.material_index = mesh.material_index.value_or(0),
-				});
-			}
+			object_instances.emplace_back(ObjectInstance{
+				.object_ranges = object_range,
+				.transform{
+					.MODEL = MODEL,
+					.MODEL_NORMAL = MODEL_NORMAL,
+				},
+				.material_index = material_index,
+			});
 		}
 	}
 }

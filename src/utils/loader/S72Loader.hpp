@@ -13,8 +13,17 @@
 #include <glm/gtc/quaternion.hpp>
 #include <concepts>
 #include <vector>
+#include <unordered_map>
 
 namespace S72Loader {
+
+inline std::unordered_map< std::string, size_t > node_map;  // node name -> index in doc->nodes
+inline std::unordered_map< std::string, size_t > mesh_map;  // mesh name -> index in doc->meshes
+inline std::unordered_map< std::string, size_t > camera_map;
+inline std::unordered_map< std::string, size_t > driver_map;  // driver name -> index in doc->drivers
+inline std::unordered_map< std::string, size_t > material_map;  // material name -> index in doc->materials
+inline std::unordered_map< std::string, size_t > environment_map;  // environment name -> index in doc->environments
+inline std::unordered_map< std::string, size_t > light_map;  // light name -> index in doc->lights
 
 struct DataStream {
 	std::string src;
@@ -34,11 +43,14 @@ struct Node {
 	glm::vec4 rotation{0.0, 0.0, 0.0, 1.0};
 	glm::vec3 scale{1.0, 1.0, 1.0};
 	std::vector<std::string> children;
-	std::vector<glm::mat4> transforms; // store all the transforms from parents
 	std::optional<std::string> mesh;
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
 	std::optional<std::string> light;
+	glm::vec3 aabb_min; // axis-aligned bounding box min
+	glm::vec3 aabb_max; // axis-aligned bounding box max
+	bool model_matrix_is_dirty;
+	bool world_aabb_is_dirty;
 };
 
 struct Mesh {
@@ -48,8 +60,6 @@ struct Mesh {
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
-	std::vector<glm::mat4> transforms;
-	std::optional<size_t> material_index;
 };
 
 struct Camera {
@@ -62,7 +72,6 @@ struct Camera {
 
 	std::string name;
 	std::optional<Perspective> perspective;
-	std::vector<glm::mat4> transforms;
 };
 
 struct Driver {
@@ -107,7 +116,6 @@ struct Material {
 struct Environment {
 	std::string name;
 	Texture radiance;
-	std::vector<glm::mat4> transforms;
 };
 
 struct Light {
@@ -136,7 +144,6 @@ struct Light {
 	std::optional<Sun> sun;
 	std::optional<Sphere> sphere;
 	std::optional<Spot> spot;
-	std::vector<glm::mat4> transforms;
 };
 
 struct Document {

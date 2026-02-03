@@ -28,8 +28,14 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
-	framebuffer_manager{}
+	framebuffer_manager{},
+	mesh_tree_data{},
+	light_tree_data{},
+	camera_tree_data{},
+	environment_tree_data{}
 {
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
+
 	render_pass_manager.create(rtg);
 
 	texture_manager.create(rtg, doc, 4);
@@ -121,7 +127,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	scene_manager.create(rtg, doc);
 
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data);
 }
 
 A2::~A2() {
@@ -447,13 +453,15 @@ void A2::update(float dt) {
 	// Update camera
 	camera_manager.update(dt);
 
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
+
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
 		pv_matrix.VIEW = camera_manager.get_view();
-		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
+		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
-		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
+		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 
 		if(doc->lights[0].sphere){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
@@ -473,84 +481,80 @@ void A2::update(float dt) {
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();
 
-		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
-		{
-			const auto& mesh = doc->meshes[i];
-			const auto& object_range = scene_manager.object_ranges[i];
-			std::optional<S72Loader::Material> material = mesh.material_index.has_value() ? std::optional<S72Loader::Material>{doc->materials[mesh.material_index.value()]} : std::nullopt;
+		for(auto &mtd : mesh_tree_data){
+			const size_t mesh_index = mtd.mesh_index;
+			const size_t material_index = mtd.material_index;
+			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
+			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			const auto& object_range = scene_manager.object_ranges[mesh_index];
+			std::optional<S72Loader::Material> material = doc->materials[material_index];
 
-			for(auto &transform : mesh.transforms){
-				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
+			// Transform local AABB to world AABB (8 corners method)
+			const glm::vec3& bmin = object_range.aabb_min;
+			const glm::vec3& bmax = object_range.aabb_max;
+			glm::vec3 corners[8] = {
+				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			};
+			glm::vec3 world_min(FLT_MAX);
+			glm::vec3 world_max(-FLT_MAX);
+			for (int c = 0; c < 8; ++c) {
+				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+				world_min = glm::min(world_min, wp);
+				world_max = glm::max(world_max, wp);
+			}
 
-				// Transform local AABB to world AABB (8 corners method)
-				const glm::vec3& bmin = object_range.aabb_min;
-				const glm::vec3& bmax = object_range.aabb_max;
-				glm::vec3 corners[8] = {
-					{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-					{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			// Frustum culling check with world-space AABB
+			if (!frustum.is_box_visible(world_min, world_max)) {
+				continue;
+			}
+
+			// reflective or environment material instance
+			if(material.has_value() && (material->mirror || material->environment)) {
+				ReflectionInstance reflection_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
 				};
-				glm::vec3 world_min(FLT_MAX);
-				glm::vec3 world_max(-FLT_MAX);
-				for (int c = 0; c < 8; ++c) {
-					glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-					world_min = glm::min(world_min, wp);
-					world_max = glm::max(world_max, wp);
+
+				if (material->mirror) {
+					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
+				} else {
+					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
 				}
 
-				// Frustum culling check with world-space AABB
-				if (!frustum.is_box_visible(world_min, world_max)) {
-					continue;
-				}
+				reflection_object_instances.emplace_back(std::move(reflection_inst));
+			}
 
-				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			// Lambertian material instance
+			if(material.has_value() && material->lambertian) {
+				LambertianInstance lambertian_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
 
-				// reflective or environment material instance
-				if(material.has_value() && (material->mirror || material->environment)) {
-					ReflectionInstance reflection_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
+				lambertian_object_instances.emplace_back(std::move(lambertian_inst));
+			}
 
-					if (material->mirror) {
-						reflection_inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
-					} else {
-						reflection_inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
-					}
+			// PBR material instance
+			if(material.has_value() && material->pbr) {
+				PBRInstance pbr_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
 
-					reflection_object_instances.emplace_back(std::move(reflection_inst));
-				}
-
-				// Lambertian material instance
-				if(material.has_value() && material->lambertian) {
-					LambertianInstance lambertian_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
-
-					lambertian_object_instances.emplace_back(std::move(lambertian_inst));
-				}
-
-				// PBR material instance
-				if(material.has_value() && material->pbr) {
-					PBRInstance pbr_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
-
-					pbr_object_instances.emplace_back(std::move(pbr_inst));
-				}
+				pbr_object_instances.emplace_back(std::move(pbr_inst));
 			}
 		}
 	}

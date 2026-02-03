@@ -5,25 +5,26 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height) {
+void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
     cameras.clear();
-	for(auto &camera : doc->cameras) {
-        for(auto &transform : camera.transforms) {
-            glm::mat3 blender_rotation = glm::mat3(transform);
-            glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f};
+	for(auto &ctd : camera_tree_data) {
+        glm::mat4 transform = ctd.model_matrix;
+		auto &camera = doc->cameras[ctd.camera_index];
 
-            cameras.emplace_back(CameraManager::Camera {
-                .camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]},
-                .camera_forward = BLENDER_TO_VULKAN_3 * blender_forward,
-                .camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
-				.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
-                .camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
-                .camera_height = swapchain_height,
-                .camera_width = swapchain_width,
-                .camera_near = camera.perspective.has_value() ? camera.perspective.value().near : 0.1f,
-                .camera_far = camera.perspective.has_value() ? (camera.perspective.value().far.has_value() ? camera.perspective.value().far.value() : 1000.0f) : 1000.0f,
-            });
-        }
+		glm::mat3 blender_rotation = glm::mat3(transform);
+		glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f};
+		cameras.emplace_back(CameraManager::Camera {
+			.camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]},
+			.camera_forward = BLENDER_TO_VULKAN_3 * blender_forward,
+			.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
+			.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
+			.camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
+			.camera_height = swapchain_height,
+			.camera_width = swapchain_width,
+			.camera_near = camera.perspective.has_value() ? camera.perspective.value().near : 0.1f,
+			.camera_far = camera.perspective.has_value() ? (camera.perspective.value().far.has_value() ? camera.perspective.value().far.value() : 1000.0f) : 1000.0f,
+		});
+        
     }
 
 	if(cameras.empty()) {

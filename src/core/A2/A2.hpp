@@ -20,6 +20,7 @@
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
 #include "VK.hpp"
+#include "SceneTree.hpp"
 
 #include "RTG.hpp"
 
@@ -92,6 +93,11 @@ struct A2 : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;
+	
+	std::vector< SceneTree::MeshTreeData > mesh_tree_data;
+	std::vector< SceneTree::LightTreeData > light_tree_data;
+	std::vector< SceneTree::CameraTreeData > camera_tree_data;
+	std::vector< SceneTree::EnvironmentTreeData > environment_tree_data;
 
 	//--------------------------------------------------------------------
 	//Rendering function, uses all the resources above to queue work to draw a frame:

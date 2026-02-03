@@ -121,6 +121,7 @@ const common_objs = [
 	// utility files
 	maek.CPP('./src/utils/general/sejp.cpp'),
 	maek.CPP('./src/utils/loader/S72Loader.cpp'),
+	maek.CPP('./src/utils/general/SceneTree.cpp'),
 	maek.CPP('./src/utils/loader/TextureCommon.cpp'),
 	maek.CPP('./src/utils/loader/Texture2DLoader.cpp'),
 	maek.CPP('./src/utils/loader/TextureCubeLoader.cpp'),

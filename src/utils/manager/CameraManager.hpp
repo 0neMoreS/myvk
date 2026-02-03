@@ -2,6 +2,7 @@
 
 #include "S72Loader.hpp"
 #include "InputEvent.hpp"
+#include "SceneTree.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -43,7 +44,7 @@ public:
 	~CameraManager() = default;
 
 	// create cameras from S72 document
-	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height);
+	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
 
 	// Update camera state (called every frame)
 	void update(float dt);

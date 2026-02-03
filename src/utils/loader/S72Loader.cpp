@@ -11,7 +11,6 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
-#include <unordered_map>
 #include <unordered_set>
 #include <iostream>
 
@@ -209,6 +208,10 @@ Node parse_node(Object const &obj) {
 	node.camera = optional_string(obj, "camera");
 	node.environment = optional_string(obj, "environment");
 	node.light = optional_string(obj, "light");
+	node.aabb_min = {-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()};
+	node.aabb_max = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
+	node.model_matrix_is_dirty = true;
+	node.world_aabb_is_dirty = true;
 	return node;
 }
 
@@ -362,13 +365,6 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 	auto doc = std::make_shared<Document>();
 
 	bool scene_set = false;
-	std::unordered_map< std::string, size_t > node_lookup;  // node name -> index in doc->nodes
-	std::unordered_map< std::string, size_t > mesh_lookup;  // mesh name -> index in doc->meshes
-	std::unordered_map< std::string, size_t > camera_lookup;
-	std::unordered_map< std::string, size_t > driver_lookup;  // driver name -> index in doc->drivers
-	std::unordered_map< std::string, size_t > material_lookup;  // material name -> index in doc->materials
-	std::unordered_map< std::string, size_t > environment_lookup;  // environment name -> index in doc->environments
-	std::unordered_map< std::string, size_t > light_lookup;  // light name -> index in doc->lights
 
 	for (size_t i = 1; i < arr_opt->size(); ++i) {
 		auto const &entry = (*arr_opt)[i];
@@ -380,43 +376,43 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 			scene_set = true;
 		} else if (type == "NODE") {
 			Node node = parse_node(obj);
-			if (!node_lookup.emplace(node.name, doc->nodes.size()).second) {
+			if (!node_map.emplace(node.name, doc->nodes.size()).second) {
 				S72_ERROR("NODE", std::string("duplicate name '") + node.name + "'");
 			}
 			doc->nodes.push_back(std::move(node));
 		} else if (type == "MESH") {
 			auto mesh = parse_mesh(obj);
-			if (!mesh_lookup.emplace(mesh.name, doc->meshes.size()).second) {
+			if (!mesh_map.emplace(mesh.name, doc->meshes.size()).second) {
 				S72_ERROR("MESH", std::string("duplicate name '") + mesh.name + "'");
 			}
 			doc->meshes.push_back(std::move(mesh));
 		} else if (type == "CAMERA") {
 			auto cam = parse_camera(obj);
-			if (!camera_lookup.emplace(cam.name, doc->cameras.size()).second) {
+			if (!camera_map.emplace(cam.name, doc->cameras.size()).second) {
 				S72_ERROR("CAMERA", std::string("duplicate name '") + cam.name + "'");
 			}
 			doc->cameras.push_back(std::move(cam));
 		} else if (type == "DRIVER") {
 			auto driver = parse_driver(obj);
-			if (!driver_lookup.emplace(driver.name, doc->drivers.size()).second) {
+			if (!driver_map.emplace(driver.name, doc->drivers.size()).second) {
 				S72_ERROR("DRIVER", std::string("duplicate name '") + driver.name + "'");
 			}
 			doc->drivers.push_back(std::move(driver));
 		} else if (type == "MATERIAL") {
 			auto mat = parse_material(obj);
-			if (!material_lookup.emplace(mat.name, doc->materials.size()).second) {
+			if (!material_map.emplace(mat.name, doc->materials.size()).second) {
 				S72_ERROR("MATERIAL", std::string("duplicate name '") + mat.name + "'");
 			}
 			doc->materials.push_back(std::move(mat));
 		} else if (type == "ENVIRONMENT") {
 			auto env = parse_environment(obj);
-			if (!environment_lookup.emplace(env.name, doc->environments.size()).second) {
+			if (!environment_map.emplace(env.name, doc->environments.size()).second) {
 				S72_ERROR("ENVIRONMENT", std::string("duplicate name '") + env.name + "'");
 			}
 			doc->environments.push_back(std::move(env));
 		} else if (type == "LIGHT") {
 			auto light = parse_light(obj);
-			if (!light_lookup.emplace(light.name, doc->lights.size()).second) {
+			if (!light_map.emplace(light.name, doc->lights.size()).second) {
 				S72_ERROR("LIGHT", std::string("duplicate name '") + light.name + "'");
 			}
 			doc->lights.push_back(std::move(light));
@@ -425,115 +421,11 @@ std::shared_ptr<Document> parse_document(sejp::value const &root) {
 		}
 	}
 	if (!scene_set) S72_ERROR("", "File must contain exactly one SCENE");
-
-	//BFS Build Tree with Transform Matrices (supporting multiple parent paths)
-	{	
-        std::queue< size_t > bfs_queue;
-        std::unordered_set< size_t > visited;  // Track processed nodes
-
-        // Initialize root nodes with identity transform
-        for (const auto &root_name : doc->scene.roots) {
-            auto it = node_lookup.find(root_name);
-            if (it == node_lookup.end()) {
-                S72_ERROR("SCENE.roots", std::string("unknown root '") + root_name + "'");
-            }
-            size_t root_index = it->second;
-            doc->nodes[root_index].transforms.push_back(glm::mat4(1.0f));  // Identity matrix
-            bfs_queue.push(root_index);
-            visited.insert(root_index);
-        }
-
-        while (!bfs_queue.empty()) {
-            auto node_index = bfs_queue.front();
-            bfs_queue.pop();
-            Node &node = doc->nodes[node_index];
-
-            // Compute the local TRS matrix for this node
-            glm::mat4 T = glm::translate(glm::mat4(1.0f), node.translation);
-            glm::mat4 R = glm::mat4_cast(glm::quat(node.rotation.w, node.rotation.x, node.rotation.y, node.rotation.z));
-            glm::mat4 S = glm::scale(glm::mat4(1.0f), node.scale);
-            glm::mat4 local_transform = T * R * S;
-
-            // Process children nodes - pass cumulative transform to each child
-            for (auto const &child_name : node.children) {
-                auto it = node_lookup.find(child_name);
-                if (it == node_lookup.end()) {
-                    S72_ERROR("NODE.children", std::string("unknown child '") + child_name + "'");
-                }
-                size_t child_index = it->second;
-                auto &child_node = doc->nodes[child_index];
-                
-                // Compute the cumulative transform
-                for (const auto& parent_transform : node.transforms) {
-                    child_node.transforms.push_back(parent_transform * local_transform);
-                }
-                
-                // Only enqueue if not yet visited
-                if (visited.find(child_index) == visited.end()) {
-                    bfs_queue.push(child_index);
-                    visited.insert(child_index);
-                }
-            }
-
-            // Push cumulative transform to leaf nodes
-            if (node.mesh) {
-                auto mit = mesh_lookup.find(*node.mesh);
-                if (mit == mesh_lookup.end()) {
-                    S72_ERROR("NODE.mesh", std::string("unknown mesh '") + *node.mesh + "'");
-                }
-                auto &mesh = doc->meshes[mit->second];
-                for (const auto& node_transform : node.transforms) {
-                    mesh.transforms.push_back(node_transform * local_transform);
-                }
-
-                if (mesh.material) {
-                    auto it = material_lookup.find(mesh.material.value());
-                    if (it == material_lookup.end()) {
-                        S72_ERROR("MESH.material", std::string("unknown material '") + mesh.material.value() + "'");
-                    }
-                    mesh.material_index = it->second;
-                }
-            }
-
-            if (node.camera) {
-                auto cit = camera_lookup.find(*node.camera);
-                if (cit == camera_lookup.end()) {
-                    S72_ERROR("NODE.camera", std::string("unknown camera '") + *node.camera + "'");
-                }
-                auto &camera = doc->cameras[cit->second];
-                for (const auto& node_transform : node.transforms) {
-                    camera.transforms.push_back(node_transform * local_transform);
-                }
-            }
-
-            if (node.environment) {
-                auto eit = environment_lookup.find(*node.environment);
-                if (eit == environment_lookup.end()) {
-                    S72_ERROR("NODE.environment", std::string("unknown environment '") + *node.environment + "'");
-                }
-                auto &env = doc->environments[eit->second];
-                for (const auto& node_transform : node.transforms) {
-                    env.transforms.push_back(node_transform * local_transform);
-                }
-            }
-
-            if (node.light) {
-                auto lit = light_lookup.find(*node.light);
-                if (lit == light_lookup.end()) {
-                    S72_ERROR("NODE.light", std::string("unknown light '") + *node.light + "'");
-                }
-                auto &light = doc->lights[lit->second];
-                for (const auto& node_transform : node.transforms) {
-                    light.transforms.push_back(node_transform * local_transform);
-                }
-            }
-        }
-    }
 	
 	return doc;
 }
 
-} // namespace
+} // namespace S72Loader
 
 std::shared_ptr<Document> load_file(std::string const &path) {
 	auto root = sejp::load(path);

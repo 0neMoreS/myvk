@@ -453,6 +453,7 @@ void A2::update(float dt) {
 	// Update camera
 	camera_manager.update(dt);
 
+	SceneTree::update_animation(doc, time);
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	{ // update global data

@@ -31,6 +31,13 @@ struct EnvironmentTreeData
 	size_t environment_index;
 };
 
+struct NodeTRS {
+    glm::vec3 translation = glm::vec3(0.0f);
+    glm::vec4 rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
+};
+
+inline std::unordered_map<std::string, NodeTRS> node_trs_cache;
 
 void traverse_scene(std::shared_ptr<S72Loader::Document> doc, 
 					std::vector<MeshTreeData> &out_meshes,
@@ -43,6 +50,8 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc, const std::string 
 // Update AABBs bottom-up using mesh AABBs from object_ranges
 // object_ranges is indexed by mesh_index to get the local AABB of each mesh
 void update_aabbs(std::shared_ptr<S72Loader::Document> doc, const std::vector<SceneManager::ObjectRange> &object_ranges);
+
+void update_animation(std::shared_ptr<S72Loader::Document> doc, float time);
 
 // Clear the world matrix cache (call when scene is reloaded)
 void clear_cache();

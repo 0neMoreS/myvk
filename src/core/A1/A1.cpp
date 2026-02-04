@@ -271,7 +271,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 void A1::update(float dt) {
-	time = std::fmod(time + dt, 60.0f);
+	time = fmod(time + dt, 60.0f);
 
 	// Update camera
 	camera_manager.update(dt);
@@ -284,6 +284,8 @@ void A1::update(float dt) {
 	{
 		object_instances.clear();	
 		
+		SceneTree::update_animation(doc, time);
+
 		SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 		for(auto mtd : mesh_tree_data){

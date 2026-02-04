@@ -71,8 +71,11 @@ void traverse_node(std::shared_ptr<S72Loader::Document> doc,
                    std::vector<MeshTreeData> &out_meshes,
                    std::vector<LightTreeData> &out_lights,
                    std::vector<CameraTreeData> &out_cameras,
-                   std::vector<EnvironmentTreeData> &out_environments) {
+                   std::vector<EnvironmentTreeData> &out_environments
+                   ) {
     S72Loader::Node &node = doc->nodes[node_index];
+
+    node_trs_cache[node.name] = NodeTRS{node.translation, node.rotation, node.scale};
     
     // Compute world matrix for this node
     glm::mat4 world_matrix = compute_world_matrix(doc, node_index, parent_matrix);
@@ -281,10 +284,6 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
                     const glm::vec3 &T,
                     const glm::vec4 &R,
                     const glm::vec3 &S) {
-    if (!doc) {
-        return;
-    }
-    
     // Find node by name using global node_map
     auto it = S72Loader::node_map.find(node_name);
     if (it == S72Loader::node_map.end()) {
@@ -293,10 +292,6 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
     
     size_t node_index = it->second;
     S72Loader::Node &node = doc->nodes[node_index];
-    
-    // Decompose the transform matrix to extract translation, rotation, scale
-    // Apply the transform to the current node's local transform
-    glm::mat4 transform = compute_local_matrix(T, R, S);
 
     node.translation = T;
     node.scale = S;
@@ -313,11 +308,7 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
 }
 
 void update_aabbs(std::shared_ptr<S72Loader::Document> doc, 
-                  const std::vector<SceneManager::ObjectRange> &object_ranges) {
-    if (!doc) {
-        return;
-    }
-    
+                  const std::vector<SceneManager::ObjectRange> &object_ranges) {    
     glm::mat4 identity(1.0f);
     
     // Update AABBs starting from scene roots
@@ -326,6 +317,70 @@ void update_aabbs(std::shared_ptr<S72Loader::Document> doc,
         if (it != S72Loader::node_map.end()) {
             update_node_aabb(doc, it->second, identity, object_ranges);
         }
+    }
+}
+
+void update_animation(std::shared_ptr<S72Loader::Document> doc, float time) {
+    for (size_t i = 0; i < doc->drivers.size(); ++i) {
+        const auto& driver = doc->drivers[i];
+
+        NodeTRS& current_trs = node_trs_cache[driver.node];
+
+        size_t pre_index; // previous keyframe index
+        size_t tail_index; // current keyframe index
+        if(time < driver.times.front()){
+            pre_index = tail_index = 0;
+        } else if(time > driver.times.back()){
+            pre_index = tail_index = driver.times.size() - 1;
+        } else {
+            auto upper = std::upper_bound(driver.times.begin(), driver.times.end(), time);
+            tail_index = upper - driver.times.begin();
+            pre_index = tail_index - 1;
+        }
+        
+        float ratio = 0.0f;
+        if (pre_index != tail_index) {
+            ratio = (time - driver.times[pre_index]) / (driver.times[tail_index] - driver.times[pre_index]);
+        }
+
+        if (driver.channel == "rotation") {
+            glm::quat q1(driver.values[4*pre_index+3], driver.values[4*pre_index+0], driver.values[4*pre_index+1], driver.values[4*pre_index+2]);
+            glm::quat q_result = q1;
+            
+            if (pre_index != tail_index) {
+                glm::quat q2(driver.values[4*tail_index+3], driver.values[4*tail_index+0], driver.values[4*tail_index+1], driver.values[4*tail_index+2]);
+                q_result = glm::slerp(q1, q2, ratio);
+            }
+            current_trs.rotation = glm::vec4(q_result.x, q_result.y, q_result.z, q_result.w);
+        } 
+        else {
+            glm::vec3 v1(driver.values[3*pre_index+0], driver.values[3*pre_index+1], driver.values[3*pre_index+2]);
+            glm::vec3 v_result = v1;
+
+            if (pre_index != tail_index && driver.interpolation == "LINEAR") {
+                glm::vec3 v2(driver.values[3*tail_index+0], driver.values[3*tail_index+1], driver.values[3*tail_index+2]);
+                v_result = glm::mix(v1, v2, ratio);
+            }
+
+            if (driver.channel == "translation") {
+                current_trs.translation = v_result;
+            } else if (driver.channel == "scale") {
+                current_trs.scale = v_result;
+            }
+        }
+    }
+
+    for (const auto& pair : node_trs_cache) {
+        const auto& node_name = pair.first;
+        const auto& trs = pair.second;
+
+        SceneTree::transform_node(
+            doc, 
+            node_name, 
+            trs.translation, 
+            trs.rotation,
+            trs.scale
+        );
     }
 }
 

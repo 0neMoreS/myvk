@@ -62,7 +62,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	scene_manager.create(rtg, doc);
 
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 }
 
 A1::~A1() {
@@ -273,8 +273,11 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = fmod(time + dt, 60.0f);
 
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
+	SceneTree::update_animation(doc, time);
+
 	// Update camera
-	camera_manager.update(dt);
+	camera_manager.update(dt, camera_tree_data);
 
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
@@ -283,10 +286,6 @@ void A1::update(float dt) {
 
 	{
 		object_instances.clear();	
-		
-		SceneTree::update_animation(doc, time);
-
-		SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 		for(auto mtd : mesh_tree_data){
 			const size_t mesh_index = mtd.mesh_index;

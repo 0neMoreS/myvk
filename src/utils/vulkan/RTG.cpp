@@ -48,6 +48,11 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			argi += 1;
 			index = std::stoul(argv[argi]);
 		}
+		else if (arg == "--camera") {
+			if (argi + 1 >= argc) throw std::runtime_error("--init-camera-name requires a parameter (a camera name).");
+			argi += 1;
+			init_camera_name = argv[argi];
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}

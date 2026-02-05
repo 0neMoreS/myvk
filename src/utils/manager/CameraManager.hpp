@@ -44,10 +44,10 @@ public:
 	~CameraManager() = default;
 
 	// create cameras from S72 document
-	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
+	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, std::string init_camera_name);
 
 	// Update camera state (called every frame)
-	void update(float dt);
+	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
 
 	// Handle input events
 	void on_input(const InputEvent& event);
@@ -73,8 +73,11 @@ public:
 
 private:
 	// Cameras loaded from scene
-	std::vector<Camera> cameras;
+	std::vector<Camera> cameras; // 0 is for user camera
 	size_t active_camera_index = 0;
+
+	void update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd);
+	void update_user_camera(float dt);
 
 	// Input state
 	bool keys_down[GLFW_KEY_LAST + 1] = {};

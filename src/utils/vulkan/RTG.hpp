@@ -68,7 +68,11 @@ struct RTG {
 		//if set, run in headless mode, reading events from the given file:
 		bool headless = false;
 
+		// BatchCache Parameters
 		uint32_t index = 0;
+
+		// A1 Parameters
+		std::string init_camera_name = "";
 
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{

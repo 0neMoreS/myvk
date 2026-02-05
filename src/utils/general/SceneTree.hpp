@@ -32,9 +32,9 @@ struct EnvironmentTreeData
 };
 
 struct NodeTRS {
-    glm::vec3 translation = glm::vec3(0.0f);
-    glm::vec4 rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    glm::vec3 scale = glm::vec3(1.0f);
+    glm::vec3 translation;
+    glm::vec4 rotation;
+    glm::vec3 scale;
 };
 
 inline std::unordered_map<std::string, NodeTRS> node_trs_cache;
@@ -44,8 +44,6 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
 					std::vector<LightTreeData> &out_lights,
 					std::vector<CameraTreeData> &out_cameras,
 					std::vector<EnvironmentTreeData> &out_environments);
-
-void transform_node(std::shared_ptr<S72Loader::Document> doc, const std::string &node_name, const glm::vec3 &T, const glm::vec4 &R, const glm::vec3 &S);
 
 // Update AABBs bottom-up using mesh AABBs from object_ranges
 // object_ranges is indexed by mesh_index to get the local AABB of each mesh

@@ -257,28 +257,6 @@ std::pair<glm::vec3, glm::vec3> update_node_aabb(
     return {world_aabb_min, world_aabb_max};
 }
 
-} // anonymous namespace
-
-void traverse_scene(std::shared_ptr<S72Loader::Document> doc, 
-					std::vector<MeshTreeData> &out_meshes,
-					std::vector<LightTreeData> &out_lights,
-					std::vector<CameraTreeData> &out_cameras,
-					std::vector<EnvironmentTreeData> &out_environments) {
-    out_meshes.clear();
-    out_lights.clear();
-    out_cameras.clear();
-    out_environments.clear();
-    // Start traversal from scene roots
-    glm::mat4 identity(1.0f);
-    
-    for (const auto &root_name : doc->scene.roots) {
-        auto it = S72Loader::node_map.find(root_name);
-        if (it != S72Loader::node_map.end()) {
-            traverse_node(doc, it->second, identity, out_meshes, out_lights, out_cameras, out_environments);
-        }
-    }
-}
-
 void transform_node(std::shared_ptr<S72Loader::Document> doc, 
                     const std::string &node_name, 
                     const glm::vec3 &T,
@@ -305,6 +283,28 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
     
     // Invalidate cache for this node
     world_matrix_cache.erase(node_index);
+}
+
+} // anonymous namespace
+
+void traverse_scene(std::shared_ptr<S72Loader::Document> doc, 
+					std::vector<MeshTreeData> &out_meshes,
+					std::vector<LightTreeData> &out_lights,
+					std::vector<CameraTreeData> &out_cameras,
+					std::vector<EnvironmentTreeData> &out_environments) {
+    out_meshes.clear();
+    out_lights.clear();
+    out_cameras.clear();
+    out_environments.clear();
+    // Start traversal from scene roots
+    glm::mat4 identity(1.0f);
+    
+    for (const auto &root_name : doc->scene.roots) {
+        auto it = S72Loader::node_map.find(root_name);
+        if (it != S72Loader::node_map.end()) {
+            traverse_node(doc, it->second, identity, out_meshes, out_lights, out_cameras, out_environments);
+        }
+    }
 }
 
 void update_aabbs(std::shared_ptr<S72Loader::Document> doc, 

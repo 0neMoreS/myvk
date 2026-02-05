@@ -5,8 +5,20 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
-    cameras.clear();
+void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, std::string init_camera_name) {
+    // Create a user camera at index 0
+	cameras.emplace_back(CameraManager::Camera {
+		.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
+		.camera_forward = glm::vec3{0.0f, 0.0f, 1.0f},
+		.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
+		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
+		.camera_fov = glm::radians(60.0f),
+		.camera_height = swapchain_height,
+		.camera_width = swapchain_width,
+		.camera_near = 0.1f,
+		.camera_far = 1000.0f,
+	});
+	
 	for(auto &ctd : camera_tree_data) {
         glm::mat4 transform = ctd.model_matrix;
 		auto &camera = doc->cameras[ctd.camera_index];
@@ -24,28 +36,36 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
 			.camera_near = camera.perspective.has_value() ? camera.perspective.value().near : 0.1f,
 			.camera_far = camera.perspective.has_value() ? (camera.perspective.value().far.has_value() ? camera.perspective.value().far.value() : 1000.0f) : 1000.0f,
 		});
-        
-    }
 
-	if(cameras.empty()) {
-		// Create a default camera if none are defined
-		cameras.emplace_back(CameraManager::Camera {
-			.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
-			.camera_forward = glm::vec3{0.0f, 0.0f, 1.0f},
-			.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
-			.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
-			.camera_fov = glm::radians(60.0f),
-			.camera_height = swapchain_height,
-			.camera_width = swapchain_width,
-			.camera_near = 0.1f,
-			.camera_far = 1000.0f,
-		});
+		if(camera.name == init_camera_name){
+			active_camera_index = cameras.size() - 1;
+		}
+    }
+}
+
+void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
+	if(active_camera_index == 0){
+		update_user_camera(dt);
+	} else {
+		for(size_t i = 1; i < cameras.size(); ++i){
+			update_scene_camera(i, camera_tree_data[i - 1]);
+		}
 	}
 }
 
-void CameraManager::update(float dt) {
-	if (cameras.empty()) return;
+void CameraManager::update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd) {
+	Camera& camera = cameras[index];
+	
+	glm::mat4 transform = ctd.model_matrix;
+	glm::mat3 blender_rotation = glm::mat3(transform);
+	glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f};
+	
+	camera.camera_position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]};
+	camera.camera_forward = BLENDER_TO_VULKAN_3 * blender_forward;
+	camera.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f};
+}
 
+void CameraManager::update_user_camera(float dt) {
 	Camera& active_camera = cameras[active_camera_index];
 	float theta = std::acos(-active_camera.camera_forward.y);
     float phi = std::atan2(active_camera.camera_forward.z, active_camera.camera_forward.x);

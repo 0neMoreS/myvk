@@ -277,11 +277,11 @@ void A1::update(float dt) {
 	SceneTree::update_animation(doc, time);
 
 	// Update camera
-	camera_manager.update(dt, camera_tree_data);
+	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
+		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
 	}
 
 	{
@@ -292,7 +292,7 @@ void A1::update(float dt) {
 			const size_t material_index = mtd.material_index;
 			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
 			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-			const auto& object_range = scene_manager.object_ranges[mesh_index];
+			const auto& object_range = doc->meshes[mesh_index].range;
 
 				// Transform local AABB to world AABB (8 corners method)
 				// const glm::vec3& bmin = object_range.aabb_min;

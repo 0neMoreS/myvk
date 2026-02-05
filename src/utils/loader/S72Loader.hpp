@@ -47,19 +47,27 @@ struct Node {
 	std::optional<std::string> camera;
 	std::optional<std::string> environment;
 	std::optional<std::string> light;
-	glm::vec3 aabb_min; // axis-aligned bounding box min
-	glm::vec3 aabb_max; // axis-aligned bounding box max
+	glm::vec3 aabb_min = glm::vec3(std::numeric_limits<float>::max()); // axis-aligned bounding box min
+	glm::vec3 aabb_max = glm::vec3(std::numeric_limits<float>::lowest()); // axis-aligned bounding box max
 	bool model_matrix_is_dirty;
 	bool world_aabb_is_dirty;
 };
 
 struct Mesh {
+	struct ObjectRange {
+		uint32_t first = 0; // first vertex index
+		uint32_t count = 0; // number of vertices
+		glm::vec3 aabb_min = glm::vec3(std::numeric_limits<float>::max()); // axis-aligned bounding box min
+		glm::vec3 aabb_max = glm::vec3(std::numeric_limits<float>::lowest()); // axis-aligned bounding box max
+	};
+
 	std::string name;
 	std::string topology;
 	uint32_t count = 0;
 	std::optional<DataStream> indices;
 	std::map<std::string, DataStream> attributes;
 	std::optional<std::string> material;
+	ObjectRange range;
 };
 
 struct Camera {

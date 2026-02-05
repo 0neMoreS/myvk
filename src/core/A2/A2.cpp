@@ -450,11 +450,11 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A2::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	SceneTree::update_animation(doc, time);
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
+	SceneTree::update_animation(doc, time);
 
 	// Update camera
-	camera_manager.update(dt, camera_tree_data);
+	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
 
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
@@ -487,7 +487,7 @@ void A2::update(float dt) {
 			const size_t material_index = mtd.material_index;
 			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
 			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-			const auto& object_range = scene_manager.object_ranges[mesh_index];
+			const auto& object_range = doc->meshes[mesh_index].range;
 			std::optional<S72Loader::Material> material = doc->materials[material_index];
 
 			// Transform local AABB to world AABB (8 corners method)
@@ -497,8 +497,8 @@ void A2::update(float dt) {
 				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
 				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
 			};
-			glm::vec3 world_min(FLT_MAX);
-			glm::vec3 world_max(-FLT_MAX);
+			glm::vec3 world_min(std::numeric_limits<float>::max());
+			glm::vec3 world_max(std::numeric_limits<float>::lowest());
 			for (int c = 0; c < 8; ++c) {
 				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
 				world_min = glm::min(world_min, wp);

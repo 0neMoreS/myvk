@@ -6,13 +6,14 @@ void SceneManager::create(RTG &rtg, std::shared_ptr<S72Loader::Document> doc) {
 
 		// Load vertices from all meshes in the document
 		uint32_t vertex_offset = 0;
-		for (const auto &mesh : doc->meshes) {
+		for (size_t i = 0; i < doc->meshes.size(); ++i) {
+			const S72Loader::Mesh &mesh = doc->meshes[i];
 			try {
 				std::vector<uint8_t> mesh_data = S72Loader::load_mesh_data(s72_dir, mesh);
 				
 				// Calculate AABB
-				glm::vec3 aabb_min(FLT_MAX);
-				glm::vec3 aabb_max(-FLT_MAX);
+				glm::vec3 aabb_min(std::numeric_limits<float>::max());
+				glm::vec3 aabb_max(std::numeric_limits<float>::lowest());
 				
 				// Assuming vertex format has position at start (3 floats: x, y, z)
 				size_t vertex_stride = mesh_data.size() / mesh.count; // bytes per vertex
@@ -24,12 +25,11 @@ void SceneManager::create(RTG &rtg, std::shared_ptr<S72Loader::Document> doc) {
 					aabb_max = glm::max(aabb_max, p);
 				}
 				
-				ObjectRange object_range;
+				S72Loader::Mesh::ObjectRange& object_range = doc->meshes[i].range;
 				object_range.first = vertex_offset;
 				object_range.count = mesh.count;
 				object_range.aabb_min = aabb_min;
 				object_range.aabb_max = aabb_max;
-				object_ranges.push_back(object_range);
 
 				all_vertices.insert(all_vertices.end(), mesh_data.begin(), mesh_data.end());
 				vertex_offset += mesh.count;

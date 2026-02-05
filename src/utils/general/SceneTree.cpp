@@ -23,21 +23,7 @@ glm::mat4 compute_local_matrix(const glm::vec3 &translation, const glm::vec4 &ro
 }
 
 // Cache for computed world matrices
-static std::unordered_map<size_t, glm::mat4> world_matrix_cache;
-
-// Recursively mark children as dirty (downward propagation)
-void mark_children_dirty(std::shared_ptr<S72Loader::Document> doc, size_t node_index) {
-    S72Loader::Node &node = doc->nodes[node_index];
-    node.model_matrix_is_dirty = true;
-    node.world_aabb_is_dirty = true;
-    
-    for (const auto &child_name : node.children) {
-        auto it = S72Loader::node_map.find(child_name);
-        if (it != S72Loader::node_map.end()) {
-            mark_children_dirty(doc, it->second);
-        }
-    }
-}
+inline std::unordered_map<size_t, glm::mat4> world_matrix_cache;
 
 // Compute world matrix for a node, using cache if available
 glm::mat4 compute_world_matrix(std::shared_ptr<S72Loader::Document> doc, 
@@ -62,6 +48,20 @@ glm::mat4 compute_world_matrix(std::shared_ptr<S72Loader::Document> doc,
     node.model_matrix_is_dirty = false;
     
     return world_matrix;
+}
+
+// Recursively mark children as dirty (downward propagation)
+void mark_children_dirty(std::shared_ptr<S72Loader::Document> doc, size_t node_index) {
+    S72Loader::Node &node = doc->nodes[node_index];
+    node.model_matrix_is_dirty = true;
+    node.world_aabb_is_dirty = true;
+    
+    for (const auto &child_name : node.children) {
+        auto it = S72Loader::node_map.find(child_name);
+        if (it != S72Loader::node_map.end()) {
+            mark_children_dirty(doc, it->second);
+        }
+    }
 }
 
 // Recursive traversal helper
@@ -158,7 +158,8 @@ void traverse_node(std::shared_ptr<S72Loader::Document> doc,
 // Transform AABB by a matrix, returning the new axis-aligned bounding box
 std::pair<glm::vec3, glm::vec3> transform_aabb(const glm::mat4 &matrix, 
                                                const glm::vec3 &aabb_min, 
-                                               const glm::vec3 &aabb_max) {
+                                               const glm::vec3 &aabb_max
+                                            ) {
     // Get all 8 corners of the AABB
     glm::vec3 corners[8] = {
         {aabb_min.x, aabb_min.y, aabb_min.z},
@@ -197,9 +198,8 @@ void merge_aabb(glm::vec3 &out_min, glm::vec3 &out_max,
 std::pair<glm::vec3, glm::vec3> update_node_aabb(
     std::shared_ptr<S72Loader::Document> doc,
     size_t node_index,
-    const glm::mat4 &parent_matrix,
-    const std::vector<SceneManager::ObjectRange> &object_ranges) {
-    
+    const glm::mat4 &parent_matrix
+) {
     S72Loader::Node &node = doc->nodes[node_index];
     
     // Compute world matrix
@@ -222,8 +222,8 @@ std::pair<glm::vec3, glm::vec3> update_node_aabb(
         if (mesh_it != S72Loader::mesh_map.end()) {
             size_t mesh_index = mesh_it->second;
             
-            if (mesh_index < object_ranges.size()) {
-                const SceneManager::ObjectRange &range = object_ranges[mesh_index];
+            if (mesh_index < doc->meshes.size()) {
+                const auto &range = doc->meshes[mesh_index].range;
                 
                 // Transform mesh local AABB to world space
                 auto [transformed_min, transformed_max] = transform_aabb(
@@ -240,7 +240,7 @@ std::pair<glm::vec3, glm::vec3> update_node_aabb(
         auto it = S72Loader::node_map.find(child_name);
         if (it != S72Loader::node_map.end()) {
             auto [child_min, child_max] = update_node_aabb(
-                doc, it->second, world_matrix, object_ranges);
+                doc, it->second, world_matrix);
             
             // Only merge if child has valid AABB
             if (child_min.x <= child_max.x) {
@@ -261,7 +261,8 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
                     const std::string &node_name, 
                     const glm::vec3 &T,
                     const glm::vec4 &R,
-                    const glm::vec3 &S) {
+                    const glm::vec3 &S
+                ) {
     // Find node by name using global node_map
     auto it = S72Loader::node_map.find(node_name);
     if (it == S72Loader::node_map.end()) {
@@ -307,15 +308,14 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
     }
 }
 
-void update_aabbs(std::shared_ptr<S72Loader::Document> doc, 
-                  const std::vector<SceneManager::ObjectRange> &object_ranges) {    
+void update_aabbs(std::shared_ptr<S72Loader::Document> doc) {    
     glm::mat4 identity(1.0f);
     
     // Update AABBs starting from scene roots
     for (const auto &root_name : doc->scene.roots) {
         auto it = S72Loader::node_map.find(root_name);
         if (it != S72Loader::node_map.end()) {
-            update_node_aabb(doc, it->second, identity, object_ranges);
+            update_node_aabb(doc, it->second, identity);
         }
     }
 }
@@ -352,8 +352,7 @@ void update_animation(std::shared_ptr<S72Loader::Document> doc, float time) {
                 q_result = glm::slerp(q1, q2, ratio);
             }
             current_trs.rotation = glm::vec4(q_result.x, q_result.y, q_result.z, q_result.w);
-        } 
-        else {
+        } else {
             glm::vec3 v1(driver.values[3*pre_index+0], driver.values[3*pre_index+1], driver.values[3*pre_index+2]);
             glm::vec3 v_result = v1;
 

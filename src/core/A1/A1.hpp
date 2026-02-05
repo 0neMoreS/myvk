@@ -65,7 +65,7 @@ struct A1 : RTG::Application {
 	A1ObjectsPipeline::PV pv_matrix;
 
 	struct ObjectInstance {
-		SceneManager::ObjectRange object_ranges;
+		S72Loader::Mesh::ObjectRange object_ranges;
 		A1ObjectsPipeline::Transform transform;
 		size_t material_index;
 	};

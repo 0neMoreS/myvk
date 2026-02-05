@@ -74,21 +74,21 @@ struct A2 : RTG::Application {
 	CommonData::Light light;
 
 	struct ReflectionInstance {
-		SceneManager::ObjectRange object_ranges;
+		S72Loader::Mesh::ObjectRange object_ranges;
 		CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct LambertianInstance {
-		SceneManager::ObjectRange object_ranges;
+		S72Loader::Mesh::ObjectRange object_ranges;
 		CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< LambertianInstance > lambertian_object_instances;
 
 	struct PBRInstance {
-		SceneManager::ObjectRange object_ranges;
+		S72Loader::Mesh::ObjectRange object_ranges;
 		CommonData::Transform object_transform;
 		size_t material_index;
 	};

@@ -44,10 +44,14 @@ public:
 	~CameraManager() = default;
 
 	// create cameras from S72 document
-	void create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, std::string init_camera_name);
+	void create(const std::shared_ptr<S72Loader::Document> doc, 
+				const uint32_t swapchain_width, const uint32_t swapchain_height, 
+				const std::vector<SceneTree::CameraTreeData>& camera_tree_data, 
+				std::string init_camera_name
+			);
 
 	// Update camera state (called every frame)
-	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
+	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera);
 
 	// Handle input events
 	void on_input(const InputEvent& event);
@@ -57,6 +61,8 @@ public:
 	// Get current camera matrices
 	glm::mat4 get_perspective() const;
 	glm::mat4 get_view() const;
+	glm::mat4 get_debug_perspective() const;
+	glm::mat4 get_debug_view() const;
 	
 	// Get current frustum for culling
 	Frustum get_frustum() const;
@@ -75,9 +81,10 @@ private:
 	// Cameras loaded from scene
 	std::vector<Camera> cameras; // 0 is for user camera
 	size_t active_camera_index = 0;
+	Camera debug_camera;
 
 	void update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd);
-	void update_user_camera(float dt);
+	void update_user_camera(float dt, Camera &active_camera);
 
 	// Input state
 	bool keys_down[GLFW_KEY_LAST + 1] = {};

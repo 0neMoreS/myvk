@@ -53,6 +53,9 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			argi += 1;
 			init_camera_name = argv[argi];
 		}
+		else if (arg == "--open-debug-camera") {
+			open_debug_camera = true;
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -65,6 +68,7 @@ void RTG::Configuration::usage(std::function< void(const char *, const char *) >
 	callback("--drawing-size <w> <headless_image>", "Set the size of the surface to draw to.");
 	callback("--headless", "Don't create a window; read events from stdin.");
 	callback("--index <index>", "Set the index count.");
+	callback("--open-debug-camera", "Open the debug camera.");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(

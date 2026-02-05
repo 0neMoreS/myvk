@@ -5,7 +5,11 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const uint32_t swapchain_width, const uint32_t swapchain_height, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, std::string init_camera_name) {
+void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, 
+				const uint32_t swapchain_width, const uint32_t swapchain_height, 
+				const std::vector<SceneTree::CameraTreeData>& camera_tree_data, 
+				std::string init_camera_name
+			) {
     // Create a user camera at index 0
 	cameras.emplace_back(CameraManager::Camera {
 		.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
@@ -18,6 +22,11 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
 		.camera_near = 0.1f,
 		.camera_far = 1000.0f,
 	});
+
+
+	this->debug_camera = cameras[0];
+
+	// Create scene cameras
 	
 	for(auto &ctd : camera_tree_data) {
         glm::mat4 transform = ctd.model_matrix;
@@ -43,9 +52,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, const
     }
 }
 
-void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
-	if(active_camera_index == 0){
-		update_user_camera(dt);
+void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera) {
+	if(active_camera_index == 0 || open_debug_camera){
+		update_user_camera(dt, (open_debug_camera ? debug_camera : cameras[0]));
 	} else {
 		for(size_t i = 1; i < cameras.size(); ++i){
 			update_scene_camera(i, camera_tree_data[i - 1]);
@@ -65,8 +74,7 @@ void CameraManager::update_scene_camera(size_t index, const SceneTree::CameraTre
 	camera.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f};
 }
 
-void CameraManager::update_user_camera(float dt) {
-	Camera& active_camera = cameras[active_camera_index];
+void CameraManager::update_user_camera(float dt, Camera &active_camera) {
 	float theta = std::acos(-active_camera.camera_forward.y);
     float phi = std::atan2(active_camera.camera_forward.z, active_camera.camera_forward.x);
 
@@ -144,6 +152,9 @@ void CameraManager::resize_all_cameras(const uint32_t swapchain_width, const uin
 		camera.camera_width = swapchain_width;
 		camera.camera_height = swapchain_height;
 	}
+
+	debug_camera.camera_width = swapchain_width;
+	debug_camera.camera_height = swapchain_height;
 }
 
 glm::mat4 CameraManager::get_perspective() const{
@@ -156,6 +167,16 @@ glm::mat4 CameraManager::get_perspective() const{
 glm::mat4 CameraManager::get_view() const{
     const Camera& active_camera = cameras[active_camera_index];
     return glm::lookAtRH(active_camera.camera_position, active_camera.camera_position +  active_camera.camera_forward, active_camera.camera_up);
+}
+
+glm::mat4 CameraManager::get_debug_perspective() const{
+	glm::mat4 perspective = glm::perspectiveRH_ZO(debug_camera.camera_fov, (float)debug_camera.camera_width / (float)debug_camera.camera_height, debug_camera.camera_near, debug_camera.camera_far);
+	perspective[1][1] *= -1.0f;
+	return perspective;
+}
+
+glm::mat4 CameraManager::get_debug_view() const{
+	return glm::lookAtRH(debug_camera.camera_position, debug_camera.camera_position +  debug_camera.camera_forward, debug_camera.camera_up);
 }
 
 CameraManager::Frustum CameraManager::get_frustum() const {

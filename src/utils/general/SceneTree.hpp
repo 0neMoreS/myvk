@@ -37,7 +37,7 @@ struct NodeTRS {
     glm::vec3 scale;
 };
 
-inline std::unordered_map<std::string, NodeTRS> node_trs_cache;
+inline std::unordered_map<std::string, NodeTRS> node_trs_cache; // no need for this? TRS are stored in nodes already
 
 void traverse_scene(std::shared_ptr<S72Loader::Document> doc, 
 					std::vector<MeshTreeData> &out_meshes,
@@ -47,7 +47,7 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
 
 // Update AABBs bottom-up using mesh AABBs from object_ranges
 // object_ranges is indexed by mesh_index to get the local AABB of each mesh
-void update_aabbs(std::shared_ptr<S72Loader::Document> doc, const std::vector<SceneManager::ObjectRange> &object_ranges);
+void update_aabbs(std::shared_ptr<S72Loader::Document> doc);
 
 void update_animation(std::shared_ptr<S72Loader::Document> doc, float time);
 

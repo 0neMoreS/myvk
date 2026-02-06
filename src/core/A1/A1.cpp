@@ -264,7 +264,9 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							);
 						}
 
-						vkCmdDraw(workspace.command_buffer, uint32_t(line_vertices.size()), 1, 0, 0);
+						if(rtg.configuration.open_debug_camera){
+							vkCmdDraw(workspace.command_buffer, uint32_t(line_vertices.size()), 1, 0, 0);
+						}
 					}
 				}
 
@@ -349,6 +351,9 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 void A1::update(float dt) {
 	time = fmod(time + dt, 60.0f);
 
+	line_vertices.clear();
+	object_instances.clear();
+
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 	SceneTree::update_animation(doc, time);
 
@@ -362,12 +367,50 @@ void A1::update(float dt) {
 
 	{ // update object instances
 		CameraManager::Frustum frustum = camera_manager.get_frustum();
+		auto intersection = [](const auto& p1, const auto& p2, const auto& p3) {
+			const glm::vec3& n1 = p1.normal; const glm::vec3& n2 = p2.normal; const glm::vec3& n3 = p3.normal;
+			float d1 = p1.distance; float d2 = p2.distance; float d3 = p3.distance;
+
+			glm::vec3 cross23 = glm::cross(n2, n3);
+			glm::vec3 cross31 = glm::cross(n3, n1);
+			glm::vec3 cross12 = glm::cross(n1, n2);
+
+			return -(d1 * cross23 + d2 * cross31 + d3 * cross12) / glm::dot(n1, cross23);
+		};
+
+		// planes: 0:left, 1:right, 2:bottom, 3:top, 4:near, 5:far
+		const auto& planes = frustum.planes;
+		glm::vec3 corners[8] = {
+			intersection(planes[0], planes[2], planes[4]), // Left, Bottom, Near
+			intersection(planes[1], planes[2], planes[4]), // Right, Bottom, Near
+			intersection(planes[1], planes[3], planes[4]), // Right, Top, Near
+			intersection(planes[0], planes[3], planes[4]), // Left, Top, Near
+			intersection(planes[0], planes[2], planes[5]), // Left, Bottom, Far
+			intersection(planes[1], planes[2], planes[5]), // Right, Bottom, Far
+			intersection(planes[1], planes[3], planes[5]), // Right, Top, Far
+			intersection(planes[0], planes[3], planes[5])  // Left, Top, Far
+		};
+
+		glm::mat4 inv_view = glm::inverse(camera_manager.get_view());
+        for (int i = 0; i < 8; ++i) {
+            glm::vec4 world_pos = inv_view * glm::vec4(corners[i], 1.0f);
+            corners[i] = glm::vec3(world_pos);
+        }
+
+		auto add_line = [&](int i, int j) {
+			line_vertices.push_back({{corners[i].x, corners[i].y, corners[i].z}, {0xff, 0xff, 0x00, 0xff}});
+			line_vertices.push_back({{corners[j].x, corners[j].y, corners[j].z}, {0xff, 0xff, 0x00, 0xff}});
+		};
+
+		// Near Face
+		add_line(0, 1); add_line(1, 2); add_line(2, 3); add_line(3, 0);
+		// Far Face
+		add_line(4, 5); add_line(5, 6); add_line(6, 7); add_line(7, 4);
+		// Connecting Edges
+		add_line(0, 4); add_line(1, 5); add_line(2, 6); add_line(3, 7);
 	}
 
 	{
-		line_vertices.clear();
-		object_instances.clear();
-
 		for(auto mtd : mesh_tree_data){
 			const size_t mesh_index = mtd.mesh_index;
 			const size_t material_index = mtd.material_index;
@@ -421,25 +464,7 @@ void A1::update(float dt) {
             line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
             line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
 
-				// Transform local AABB to world AABB (8 corners method)
-				// const glm::vec3& bmin = object_range.aabb_min;
-				// const glm::vec3& bmax = object_range.aabb_max;
-				// glm::vec3 corners[8] = {
-				// 	{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-				// 	{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-				// };
-				// glm::vec3 world_min(FLT_MAX);
-				// glm::vec3 world_max(-FLT_MAX);
-				// for (int c = 0; c < 8; ++c) {
-				// 	glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-				// 	world_min = glm::min(world_min, wp);
-				// 	world_max = glm::max(world_max, wp);
-				// }
-
-				// Frustum culling check with world-space AABB
-				// if (!frustum.is_box_visible(world_min, world_max)) {
-				// 	continue;
-				// }
+			
 
 			object_instances.emplace_back(ObjectInstance{
 				.object_ranges = object_range,

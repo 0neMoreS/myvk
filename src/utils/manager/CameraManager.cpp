@@ -24,7 +24,17 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 	});
 
 
-	this->debug_camera = cameras[0];
+	this->debug_camera = CameraManager::Camera {
+		.camera_position = glm::vec3{0.0f, 0.0f, -5.0f},
+		.camera_forward = glm::vec3{0.0f, 0.0f, 1.0f},
+		.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
+		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
+		.camera_fov = glm::radians(60.0f),
+		.camera_height = swapchain_height,
+		.camera_width = swapchain_width,
+		.camera_near = 0.1f,
+		.camera_far = 2000.0f,
+	};
 
 	// Create scene cameras
 	
@@ -53,16 +63,10 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 }
 
 void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera) {
-	if(open_debug_camera) {
-		update_user_camera(dt, debug_camera);
-	} else if(active_camera_index == 0) {
-		update_user_camera(dt, cameras[0]);
+	for(size_t i = 1; i < cameras.size(); ++i){
+		update_scene_camera(i, camera_tree_data[i - 1]);
 	}
-	else {
-		for(size_t i = 1; i < cameras.size(); ++i){
-			update_scene_camera(i, camera_tree_data[i - 1]);
-		}
-	}
+	update_user_camera(dt, open_debug_camera ? debug_camera : cameras[0]);
 }
 
 void CameraManager::update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd) {

@@ -6,6 +6,8 @@
 
 #include <stdexcept>
 #include <unordered_map>
+#include <iostream>
+#include <iomanip>
 
 #define VK( FN ) \
 	if (VkResult result = FN; result != VK_SUCCESS) { \
@@ -51,6 +53,20 @@ static const glm::mat4 VULKAN_TO_BLENDER_4 = glm::mat4(
 );
 
 static std::string s72_dir = "./external/s72/examples/";
+
+inline void print_mat4(const glm::mat4& m, const std::string& name = "Matrix") {
+    std::cout << name << ":" << std::endl;
+    for (int i = 0; i < 4; ++i) {
+        std::cout << "| ";
+        for (int j = 0; j < 4; ++j) {
+            // GLM stores matrices in column-major order (m[col][row]), 
+            // but we usually want to print them in row-major order for readability.
+            std::cout << std::setw(10) << std::fixed << std::setprecision(4) << m[j][i] << " ";
+        }
+        std::cout << "|" << std::endl;
+    }
+    std::cout << std::endl;
+}
 
 enum TextureSlot : size_t {
         Normal = 0,

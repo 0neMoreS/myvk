@@ -107,7 +107,6 @@ void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
 }
 
-
 void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	//assert that parameters are valid:
 	assert(&rtg == &rtg_);
@@ -361,14 +360,22 @@ void A1::update(float dt) {
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
 	}
 
-	{ // update line vertices and indices
-		line_vertices.clear();
+	{ // update object instances
+		CameraManager::Frustum frustum = camera_manager.get_frustum();
+	}
 
-		for (auto mtd : mesh_tree_data) {
-            const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
-            const auto& object_range = doc->meshes[mtd.mesh_index].range;
-            
-            // Transform local AABB to world AABB (8 corners method)
+	{
+		line_vertices.clear();
+		object_instances.clear();
+
+		for(auto mtd : mesh_tree_data){
+			const size_t mesh_index = mtd.mesh_index;
+			const size_t material_index = mtd.material_index;
+			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
+			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			const auto& object_range = doc->meshes[mesh_index].range;
+
+			// Transform local AABB to world AABB (8 corners method)
             const glm::vec3& bmin = object_range.aabb_min;
             const glm::vec3& bmax = object_range.aabb_max;
             glm::vec3 corners[8] = {
@@ -413,22 +420,6 @@ void A1::update(float dt) {
             line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
             line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
             line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
-        }
-	}
-
-	{ // update object instances
-		CameraManager::Frustum frustum = camera_manager.get_frustum();
-	}
-
-	{
-		object_instances.clear();	
-
-		for(auto mtd : mesh_tree_data){
-			const size_t mesh_index = mtd.mesh_index;
-			const size_t material_index = mtd.material_index;
-			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
-			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
-			const auto& object_range = doc->meshes[mesh_index].range;
 
 				// Transform local AABB to world AABB (8 corners method)
 				// const glm::vec3& bmin = object_range.aabb_min;

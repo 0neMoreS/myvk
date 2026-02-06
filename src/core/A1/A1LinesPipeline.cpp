@@ -4,11 +4,11 @@
 #include "VK.hpp"
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/lines.vert.inl"
+#include "../../shaders/spv/A1-lines.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/lines.frag.inl"
+#include "../../shaders/spv/A1-lines.frag.inl"
 };
 
 A1LinesPipeline::~A1LinesPipeline(){

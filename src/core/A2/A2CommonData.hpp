@@ -4,7 +4,7 @@
 #include "VK.hpp"
 #include "glm/glm.hpp"
 
-namespace CommonData
+namespace A2CommonData
 {
     struct PV{
         glm::mat4 PERSPECTIVE;

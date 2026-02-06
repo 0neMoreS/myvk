@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 #include "VK.hpp"
 #include "TextureManager.hpp"
+#include "PosColVertex.hpp"
 #include "Vertex.hpp"
 #include "RTG.hpp"
 
@@ -35,7 +36,7 @@ struct Pipeline
 	) = 0;
     virtual void destroy(RTG &) = 0;
     
-    void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true) {
+    void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false) {
         //shader code for vertex and fragment pipeline stages:
 		std::array< VkPipelineShaderStageCreateInfo, 2 > stages{
 			VkPipelineShaderStageCreateInfo{
@@ -66,7 +67,7 @@ struct Pipeline
 		//this pipeline will draw triangles:
 		VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.topology = lines_draw ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 			.primitiveRestartEnable = VK_FALSE
 		};
 
@@ -82,7 +83,7 @@ struct Pipeline
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 			.depthClampEnable = VK_FALSE,
 			.rasterizerDiscardEnable = VK_FALSE,
-			.polygonMode = VK_POLYGON_MODE_FILL,
+			.polygonMode =  lines_draw ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL,
 			.cullMode = static_cast<VkCullModeFlags>(
 				enable_cull ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE
 			),
@@ -128,7 +129,7 @@ struct Pipeline
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 			.stageCount = uint32_t(stages.size()),
 			.pStages = stages.data(),
-			.pVertexInputState = &Vertex::array_input_state,
+			.pVertexInputState = lines_draw ? &PosColVertex::array_input_state : &Vertex::array_input_state,
 			.pInputAssemblyState = &input_assembly_state,
 			.pViewportState = &viewport_state,
 			.pRasterizationState = &rasterization_state,

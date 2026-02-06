@@ -21,7 +21,8 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	doc{S72Loader::load_file(s72_dir + filename)}, 
 	camera_manager{}, 
 	workspace_manager{}, 
-	render_pass_manager{}, 
+	render_pass_manager{},
+	lines_pipeline{},
 	objects_pipeline{},
 	scene_manager{},
 	texture_manager{},
@@ -37,15 +38,16 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	texture_manager.create(rtg, doc, 1);
 
+	lines_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline;
+	block_descriptor_configs_by_pipeline.push_back(lines_pipeline.block_descriptor_configs);
 	block_descriptor_configs_by_pipeline.push_back(objects_pipeline.block_descriptor_configs);
-
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "PV",
-			.size = sizeof(A1ObjectsPipeline::PV),
+			.size = sizeof(A1CommonData::PV),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		}
 	};
@@ -53,11 +55,20 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
+		pipeline_name_to_index["A1LinesPipeline"], 
+		lines_pipeline.block_descriptor_set_name_to_index["PV"], 
+		lines_pipeline.block_binding_name_to_index["PV"], 
+		"PV",
+		sizeof(A1CommonData::PV)
+	);
+
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
 		pipeline_name_to_index["A1ObjectsPipeline"], 
 		objects_pipeline.block_descriptor_set_name_to_index["PV"], 
 		objects_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(A1ObjectsPipeline::PV)
+		sizeof(A1CommonData::PV)
 	);
 
 	scene_manager.create(rtg, doc);
@@ -78,6 +89,7 @@ A1::~A1() {
 
 	framebuffer_manager.destroy(rtg);
 
+	lines_pipeline.destroy(rtg);
 	objects_pipeline.destroy(rtg);
 
 	workspace_manager.destroy(rtg);
@@ -108,8 +120,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		workspace.begin_recording();
 
 		{ //upload world info:
-			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1ObjectsPipeline::PV));
-			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A1ObjectsPipeline::PV));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1CommonData::PV));
+			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A1CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 		}
 

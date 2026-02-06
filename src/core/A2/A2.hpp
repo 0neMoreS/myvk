@@ -15,7 +15,7 @@
 #include "A2LambertianPipeline.hpp"
 #include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
-#include "CommonData.hpp"
+#include "A2CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
@@ -54,7 +54,7 @@ struct A2 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	CommonData::Light global_light;
+	A2CommonData::Light global_light;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -70,26 +70,26 @@ struct A2 : RTG::Application {
 
 	float time = 0.0f;
 
-	CommonData::PV pv_matrix;
-	CommonData::Light light;
+	A2CommonData::PV pv_matrix;
+	A2CommonData::Light light;
 
 	struct ReflectionInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct LambertianInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< LambertianInstance > lambertian_object_instances;
 
 	struct PBRInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;

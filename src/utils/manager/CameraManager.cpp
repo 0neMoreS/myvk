@@ -53,9 +53,12 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 }
 
 void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera) {
-	if(active_camera_index == 0 || open_debug_camera){
-		update_user_camera(dt, (open_debug_camera ? debug_camera : cameras[0]));
-	} else {
+	if(open_debug_camera) {
+		update_user_camera(dt, debug_camera);
+	} else if(active_camera_index == 0) {
+		update_user_camera(dt, cameras[0]);
+	}
+	else {
 		for(size_t i = 1; i < cameras.size(); ++i){
 			update_scene_camera(i, camera_tree_data[i - 1]);
 		}

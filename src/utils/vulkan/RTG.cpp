@@ -409,7 +409,8 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 			};
 
 			VkPhysicalDeviceFeatures device_features{
-				.pipelineStatisticsQuery = VK_TRUE
+				.fillModeNonSolid = VK_TRUE,
+				.pipelineStatisticsQuery = VK_TRUE,
 			};
 
 			VkPhysicalDeviceFeatures2 device_features2{

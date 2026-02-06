@@ -17,12 +17,6 @@ struct A1ObjectsPipeline : Pipeline {
     VkDescriptorSetLayout set2_TEXTURE = VK_NULL_HANDLE;
     VkDescriptorSet set2_TEXTURE_instance = VK_NULL_HANDLE;
 
-    struct PV {
-        glm::mat4 PERSPECTIVE;
-        glm::mat4 VIEW;
-    };
-    static_assert(sizeof(PV) == 16*4 + 16*4, "PV is the expected size.");
-
     //types for descriptors:
     struct Transform {
         glm::mat4 MODEL;

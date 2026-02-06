@@ -53,7 +53,7 @@ struct A3 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	CommonData::Light global_light;
+	A2CommonData::Light global_light;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -69,26 +69,26 @@ struct A3 : RTG::Application {
 
 	float time = 0.0f;
 
-	CommonData::PV pv_matrix;
-	CommonData::Light light;
+	A2CommonData::PV pv_matrix;
+	A2CommonData::Light light;
 
 	struct ReflectionInstance {
 		SceneManager::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct LambertianInstance {
 		SceneManager::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< LambertianInstance > lambertian_object_instances;
 
 	struct PBRInstance {
 		SceneManager::ObjectRange object_ranges;
-		CommonData::Transform object_transform;
+		A2CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;

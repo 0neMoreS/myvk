@@ -73,12 +73,10 @@ void A1ObjectsPipeline::create(
 		{
 			for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
 				for (const auto &texture_opt : material_slots) {
-					std::cout << "material_slots size: " << material_slots.size() << " texture_opt: " << (texture_opt.has_value() ? "present" : "absent") << "\n";
 					if (texture_opt) {
 						++total_2d_descriptors;
 					}
 				}
-				std::cout << "----\n";
 			}
 
 			std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
@@ -218,7 +216,7 @@ void A1ObjectsPipeline::create(
         {"Transforms", 0},
     };
 
-	pipeline_name_to_index["A1ObjectsPipeline"] = 0;
+	pipeline_name_to_index["A1ObjectsPipeline"] = 1;
 }
 
 void A1ObjectsPipeline::destroy(RTG &rtg) {

@@ -12,12 +12,14 @@
 #include "CameraManager.hpp"
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
+#include "A1LinesPipeline.hpp"
 #include "A1ObjectsPipeline.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
+#include "A1CommonData.hpp"
 
 #include "RTG.hpp"
 
@@ -40,6 +42,7 @@ struct A1 : RTG::Application {
 	//--------------------------------------------------------------------
 	//Resources that last the lifetime of the application:
 
+	A1LinesPipeline lines_pipeline;
 	A1ObjectsPipeline objects_pipeline;
 
 	//-------------------------------------------------------------------
@@ -62,7 +65,7 @@ struct A1 : RTG::Application {
 
 	float time = 0.0f;
 
-	A1ObjectsPipeline::PV pv_matrix;
+	A1CommonData::PV pv_matrix;
 
 	struct ObjectInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

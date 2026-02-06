@@ -57,12 +57,12 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "PV",
-			.size = sizeof(CommonData::PV),
+			.size = sizeof(A2CommonData::PV),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "Light",
-			.size = sizeof(CommonData::Light),
+			.size = sizeof(A2CommonData::Light),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 	};
@@ -74,7 +74,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		background_pipeline.block_descriptor_set_name_to_index["PV"], 
 		background_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(CommonData::PV)
+		sizeof(A2CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -82,7 +82,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(CommonData::PV)
+		sizeof(A2CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -90,7 +90,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(CommonData::Light)
+		sizeof(A2CommonData::Light)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -98,7 +98,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(CommonData::PV)
+		sizeof(A2CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -106,7 +106,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(CommonData::Light)
+		sizeof(A2CommonData::Light)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -114,7 +114,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(CommonData::PV)
+		sizeof(A2CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -122,7 +122,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(CommonData::Light)
+		sizeof(A2CommonData::Light)
 	);
 
 	scene_manager.create(rtg, doc);
@@ -179,12 +179,12 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		workspace.begin_recording();
 
 		{ //upload global data:
-			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(CommonData::PV));
-			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(CommonData::PV));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A2CommonData::PV));
+			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A2CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 
-			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(CommonData::Light));
-			workspace.write_global_buffer(rtg, "Light", &light, sizeof(CommonData::Light));
+			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(A2CommonData::Light));
+			workspace.write_global_buffer(rtg, "Light", &light, sizeof(A2CommonData::Light));
 			assert(workspace.global_buffer_pairs["Light"]->host.size == workspace.global_buffer_pairs["Light"]->device.size);
 		}
 
@@ -192,7 +192,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto upload_transforms = [&](const char* pipeline_name, auto& instances, const auto& pipeline) {
 				if (instances.empty()) return;
 				
-				size_t needed_bytes = instances.size() * sizeof(CommonData::Transform);
+				size_t needed_bytes = instances.size() * sizeof(A2CommonData::Transform);
 				uint32_t pipeline_idx = pipeline_name_to_index[pipeline_name];
 				uint32_t set_idx = pipeline.block_descriptor_set_name_to_index.at("Transforms");
 				uint32_t binding_idx = pipeline.block_binding_name_to_index.at("Transforms");
@@ -208,7 +208,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				assert(buffer_pair->host.size >= needed_bytes);
 				assert(buffer_pair->host.allocation.mapped);
 
-				std::vector<CommonData::Transform> transform_data;
+				std::vector<A2CommonData::Transform> transform_data;
 				transform_data.reserve(instances.size());
 				for (const auto& inst : instances) {
 					transform_data.push_back(inst.object_transform);

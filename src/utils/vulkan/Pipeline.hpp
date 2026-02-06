@@ -24,6 +24,7 @@ struct Pipeline
     std::vector<BlockDescriptorConfig> block_descriptor_configs{};
 	std::unordered_map<std::string, uint32_t> block_descriptor_set_name_to_index{};
 	std::unordered_map<std::string, uint32_t> block_binding_name_to_index{};
+	std::unordered_map<std::string, uint32_t> data_buffer_name_to_index{};
 
     VkShaderModule frag_module;
     VkShaderModule vert_module;

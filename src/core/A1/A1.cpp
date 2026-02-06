@@ -52,7 +52,11 @@ A1::A1(RTG &rtg, const std::string &filename) :
 		}
 	};
 
-	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	std::vector<size_t> global_buffer_counts{
+		// A1LinesPipeline data buffers
+		lines_pipeline.data_buffer_name_to_index.size()
+	};
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), std::move(global_buffer_counts), 2);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A1LinesPipeline"], 
@@ -123,6 +127,38 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1CommonData::PV));
 			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A1CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
+		}
+
+		{ // upload line vertices and indices
+			if (!line_vertices.empty()) {
+				size_t vertex_bytes = line_vertices.size() * sizeof(PosColVertex);
+
+				auto& vertex_buffer_pair = workspace.data_buffer_pairs[pipeline_name_to_index["A1LinesPipeline"]][lines_pipeline.data_buffer_name_to_index["LinesVertex"]];
+				if (vertex_buffer_pair->host.handle == VK_NULL_HANDLE || vertex_buffer_pair->host.size < vertex_bytes) {
+					//round to next multiple of 4k to avoid re-allocating continuously if vertex count grows slowly:
+					size_t new_bytes = ((vertex_bytes + 4096) / 4096) * 4096;
+					workspace.update_data_buffer_pair(
+						rtg, 
+						pipeline_name_to_index["A1LinesPipeline"], 
+						lines_pipeline.data_buffer_name_to_index["LinesVertex"],
+						new_bytes
+					);
+				}
+
+				{
+					assert(vertex_buffer_pair->host.size == vertex_buffer_pair->device.size);
+					assert(vertex_buffer_pair->host.size >= vertex_bytes);
+					assert(vertex_buffer_pair->host.allocation.mapped);
+
+					workspace.write_data_buffer(rtg, 
+						pipeline_name_to_index["A1LinesPipeline"], 
+						lines_pipeline.data_buffer_name_to_index["LinesVertex"],
+						line_vertices.data(),
+						vertex_bytes
+					);
+				}	
+			}
+
 		}
 
 		{ //upload object transforms
@@ -202,6 +238,35 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				}
 				{ //configure viewport transform:
 					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+				}
+
+				{ // draw with the lines pipeline:
+					if (!line_vertices.empty()) {
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lines_pipeline.pipeline);
+
+						{ //use line_vertices (offset 0) as vertex buffer binding 0:
+							std::array< VkBuffer, 1 > vertex_buffers{ workspace.data_buffer_pairs[pipeline_name_to_index["A1LinesPipeline"]][lines_pipeline.data_buffer_name_to_index["LinesVertex"]]->device.handle };
+							std::array< VkDeviceSize, 1 > offsets{ 0 };
+							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+						}
+
+						{ //bind PV descriptor set:
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A1LinesPipeline"]][lines_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+							std::array< VkDescriptorSet, 1 > descriptor_sets{
+								global_descriptor_set //0: World
+							};
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer, //command buffer
+								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
+								lines_pipeline.layout, //pipeline layout
+								0, //first set
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor sets count, ptr
+								0, nullptr //dynamic offsets count, ptr
+							);
+						}
+
+						vkCmdDraw(workspace.command_buffer, uint32_t(line_vertices.size()), 1, 0, 0);
+					}
 				}
 
 				{ //draw with the objects pipeline:
@@ -294,6 +359,65 @@ void A1::update(float dt) {
 	{ // update global data
 		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
+	}
+
+	{ // update line vertices and indices
+		line_vertices.clear();
+
+		for (auto mtd : mesh_tree_data) {
+            const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
+            const auto& object_range = doc->meshes[mtd.mesh_index].range;
+            
+            // Transform local AABB to world AABB (8 corners method)
+            const glm::vec3& bmin = object_range.aabb_min;
+            const glm::vec3& bmax = object_range.aabb_max;
+            glm::vec3 corners[8] = {
+                {bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z},
+                {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+                {bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z},
+                {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+            };
+
+			glm::vec3 world_corners[8];
+            for (int c = 0; c < 8; ++c) {
+                world_corners[c] = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+            }
+            
+            // Add AABB wireframe as line segments (12 edges * 2 vertices each = 24 vertices)
+            // Bottom face (z = min): 0-1, 1-3, 3-2, 2-0
+            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
+            
+            // Top face (z = max): 4-5, 5-7, 7-6, 6-4
+            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
+            
+            // Vertical edges: 0-4, 1-5, 2-6, 3-7
+            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
+            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
+        }
+	}
+
+	{ // update object instances
+		CameraManager::Frustum frustum = camera_manager.get_frustum();
 	}
 
 	{

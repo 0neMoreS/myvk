@@ -67,7 +67,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		},
 	};
 
-	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), {}, 2);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2BackgroundPipeline"], 

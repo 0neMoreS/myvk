@@ -36,7 +36,8 @@ WorkspaceManager::Workspace::Workspace(Workspace&& other) noexcept
     : command_buffer(std::move(other.command_buffer)),
         manager(std::move(other.manager)),
         pipeline_descriptor_set_groups(std::move(other.pipeline_descriptor_set_groups)),
-        global_buffer_pairs(std::move(other.global_buffer_pairs)) {
+        global_buffer_pairs(std::move(other.global_buffer_pairs)),
+        data_buffer_pairs(std::move(other.data_buffer_pairs)) {
     other.command_buffer = VK_NULL_HANDLE;
     other.manager = nullptr;
 }
@@ -47,6 +48,7 @@ WorkspaceManager::Workspace& WorkspaceManager::Workspace::operator=(Workspace&& 
         manager = std::move(other.manager);
         pipeline_descriptor_set_groups = std::move(other.pipeline_descriptor_set_groups);
         global_buffer_pairs = std::move(other.global_buffer_pairs);
+        data_buffer_pairs = std::move(other.data_buffer_pairs);
         other.manager = nullptr;
         other.command_buffer = VK_NULL_HANDLE;
     }
@@ -112,6 +114,16 @@ void WorkspaceManager::Workspace::create(RTG& rtg) {
 
         global_buffer_pairs[global_buffer_config.name] = std::move(new_pair);
     }
+
+    data_buffer_pairs.resize(manager->global_buffer_counts.size());
+    for(size_t i = 0; i < manager->global_buffer_counts.size(); ++i) {
+        data_buffer_pairs[i].reserve(manager->global_buffer_counts[i]);
+        for(size_t j = 0; j < manager->global_buffer_counts[i]; ++j) {
+            data_buffer_pairs[i].push_back(std::make_unique<BufferPair>());
+        }
+    }
+
+    std::cout << "Workspace created." << std::endl;
 }
 
 void WorkspaceManager::Workspace::destroy(RTG &rtg) {
@@ -132,7 +144,6 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     }
 
     global_buffer_pairs.clear();
-    
 
     for(auto& descriptor_sets : pipeline_descriptor_set_groups){
         for(auto& descriptor_set_group : descriptor_sets){
@@ -149,6 +160,18 @@ void WorkspaceManager::Workspace::destroy(RTG &rtg) {
     }
 
     pipeline_descriptor_set_groups.clear();
+
+    for(auto& vec : data_buffer_pairs) {
+        for(auto& buffer_pair : vec) {
+            if (buffer_pair->host.handle != VK_NULL_HANDLE) {
+                rtg.helpers.destroy_buffer(std::move(buffer_pair->host));
+            }
+            if (buffer_pair->device.handle != VK_NULL_HANDLE) {
+                rtg.helpers.destroy_buffer(std::move(buffer_pair->device));
+            }
+        }
+    }
+    data_buffer_pairs.clear();
 }
 
 void WorkspaceManager::Workspace::update_descriptor(
@@ -255,6 +278,36 @@ void WorkspaceManager::Workspace::update_global_descriptor(
     }
 }
 
+void WorkspaceManager::Workspace::update_data_buffer_pair(
+    RTG& rtg, 
+    uint32_t pipeline_index, 
+    uint32_t data_buffer_index,
+    VkDeviceSize size
+){
+    auto& buffer_pair = data_buffer_pairs[pipeline_index][data_buffer_index];
+
+    if(buffer_pair->host.handle != VK_NULL_HANDLE) {
+        rtg.helpers.destroy_buffer(std::move(buffer_pair->host));
+    }
+    if(buffer_pair->device.handle != VK_NULL_HANDLE) {
+        rtg.helpers.destroy_buffer(std::move(buffer_pair->device));
+    }
+
+    // allocate data buffers:
+    buffer_pair->host = rtg.helpers.create_buffer(
+        size,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        Helpers::Mapped
+    );
+    buffer_pair->device = rtg.helpers.create_buffer(
+        size,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        Helpers::Unmapped
+    );
+}
+
 void WorkspaceManager::Workspace::write_buffer(
     RTG& rtg, 
     uint32_t pipeline_index, 
@@ -294,6 +347,25 @@ void WorkspaceManager::Workspace::write_global_buffer(
     vkCmdCopyBuffer(command_buffer, buffer_pair->host.handle, buffer_pair->device.handle, 1, &copy_region);
 }
 
+void WorkspaceManager::Workspace::write_data_buffer(
+    RTG& rtg, 
+    uint32_t pipeline_index, 
+    uint32_t data_buffer_index,
+    void* data, 
+    VkDeviceSize size
+){
+    auto& buffer_pair = data_buffer_pairs[pipeline_index][data_buffer_index];
+
+    memcpy(buffer_pair->host.allocation.data(), data, size);
+
+    VkBufferCopy copy_region{
+            .srcOffset = 0,
+            .dstOffset = 0,
+            .size = size,
+    };
+    vkCmdCopyBuffer(command_buffer, buffer_pair->host.handle, buffer_pair->device.handle, 1, &copy_region);
+}
+
 void WorkspaceManager::Workspace::begin_recording(){
     VkCommandBufferBeginInfo begin_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -315,6 +387,7 @@ void WorkspaceManager::create(
     RTG& rtg, 
     const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline_, 
     const std::vector<GlobalBufferConfig> &&global_buffer_configs_, 
+    const std::vector<size_t> &&global_buffer_counts_,
     uint32_t num_workspaces
 ) {
     { //create command pool
@@ -365,7 +438,7 @@ void WorkspaceManager::create(
 
     this->block_descriptor_configs_by_pipeline = std::move(block_descriptor_configs_by_pipeline_);
     this->global_buffer_configs = std::move(global_buffer_configs_);
-
+    this->global_buffer_counts = std::move(global_buffer_counts_);
     for(uint32_t i = 0; i < num_workspaces; i++) {
         workspaces.emplace_back(std::move(Workspace{*this}));
         workspaces.back().create(rtg);

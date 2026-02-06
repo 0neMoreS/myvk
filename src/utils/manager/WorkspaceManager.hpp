@@ -41,7 +41,7 @@ class WorkspaceManager {
             WorkspaceManager *manager = nullptr;
             std::vector<std::vector<DescriptorSetGroup>> pipeline_descriptor_set_groups; // [pipelines_index][descriptor_set_index]
             std::unordered_map<std::string, std::shared_ptr<BufferPair>> global_buffer_pairs; // buffer pairs not tied to any descriptor set
-            // unique_ptr
+            std::vector<std::vector<std::unique_ptr<BufferPair>>> data_buffer_pairs; // [pipelines_index][data_buffer_index] buffer pairs for data buffers that are written to by the CPU and read from shaders, but not tied to any particular descriptor set (e.g., for copying vertex data to the GPU)
 
             void create(RTG& rtg);
             void destroy(RTG& rtg);
@@ -60,6 +60,13 @@ class WorkspaceManager {
                 void* data, 
                 VkDeviceSize size
             );
+            void write_data_buffer(
+                RTG& rtg, 
+                uint32_t pipeline_index, 
+                uint32_t data_buffer_index,
+                void* data, 
+                VkDeviceSize size
+            );
             void update_descriptor(
                 RTG& rtg, 
                 uint32_t pipeline_index, 
@@ -73,6 +80,12 @@ class WorkspaceManager {
                 uint32_t descriptor_set_index, 
                 uint32_t descriptor_index, 
                 std::string buffer_name, 
+                VkDeviceSize size
+            );
+            void update_data_buffer_pair(
+                RTG& rtg, 
+                uint32_t pipeline_index, 
+                uint32_t data_buffer_index,
                 VkDeviceSize size
             );
             void begin_recording();
@@ -98,6 +111,7 @@ class WorkspaceManager {
             RTG& rtg, 
             const std::vector<std::vector<Pipeline::BlockDescriptorConfig>> &&block_descriptor_configs_by_pipeline, 
             const std::vector<GlobalBufferConfig> &&global_buffer_configs, 
+            const std::vector<size_t> &&global_buffer_counts,
             uint32_t num_workspaces
         );  
         void destroy(RTG& rtg);
@@ -135,6 +149,7 @@ class WorkspaceManager {
         std::vector<Workspace> workspaces;
         std::vector<std::vector<Pipeline::BlockDescriptorConfig>> block_descriptor_configs_by_pipeline;
         std::vector<GlobalBufferConfig> global_buffer_configs;
+        std::vector<size_t> global_buffer_counts;
 
         static const std::unordered_map<VkDescriptorType, VkBufferUsageFlagBits> descriptor_type_to_buffer_usage;
 };

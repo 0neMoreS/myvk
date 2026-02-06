@@ -200,6 +200,7 @@ std::unique_ptr<Texture> create_default_cubemap(
     Helpers &helpers,
     VkFilter filter
 ) {
+    // TODO: Here we create a simple black cubemap as the default texture. Actually we need 6 faces.
     // Create a single black cubemap face
     const size_t face_size = static_cast<size_t>(1) * static_cast<size_t>(1) * 4UL;
     std::vector<float> face_data(face_size, 0.0f);

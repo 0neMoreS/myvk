@@ -20,6 +20,7 @@
 #include "VK.hpp"
 #include "SceneTree.hpp"
 #include "A1CommonData.hpp"
+#include "PosColVertex.hpp"
 
 #include "RTG.hpp"
 
@@ -73,6 +74,8 @@ struct A1 : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< ObjectInstance > object_instances;
+
+	std::vector< PosColVertex > line_vertices;
 
 	std::vector< SceneTree::MeshTreeData > mesh_tree_data;
 	std::vector< SceneTree::LightTreeData > light_tree_data;

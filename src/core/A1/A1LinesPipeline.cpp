@@ -79,6 +79,11 @@ void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpas
         {"PV", 0},
     };
 
+	data_buffer_name_to_index = {
+		// Lines vertex
+		{"LinesVertex", 0}
+	};
+
 	pipeline_name_to_index["A1LinesPipeline"] = 0;
 }
 

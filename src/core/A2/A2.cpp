@@ -457,13 +457,12 @@ void A2::update(float dt) {
 	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
+		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
 		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
-		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+		pv_matrix.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
 		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
-
 		if(doc->lights[0].sphere){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
 		} else if(doc->lights[0].spot){
@@ -471,8 +470,7 @@ void A2::update(float dt) {
 		} else if(doc->lights[0].sun){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sun->strength, 1.0f);
 		}
-
-		light.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+		light.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 	}
 
 	{ // update object instances with frustum culling
@@ -491,24 +489,24 @@ void A2::update(float dt) {
 			std::optional<S72Loader::Material> material = doc->materials[material_index];
 
 			// Transform local AABB to world AABB (8 corners method)
-			const glm::vec3& bmin = object_range.aabb_min;
-			const glm::vec3& bmax = object_range.aabb_max;
-			glm::vec3 corners[8] = {
-				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-			};
-			glm::vec3 world_min(std::numeric_limits<float>::max());
-			glm::vec3 world_max(std::numeric_limits<float>::lowest());
-			for (int c = 0; c < 8; ++c) {
-				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-				world_min = glm::min(world_min, wp);
-				world_max = glm::max(world_max, wp);
-			}
+			// const glm::vec3& bmin = object_range.aabb_min;
+			// const glm::vec3& bmax = object_range.aabb_max;
+			// glm::vec3 corners[8] = {
+			// 	{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+			// 	{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			// };
+			// glm::vec3 world_min(std::numeric_limits<float>::max());
+			// glm::vec3 world_max(std::numeric_limits<float>::lowest());
+			// for (int c = 0; c < 8; ++c) {
+			// 	glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+			// 	world_min = glm::min(world_min, wp);
+			// 	world_max = glm::max(world_max, wp);
+			// }
 
-			// Frustum culling check with world-space AABB
-			if (!frustum.is_box_visible(world_min, world_max)) {
-				continue;
-			}
+			// // Frustum culling check with world-space AABB
+			// if (!frustum.is_box_visible(world_min, world_max)) {
+			// 	continue;
+			// }
 
 			// reflective or environment material instance
 			if(material.has_value() && (material->mirror || material->environment)) {

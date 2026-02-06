@@ -77,6 +77,9 @@ public:
 	const std::vector<Camera>& get_all_cameras() const { return cameras; }
 	size_t get_camera_count() const { return cameras.size(); }
 
+	Camera& get_debug_camera() { return debug_camera; }
+	const Camera& get_debug_camera() const { return debug_camera; }
+
 private:
 	// Cameras loaded from scene
 	std::vector<Camera> cameras; // 0 is for user camera

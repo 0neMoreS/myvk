@@ -49,7 +49,12 @@ A1::A1(RTG &rtg, const std::string &filename) :
 			.name = "PV",
 			.size = sizeof(A1CommonData::PV),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
-		}
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "World",
+			.size = sizeof(A1CommonData::World),
+			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+		},
 	};
 
 	std::vector<size_t> global_buffer_counts{
@@ -65,7 +70,14 @@ A1::A1(RTG &rtg, const std::string &filename) :
 		"PV",
 		sizeof(A1CommonData::PV)
 	);
-
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A1LinesPipeline"], 
+		lines_pipeline.block_descriptor_set_name_to_index["PV"], 
+		lines_pipeline.block_binding_name_to_index["World"], 
+		"World",
+		sizeof(A1CommonData::World)
+	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A1ObjectsPipeline"], 
@@ -73,6 +85,14 @@ A1::A1(RTG &rtg, const std::string &filename) :
 		objects_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
 		sizeof(A1CommonData::PV)
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A1ObjectsPipeline"], 
+		objects_pipeline.block_descriptor_set_name_to_index["PV"], 
+		objects_pipeline.block_binding_name_to_index["World"], 
+		"World",
+		sizeof(A1CommonData::World)
 	);
 
 	scene_manager.create(rtg, doc);
@@ -126,6 +146,10 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1CommonData::PV));
 			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A1CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
+
+			assert(workspace.global_buffer_pairs["World"]->host.allocation.mapped);
+			workspace.write_global_buffer(rtg, "World", &world_lighting, sizeof(A1CommonData::World));
+			assert(workspace.global_buffer_pairs["World"]->host.size == workspace.global_buffer_pairs["World"]->device.size);
 		}
 
 		{ // upload line vertices and indices
@@ -364,6 +388,47 @@ void A1::update(float dt) {
 	{ // update global data
 		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
+
+		if(light_tree_data.size() > 0){
+			// use the first light as sun direction
+			const S72Loader::Light& light = doc->lights[light_tree_data[0].light_index];
+			const std::optional<S72Loader::Light::Sun>& light_sun = light.sun;
+			const glm::mat4 sky_model = BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix;
+			const glm::mat4 sun_model = BLENDER_TO_VULKAN_4 * light_tree_data[1].model_matrix;
+
+			world_lighting.SKY_DIRECTION.x = 0.0f;
+			world_lighting.SKY_DIRECTION.y = 0.0f;
+			world_lighting.SKY_DIRECTION.z = -1.0f;
+
+			world_lighting.SKY_ENERGY.r = light.tint.x * light_sun->strength;
+			world_lighting.SKY_ENERGY.g = light.tint.y * light_sun->strength;
+			world_lighting.SKY_ENERGY.b = light.tint.z * light_sun->strength;
+
+			glm::vec3 sun_dir = glm::normalize(glm::vec3(sun_model[2][0], sun_model[2][1], sun_model[2][2]));
+			world_lighting.SUN_DIRECTION.x = sun_dir.x;
+			world_lighting.SUN_DIRECTION.y = sun_dir.y;
+			world_lighting.SUN_DIRECTION.z = sun_dir.z;
+
+;			world_lighting.SUN_ENERGY.r = light.tint.x * light_sun->strength;
+			world_lighting.SUN_ENERGY.g = light.tint.y * light_sun->strength;
+			world_lighting.SUN_ENERGY.b = light.tint.z * light_sun->strength;
+		} else {
+			world_lighting.SKY_DIRECTION.x = 0.0f;
+			world_lighting.SKY_DIRECTION.y = 0.0f;
+			world_lighting.SKY_DIRECTION.z = 1.0f;
+
+			world_lighting.SKY_ENERGY.r = 0.1f;
+			world_lighting.SKY_ENERGY.g = 0.1f;
+			world_lighting.SKY_ENERGY.b = 0.2f;
+
+			world_lighting.SUN_DIRECTION.x = 6.0f / 23.0f;
+			world_lighting.SUN_DIRECTION.y = 13.0f / 23.0f;
+			world_lighting.SUN_DIRECTION.z = 18.0f / 23.0f;
+
+			world_lighting.SUN_ENERGY.r = 1.0f;
+			world_lighting.SUN_ENERGY.g = 1.0f;
+			world_lighting.SUN_ENERGY.b = 0.9f;
+		}
 	}
 
 	const std::array<uint8_t, 4> yellow = {0xff, 0xff, 0x00, 0xff};

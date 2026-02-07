@@ -22,12 +22,18 @@ void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpas
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 
 	{ //the set0_PV layout holds PV info in a uniform buffer used in the vertex shader:
-		std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
+		std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
 			VkDescriptorSetLayoutBinding{
 				.binding = 0,
 				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 				.descriptorCount = 1,
 				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+			},
+			VkDescriptorSetLayoutBinding{
+				.binding = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
 			},
 		};
 		
@@ -67,7 +73,7 @@ void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpas
         BlockDescriptorConfig{
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
         .layout = set0_PV, 
-        .bindings_count = 1
+        .bindings_count = 2
     }); //Global
 	
 	block_descriptor_set_name_to_index = {
@@ -77,6 +83,7 @@ void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpas
     block_binding_name_to_index = {
         // PV
         {"PV", 0},
+		{"World", 1},
     };
 
 	data_buffer_name_to_index = {

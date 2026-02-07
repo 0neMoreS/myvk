@@ -67,6 +67,7 @@ struct A1 : RTG::Application {
 	float time = 0.0f;
 
 	A1CommonData::PV pv_matrix;
+	A1CommonData::World world_lighting;
 
 	struct ObjectInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

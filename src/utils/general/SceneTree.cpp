@@ -54,7 +54,6 @@ glm::mat4 compute_world_matrix(std::shared_ptr<S72Loader::Document> doc,
 void mark_children_dirty(std::shared_ptr<S72Loader::Document> doc, size_t node_index) {
     S72Loader::Node &node = doc->nodes[node_index];
     node.model_matrix_is_dirty = true;
-    node.world_aabb_is_dirty = true;
     
     for (const auto &child_name : node.children) {
         auto it = S72Loader::node_map.find(child_name);
@@ -155,108 +154,6 @@ void traverse_node(std::shared_ptr<S72Loader::Document> doc,
     }
 }
 
-// Transform AABB by a matrix, returning the new axis-aligned bounding box
-std::pair<glm::vec3, glm::vec3> transform_aabb(const glm::mat4 &matrix, 
-                                               const glm::vec3 &aabb_min, 
-                                               const glm::vec3 &aabb_max
-                                            ) {
-    // Get all 8 corners of the AABB
-    glm::vec3 corners[8] = {
-        {aabb_min.x, aabb_min.y, aabb_min.z},
-        {aabb_max.x, aabb_min.y, aabb_min.z},
-        {aabb_min.x, aabb_max.y, aabb_min.z},
-        {aabb_max.x, aabb_max.y, aabb_min.z},
-        {aabb_min.x, aabb_min.y, aabb_max.z},
-        {aabb_max.x, aabb_min.y, aabb_max.z},
-        {aabb_min.x, aabb_max.y, aabb_max.z},
-        {aabb_max.x, aabb_max.y, aabb_max.z}
-    };
-    
-    // Transform corners and find new AABB
-    glm::vec3 new_min(std::numeric_limits<float>::infinity());
-    glm::vec3 new_max(-std::numeric_limits<float>::infinity());
-    
-    for (int i = 0; i < 8; ++i) {
-        glm::vec4 transformed = matrix * glm::vec4(corners[i], 1.0f);
-        glm::vec3 p = glm::vec3(transformed);
-        new_min = glm::min(new_min, p);
-        new_max = glm::max(new_max, p);
-    }
-    
-    return {new_min, new_max};
-}
-
-// Merge two AABBs
-void merge_aabb(glm::vec3 &out_min, glm::vec3 &out_max,
-               const glm::vec3 &aabb_min, const glm::vec3 &aabb_max) {
-    out_min = glm::min(out_min, aabb_min);
-    out_max = glm::max(out_max, aabb_max);
-}
-
-// Recursively update AABB bottom-up
-// Returns the world-space AABB of this node (including children)
-std::pair<glm::vec3, glm::vec3> update_node_aabb(
-    std::shared_ptr<S72Loader::Document> doc,
-    size_t node_index,
-    const glm::mat4 &parent_matrix
-) {
-    S72Loader::Node &node = doc->nodes[node_index];
-    
-    // Compute world matrix
-    glm::mat4 world_matrix = compute_world_matrix(doc, node_index, parent_matrix);
-    
-    // If not dirty and already computed, return cached AABB
-    if (!node.world_aabb_is_dirty) {
-        return {node.aabb_min, node.aabb_max};
-    }
-    
-    // Initialize with infinite bounds (will be updated)
-    glm::vec3 world_aabb_min(std::numeric_limits<float>::infinity());
-    glm::vec3 world_aabb_max(-std::numeric_limits<float>::infinity());
-    
-    // If this node has a mesh, get its local AABB and transform to world space
-    if (node.mesh.has_value()) {
-        const std::string &mesh_name = node.mesh.value();
-        auto mesh_it = S72Loader::mesh_map.find(mesh_name);
-        
-        if (mesh_it != S72Loader::mesh_map.end()) {
-            size_t mesh_index = mesh_it->second;
-            
-            if (mesh_index < doc->meshes.size()) {
-                const auto &range = doc->meshes[mesh_index].range;
-                
-                // Transform mesh local AABB to world space
-                auto [transformed_min, transformed_max] = transform_aabb(
-                    world_matrix, range.aabb_min, range.aabb_max);
-                
-                merge_aabb(world_aabb_min, world_aabb_max, 
-                          transformed_min, transformed_max);
-            }
-        }
-    }
-    
-    // Recursively process children and merge their AABBs
-    for (const auto &child_name : node.children) {
-        auto it = S72Loader::node_map.find(child_name);
-        if (it != S72Loader::node_map.end()) {
-            auto [child_min, child_max] = update_node_aabb(
-                doc, it->second, world_matrix);
-            
-            // Only merge if child has valid AABB
-            if (child_min.x <= child_max.x) {
-                merge_aabb(world_aabb_min, world_aabb_max, child_min, child_max);
-            }
-        }
-    }
-    
-    // Store the computed world AABB in the node
-    node.aabb_min = world_aabb_min;
-    node.aabb_max = world_aabb_max;
-    node.world_aabb_is_dirty = false;
-    
-    return {world_aabb_min, world_aabb_max};
-}
-
 void transform_node(std::shared_ptr<S72Loader::Document> doc, 
                     const std::string &node_name, 
                     const glm::vec3 &T,
@@ -278,9 +175,6 @@ void transform_node(std::shared_ptr<S72Loader::Document> doc,
     
     // Mark this node and all children as dirty (downward propagation)
     mark_children_dirty(doc, node_index);
-    
-    // Mark world AABB as dirty (for upward propagation if needed)
-    node.world_aabb_is_dirty = true;
     
     // Invalidate cache for this node
     world_matrix_cache.erase(node_index);
@@ -304,18 +198,6 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
         auto it = S72Loader::node_map.find(root_name);
         if (it != S72Loader::node_map.end()) {
             traverse_node(doc, it->second, identity, out_meshes, out_lights, out_cameras, out_environments);
-        }
-    }
-}
-
-void update_aabbs(std::shared_ptr<S72Loader::Document> doc) {    
-    glm::mat4 identity(1.0f);
-    
-    // Update AABBs starting from scene roots
-    for (const auto &root_name : doc->scene.roots) {
-        auto it = S72Loader::node_map.find(root_name);
-        if (it != S72Loader::node_map.end()) {
-            update_node_aabb(doc, it->second, identity);
         }
     }
 }

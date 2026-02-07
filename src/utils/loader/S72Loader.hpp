@@ -50,7 +50,6 @@ struct Node {
 	glm::vec3 aabb_min = glm::vec3(std::numeric_limits<float>::max()); // axis-aligned bounding box min
 	glm::vec3 aabb_max = glm::vec3(std::numeric_limits<float>::lowest()); // axis-aligned bounding box max
 	bool model_matrix_is_dirty;
-	bool world_aabb_is_dirty;
 };
 
 struct Mesh {

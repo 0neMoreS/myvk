@@ -211,7 +211,6 @@ Node parse_node(Object const &obj) {
 	node.aabb_min = {-std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()};
 	node.aabb_max = {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()};
 	node.model_matrix_is_dirty = true;
-	node.world_aabb_is_dirty = true;
 	return node;
 }
 

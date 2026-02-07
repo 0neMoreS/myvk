@@ -33,7 +33,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		.camera_height = swapchain_height,
 		.camera_width = swapchain_width,
 		.camera_near = 0.1f,
-		.camera_far = 2000.0f,
+		.camera_far = 5000.0f,
 	};
 
 	// Create scene cameras

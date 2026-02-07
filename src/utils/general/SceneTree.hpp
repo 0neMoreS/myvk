@@ -45,10 +45,6 @@ void traverse_scene(std::shared_ptr<S72Loader::Document> doc,
 					std::vector<CameraTreeData> &out_cameras,
 					std::vector<EnvironmentTreeData> &out_environments);
 
-// Update AABBs bottom-up using mesh AABBs from object_ranges
-// object_ranges is indexed by mesh_index to get the local AABB of each mesh
-void update_aabbs(std::shared_ptr<S72Loader::Document> doc);
-
 void update_animation(std::shared_ptr<S72Loader::Document> doc, float time);
 
 // Clear the world matrix cache (call when scene is reloaded)

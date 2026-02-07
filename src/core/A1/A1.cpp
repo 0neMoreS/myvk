@@ -349,7 +349,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 void A1::update(float dt) {
-	time = fmod(time + dt, 60.0f);
+	time = fmod(time + dt, 5.0f);
 
 	line_vertices.clear();
 	object_instances.clear();
@@ -359,14 +359,22 @@ void A1::update(float dt) {
 
 	// Update camera
 	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
+	CameraManager::Frustum frustum = camera_manager.get_frustum();
 
 	{ // update global data
 		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
 	}
 
-	{ // update object instances
-		CameraManager::Frustum frustum = camera_manager.get_frustum();
+	const std::array<uint8_t, 4> yellow = {0xff, 0xff, 0x00, 0xff};
+	const std::array<uint8_t, 4> red = {0xff, 0x00, 0x00, 0xff};
+	const std::array<uint8_t, 4> green = {0x00, 0xff, 0x00, 0xff};
+	auto add_line = [&](glm::vec3 corners[8] , int i, int j, std::array<uint8_t, 4> color) {
+		line_vertices.push_back({{corners[i].x, corners[i].y, corners[i].z}, {color[0], color[1], color[2], color[3]}});
+		line_vertices.push_back({{corners[j].x, corners[j].y, corners[j].z}, {color[0], color[1], color[2], color[3]}});
+	};
+
+	{ // generate frustum corners and lines for visualization
 		auto intersection = [](const auto& p1, const auto& p2, const auto& p3) {
 			const glm::vec3& n1 = p1.normal; const glm::vec3& n2 = p2.normal; const glm::vec3& n3 = p3.normal;
 			float d1 = p1.distance; float d2 = p2.distance; float d3 = p3.distance;
@@ -391,23 +399,12 @@ void A1::update(float dt) {
 			intersection(planes[0], planes[3], planes[5])  // Left, Top, Far
 		};
 
-		glm::mat4 inv_view = glm::inverse(camera_manager.get_view());
-        for (int i = 0; i < 8; ++i) {
-            glm::vec4 world_pos = inv_view * glm::vec4(corners[i], 1.0f);
-            corners[i] = glm::vec3(world_pos);
-        }
-
-		auto add_line = [&](int i, int j) {
-			line_vertices.push_back({{corners[i].x, corners[i].y, corners[i].z}, {0xff, 0xff, 0x00, 0xff}});
-			line_vertices.push_back({{corners[j].x, corners[j].y, corners[j].z}, {0xff, 0xff, 0x00, 0xff}});
-		};
-
 		// Near Face
-		add_line(0, 1); add_line(1, 2); add_line(2, 3); add_line(3, 0);
+		add_line(corners, 0, 1, yellow); add_line(corners, 1, 2, yellow); add_line(corners, 2, 3, yellow); add_line(corners, 3, 0, yellow);
 		// Far Face
-		add_line(4, 5); add_line(5, 6); add_line(6, 7); add_line(7, 4);
+		add_line(corners, 4, 5, yellow); add_line(corners, 5, 6, yellow); add_line(corners, 6, 7, yellow); add_line(corners, 7, 4, yellow);
 		// Connecting Edges
-		add_line(0, 4); add_line(1, 5); add_line(2, 6); add_line(3, 7);
+		add_line(corners, 0, 4, yellow); add_line(corners, 1, 5, yellow); add_line(corners, 2, 6, yellow); add_line(corners, 3, 7, yellow);
 	}
 
 	{
@@ -422,49 +419,36 @@ void A1::update(float dt) {
             const glm::vec3& bmin = object_range.aabb_min;
             const glm::vec3& bmax = object_range.aabb_max;
             glm::vec3 corners[8] = {
-                {bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z},
-                {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-                {bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z},
-                {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-            };
+				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			};
+			glm::vec3 world_min(std::numeric_limits<float>::max());
+			glm::vec3 world_max(std::numeric_limits<float>::lowest());
+			for (int c = 0; c < 8; ++c) {
+				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+				world_min = glm::min(world_min, wp);
+				world_max = glm::max(world_max, wp);
+			}
 
-			glm::vec3 world_corners[8];
-            for (int c = 0; c < 8; ++c) {
-                world_corners[c] = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-            }
-            
-            // Add AABB wireframe as line segments (12 edges * 2 vertices each = 24 vertices)
-            // Bottom face (z = min): 0-1, 1-3, 3-2, 2-0
-            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
-            
-            // Top face (z = max): 4-5, 5-7, 7-6, 6-4
-            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
-            
-            // Vertical edges: 0-4, 1-5, 2-6, 3-7
-            line_vertices.push_back({{world_corners[0].x, world_corners[0].y, world_corners[0].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[4].x, world_corners[4].y, world_corners[4].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[1].x, world_corners[1].y, world_corners[1].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[5].x, world_corners[5].y, world_corners[5].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[2].x, world_corners[2].y, world_corners[2].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[6].x, world_corners[6].y, world_corners[6].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[3].x, world_corners[3].y, world_corners[3].z}, {0xff, 0x00, 0x00, 0xff}});
-            line_vertices.push_back({{world_corners[7].x, world_corners[7].y, world_corners[7].z}, {0xff, 0x00, 0x00, 0xff}});
+			glm::vec3 world_corners[8] = {
+				{world_min.x, world_min.y, world_min.z}, {world_max.x, world_min.y, world_min.z}, {world_min.x, world_max.y, world_min.z}, {world_max.x, world_max.y, world_min.z},
+				{world_min.x, world_min.y, world_max.z}, {world_max.x, world_min.y, world_max.z}, {world_min.x, world_max.y, world_max.z}, {world_max.x, world_max.y, world_max.z}
+			};
 
-			
+			if(!frustum.is_box_visible(world_min, world_max)) {
+				add_line(world_corners, 0, 1, red); add_line(world_corners, 1, 3, red); add_line(world_corners, 3, 2, red); add_line(world_corners, 2, 0, red);
+				// Top face (z = max): 4-5, 5-7, 7-6, 6-4
+				add_line(world_corners, 4, 5, red); add_line(world_corners, 5, 7, red); add_line(world_corners, 7, 6, red); add_line(world_corners, 6, 4, red);
+				// Vertical edges: 0-4, 1-5, 2-6, 3-7
+				add_line(world_corners, 0, 4, red); add_line(world_corners, 1, 5, red); add_line(world_corners, 2, 6, red); add_line(world_corners, 3, 7, red);
+				continue;
+			} else {
+				add_line(world_corners, 0, 1, green); add_line(world_corners, 1, 3, green); add_line(world_corners, 3, 2, green); add_line(world_corners, 2, 0, green);
+				// Top face (z = max): 4-5, 5-7, 7-6, 6-4
+				add_line(world_corners, 4, 5, green); add_line(world_corners, 5, 7, green); add_line(world_corners, 7, 6, green); add_line(world_corners, 6, 4, green);
+				// Vertical edges: 0-4, 1-5, 2-6, 3-7
+				add_line(world_corners, 0, 4, green); add_line(world_corners, 1, 5, green); add_line(world_corners, 2, 6, green); add_line(world_corners, 3, 7, green);
+			}
 
 			object_instances.emplace_back(ObjectInstance{
 				.object_ranges = object_range,

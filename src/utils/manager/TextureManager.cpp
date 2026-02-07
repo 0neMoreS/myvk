@@ -123,8 +123,8 @@ void TextureManager::create(
         }
 
         { // the descriptor pool for texture descriptors
-            uint32_t total_2d_descriptors = has_cubemap ? 1 : 0; // BRDF LUT
-            uint32_t total_cubemap_descriptors = has_cubemap ? 2 : 0; // IrradianceMap + PrefilterMap
+            uint32_t total_2d_descriptors = 1; // BRDF LUT
+            uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
 
             for (const auto &material_slots : raw_2d_textures_by_material) {
                 for (const auto &texture_opt : material_slots) {

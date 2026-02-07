@@ -489,24 +489,24 @@ void A2::update(float dt) {
 			std::optional<S72Loader::Material> material = doc->materials[material_index];
 
 			// Transform local AABB to world AABB (8 corners method)
-			// const glm::vec3& bmin = object_range.aabb_min;
-			// const glm::vec3& bmax = object_range.aabb_max;
-			// glm::vec3 corners[8] = {
-			// 	{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-			// 	{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-			// };
-			// glm::vec3 world_min(std::numeric_limits<float>::max());
-			// glm::vec3 world_max(std::numeric_limits<float>::lowest());
-			// for (int c = 0; c < 8; ++c) {
-			// 	glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-			// 	world_min = glm::min(world_min, wp);
-			// 	world_max = glm::max(world_max, wp);
-			// }
+			const glm::vec3& bmin = object_range.aabb_min;
+			const glm::vec3& bmax = object_range.aabb_max;
+			glm::vec3 corners[8] = {
+				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			};
+			glm::vec3 world_min(std::numeric_limits<float>::max());
+			glm::vec3 world_max(std::numeric_limits<float>::lowest());
+			for (int c = 0; c < 8; ++c) {
+				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+				world_min = glm::min(world_min, wp);
+				world_max = glm::max(world_max, wp);
+			}
 
-			// // Frustum culling check with world-space AABB
-			// if (!frustum.is_box_visible(world_min, world_max)) {
-			// 	continue;
-			// }
+			// Frustum culling check with world-space AABB
+			if (!frustum.is_box_visible(world_min, world_max)) {
+				continue;
+			}
 
 			// reflective or environment material instance
 			if(material.has_value() && (material->mirror || material->environment)) {

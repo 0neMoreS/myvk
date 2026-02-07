@@ -200,10 +200,10 @@ std::unique_ptr<Texture> create_default_cubemap(
     Helpers &helpers,
     VkFilter filter
 ) {
-    // TODO: Here we create a simple black cubemap as the default texture. Actually we need 6 faces.
-    // Create a single black cubemap face
-    const size_t face_size = static_cast<size_t>(1) * static_cast<size_t>(1) * 4UL;
-    std::vector<float> face_data(face_size, 0.0f);
+    const size_t pixel_count_per_face = 1;
+    const size_t channels = 4;
+    const size_t face_count = 6;
+    std::vector<float> cubemap_data(pixel_count_per_face * channels * face_count, 0.0f);
     
     // Create GPU cubemap image (single mipmap level)
     auto texture = std::make_unique<Texture>();
@@ -218,11 +218,14 @@ std::unique_ptr<Texture> create_default_cubemap(
         1      // mipmap_levels = 1
     );
     
-    // Transfer black face data to GPU (6 faces, all identical)
-    std::vector<void*> mipmap_ptrs(1, face_data.data());
-    std::vector<size_t> mipmap_byte_sizes(1, face_data.size() * sizeof(float));
+    // 2. Transfer data
+    // Pass a pointer containing data for all 6 faces
+    std::vector<void*> mipmap_ptrs(1, cubemap_data.data());
     
-    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6);
+    // The size must be the total of all 6 faces, so the created Staging Buffer is large enough (96 bytes instead of 16 bytes)
+    std::vector<size_t> mipmap_byte_sizes(1, cubemap_data.size() * sizeof(float));
+    
+    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, face_count);
     
     texture->image_view = TextureCommon::create_image_view(
         helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true

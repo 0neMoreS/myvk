@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<!-- saved from url=(0070)https://graphics.cs.cmu.edu/courses/15-472-s26/A1/report-template.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>15-472-s24: A1 - Scene Graph</title>
+<style>
+/* feel free to style your report in a fancier way! */
+
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;700&Anonymous+Pro&display=swap');
+
+html {
+	background:#505055;
+}
+
+body {
+	font-family: 'Quicksand', sans-serif;
+	color:#000;
+	background:#eeeee8;
+	font-size:15px;
+	margin: 1em auto 50vh auto;
+	padding: 1em 2em 1em 2em;
+	max-width:45em;
+	border-radius:4px;
+	box-shadow:0 0 10px #0008;
+}
+
+h1 { font-size: 20px; font-weight: 700; }
+h2 { font-size: 16px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 400; }
+h4 { font-size: 14px; font-weight: 400; }
+
+h1, h2, h3, h4 {
+	margin: 15px 0 0 -10px;
+}
+
+p {
+	margin: 5px 0 0 0;
+}
+
+.subtitle {
+	display:block;
+	font-size:16px;
+	font-weight:400;
+}
+
+.placeholder {
+	color:#800;
+	font-style:italic;
+	line-height: 1.6;
+}
+
+kbd {
+	display:inline-block;
+	background:#ccc;
+	color:#444;
+	font-style:normal;
+	font-weight:700;
+	border-radius:8px;
+	padding:1px 6px;
+	margin:1px;
+	border:1.5px solid #aaa;
+}
+
+code {
+	font-family: 'Anonymous Pro', monospace;
+	background: #222;
+	color:#fff;
+	border-radius:4px;
+	padding:2px 4px;
+	margin:1px;
+}
+
+code var {
+	color:#ef5;
+	font-style:italic;
+}
+
+.atag {
+	font-family: 'Calistoga', serif;
+	font-size:90%;
+	color:#000;
+	background:#e17dcd;
+
+	display:inline-block;
+	padding:1px 4px;
+	border-radius: 4px;
+	line-height:120%;
+}
+.atag:before {
+	content:'»';
+}
+.atag.extra {
+	background:#c6aff8;
+}
+.atag.creative {
+	background:linear-gradient(0.35turn, #fcacff, #f9ab93, #76a1e4, #20953d);
+}
+
+</style>
+</head>
+<body>
+<h1>A1: Scene Viewer
+<span class="subtitle">by <span class="placeholder">Jim McCann (jmccann)</span></span>
+</h1>
+
+<!-- of course, delete these class="placeholder" notes in your report: -->
+
+<p class="placeholder">
+Summarize, in about one paragraph, your approach to the scene graph assignment.
+How did you structure your code?
+What's cool about it? Are there parts you weren't able to complete?
+</p>
+
+<h2>My Animation <span class="atag creative">A1-create</span></h2>
+
+<p class="placeholder">
+Describe your animation and include a screen recording showing it running in real-time:
+</p>
+
+<video>
+<!--
+  you can use the 'video' element to show your code running
+  Learn more at:
+    https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
+
+  Example: put the video file in a path near this .html
+  <source src="path/to/video" type="video/mp4" />
+-->
+</video>
+
+<p class="placeholder">
+Describe how you created your animation.
+</p>
+
+<h2>Using the Scene Viewer</h2>
+
+<p class="placeholder">Provide a short overview of how to use your viewer.</p>
+
+<h3>Command-line Arguments</h3>
+
+<p class="placeholder">
+Document the command-line arguments that can be used to control your viewer.
+Include both the command-line arguments required by the assignment statement and any additional arguments you decided to add.
+</p>
+
+<ul>
+<li class="placeholder"><code>--scene <var>scene.s72</var></code> -- required -- load scene from <code><var>scene.s72</var></code></li>
+<li class="placeholder"><code>--camera <var>camera_name</var></code> -- optional -- start with the specified camera. If the user doesn't use this parameter or the camera doesn't exist, the program will use the "user" camera.</li>
+<li class="placeholder"><code>--debug-camera</code> -- optional -- start with the debug camera active. If open this, user can only use the debug camera and would observe the bounding box lines</li>
+<li class="placeholder"><code>--physical-device <var>device_name</var></code> -- optional -- specify the physical device to use</li>
+<li class="placeholder"><code>--drawing-size <var>width height</var></code> -- optional -- specify the drawing size</li>
+<li class="placeholder"><code>--headless</code> -- optional -- run without opening a window (for benchmarking)</li>
+</ul>
+
+<h3>Controls</h3>
+
+<p class="placeholder">
+Document the keyboard and mouse controls used to control your viewer when run interactively.
+Note that the controls below are placeholders not requirements.
+</p>
+
+<ul>
+<li class="placeholder"><kbd>LMB+Drag</kbd> orbit the camera.</li>
+<li class="placeholder"><kbd>JIKL</kbd> another way to orbit the camera.</li>
+<li class="placeholder"><kbd>TAB</kbd> switch cameras.</li>
+<li class="placeholder"><kbd>WASD</kbd> move the camera.</li>
+<li class="placeholder"><kbd>Q</kbd> and <kbd>E</kbd> move the camera up and down.</li>
+<li class="placeholder"><kbd>R</kbd> and <kbd>F</kbd> change the fov of the camera.</li>
+</ul>
+
+
+<h2>Evidence</h2>
+
+<!-- <p class="placeholder">
+The purpose of this section is to get you to think critically about your code by providing evidence sufficient to demonstrate to course staff that it works.
+These thoughts may also help you improve the code as you work on it in A2 and beyond.
+</p> -->
+
+<p class="placeholder">
+I started working on this assignment during the winter break. While I based my foundation on the tutorial's codebase, I made several architectural adjustments to better suit my needs. Before diving into the specific implementation details, I would like to briefly introduce the project structure
+</p>
+
+<ul>
+<li class="placeholder"><code>core/</code> This directory contains the implementation of the Application and Pipeline for each assignment.</li>
+<li class="placeholder"><code>shaders</code> As the name suggests, this folder houses all the shader source code.</li>
+<li class="placeholder"><code>utils/general/</code> Contains general purpose utility classes, such as sejp for JSON parsing.</li>
+<li class="placeholder"><code>utils/loader/</code> This includes the custom S72 and texture file loaders I implemented.</li>
+<li class="placeholder"><code>utils/manager/</code> This is where the primary architectural changes happened. I encapsulated various resource operations required by the Application into this module to improve code organization.</li>
+<li class="placeholder"><code>utils/vulkan/</code> Contains utility classes for interfacing with the low-level Vulkan API, such as the Helpers class responsible for memory allocation.</li>
+</ul>
+
+<h3>Scene Loading <span class="atag">A1-load</span></h3>
+
+<!-- <p class="placeholder">
+Describe, in a few sentences, how your loading code works.
+Reference function and structure names for us to examine.
+</p>
+
+<p class="placeholder">
+(If you have <span class="atag">A1-show</span> working, you don't need to provide further evidence here. If you do not, provide some sort of print-outs or other scene statistics to prove that your code can load s72 scenes.)
+</p> -->
+
+<p class="placeholder">
+I started by defining the S72 data structures according to the documentation. Once the data is parsed, it is stored in a tree structure. Also, there is a <code>std::vector</code> for each resource type (e.g., meshes, materials, textures) that stores all the resources of that type.
+</p>
+
+<p class="placeholder">
+For accessing the data, I provided two methods: users can either look up a resource by name using a <code>std::unordered_map</code> to get its index, or simply loop through the entire <code>std::vector</code> to access all resources at once.
+</p>
+
+<p class="placeholder">
+The implementation of the S72 loader is encapsulated in the <code>utils/loader/S72Loader.hpp</code> file.
+</p>
+
+<h3>Scene Display <span class="atag">A1-show</span></h3>
+<!-- <p class="placeholder">
+Describe, in a few sentences, how your display code goes from your internal scene graph representation to triangles being drawn by the GPU.
+Provide function and structure names for us to examine.
+</p> -->
+
+<!-- <p class="placeholder">
+Provide evidence that your code can display s72 scenes.
+Good evidence: screen shots or movies showing that example scene files load correctly.
+Choose or generate example scene files sufficient to demonstrate all required features (note that the simplifying assumptions in the assignment mean you do not need to completely implement s72).
+</p>
+<p class="placeholder">
+Spend some time thinking about corner cases that the provided examples may not test.
+If you develop a test case for these, include the s72 and b72 files with your report as well.
+</p> -->
+
+<p class="placeholder">
+There is three steps to display a scene.
+</p>
+
+<ul>
+<li class="placeholder"><code>Initialization (Application.create):</code>Based on the loaded results, this function initializes several Manager classes to prepare resources for the render loop. For example, the <code>SceneManager</code> reads binary vertex data from .b72 files and allocates device memory.</li>
+<br>
+<li class="placeholder"><code>Update Data (Application.update):</code>This function is responsible for updating dynamic data every frame, such as calculating the new Model matrix by traversing the scene graph.</li>
+<br>
+<li class="placeholder"><code>Rendering (Application.render):</code>This stage handles the resource binding and issues draw calls.</li>
+</ul>
+
+<p class="placeholder">
+<video width="640" height="360" controls poster="thumbnail.jpg">
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.webm" type="video/webm">
+</video>
+</p>
+
+<h3>Scene Display — Interaction <span class="atag">A1-show</span></h3>
+
+<!-- <p class="placeholder">
+Describe how your code handles camera handling and switching.
+</p> -->
+
+<!-- <p class="placeholder">
+Provide evidence that these interactions work.
+Possible evidence: a screen recording showing debug, user, and scene camera switching and interactive movement of the debug and user cameras.
+</p> -->
+
+<p class="placeholder">
+The <code>CameraManager.hpp</code> handles three distinct types of cameras, each serving a specific purpose.
+</p>
+
+<ul>
+<li class="placeholder"><code>Scene Camera:</code>Initialized using data from the scene graph. It updates its parameters every frame by retrieving the latest Model matrix from the scene graph nodes. The specific logic is implemented in <code>CameraManager.update_scene_camera()</code></li>
+<br>
+<li class="placeholder"><code>User Camera:</code>An instance is automatically created during the <code>CameraManager</code> initialization and is always placed at the beginning of the <code>std::vector<Camera></code>. It utilizes a standard free-look control scheme (similar to FPS games), updating its state in real-time based on <code>InputEvent</code> data. This is handled in <code>CameraManager.update_user_camera()</code>.</li>
+<br>
+<li class="placeholder"><code>Debug Camera:</code>The debug camera shares the same control logic as the User Camera. It is stored as a separate reference rather than in the <code>std::vector<Camera></code>. This structural separation allows for easy access to the View and Projection matrices of the currently active main camera (for visualization or culling debugging)</li>
+</ul>
+
+<p class="placeholder">
+<video width="640" height="360" controls poster="thumbnail.jpg">
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.webm" type="video/webm">
+</video>
+</p>
+
+<h3>Frustum culling <span class="atag">A1-cull</span></h3>
+
+<p class="placeholder">
+Describe, in a few sentences,
+where your culling test is implemented;
+how you computed bounding boxes and the camera frustum;
+and the approach you used in your box-frustum test (draw and include a picture if it makes your explanation easier).
+Include references to specific functions and structures in your code for us to examine further.
+</p>
+
+<p class="placeholder">
+Include, as evidence, a screenshot or video showing that culling is working (e.g., by using a debug camera to show that meshes outside the user camera's view aren't being drawn).
+</p>
+
+<p class="placeholder">
+Also include evidence that your culling works on any particularly difficult cases you may have thought up (include .s72 / .b72 files as appropriate).
+</p>
+
+<p class="placeholder">
+Demonstrate a scene and camera angle where your culling code improves performance; and demonstrate one where it does not improve performance.
+Include screen shots and make a chart or graph of median frame times as evidence for the performance impact.
+</p>
+
+
+<h3>Animating the scene <span class="atag">A1-move</span></h3>
+
+<!-- <p class="placeholder">
+Describe, in a few sentences:
+how your viewer stores keyframes;
+and where/how your code handles updated transformations due to animations.
+Include code and structure references.
+</p> -->
+
+<!-- <p class="placeholder">
+Provide evidence that your viewer can play back s72 animation.
+Make sure to demonstrate that both camera and object animation work, and that animation of scene graph hierarchies work.
+</p> -->
+
+<p class="placeholder">
+When the S72 file is parsed, I store all keyframe information in the <code>Driver</code> structure.
+</p>
+
+<p class="placeholder">
+For the actual animation logic, I use <code>SceneTree::update_animation</code>, which is called by <code>Application.update()</code> every frame. This function takes the current time as input, loops through all <code>Driver</code> nodes to calculate the correct interpolation, and finally updates the scene graph with the new values.
+</p>
+
+<p class="placeholder">
+<video width="640" height="360" controls poster="thumbnail.jpg">
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.webm" type="video/webm">
+</video>
+</p>
+
+<h3>Bottleneck Hunting <span class="atag">A1-test</span></h3>
+
+<p class="placeholder">
+Describe for your CPU- and GPU-bottlenecked scenes what your approach was to moving the critical part of the workload to the CPU or GPU, respectively.
+Include a screenshot of the scenes as well as s72 and b72 files as needed.
+</p>
+
+<p class="placeholder">
+Describe how you generated the scenes.
+</p>
+
+<p class="placeholder">
+Describe how you tested the scenes -- including any relevant hardware information about the computer(s) you tested on.
+</p>
+
+<p class="placeholder">
+Provide evidence that in each scene the CPU- or GPU-part of the workload is, indeed, a bottleneck.
+Use charts and graphs as appropriate to make your argument.
+</p>
+
+
+<h3>Performance improvements <span class="atag extra">A1x-fast</span></h3>
+<!-- <p class="placeholder">
+Write a subsection (&lt;h4&gt;) of this section for every attempted performance improvement.
+If you attempted no further performance improvements leave this section blank.
+</p>
+
+<p class="placeholder">
+In each subsection, include a description of what you tried (including references to your code) and evidence of where (and if) the optimization actually did improve performance.
+Report -- at a minimum -- frame times for the same scene collected in headless mode with the optimization on and off.
+Ideally, develop a scene for which the optimization does improve performance and another scene for which it does not.
+</p> -->
+
+<h4>Optimization 1: Bindless Texture Management</h4>
+<p class="placeholder">To optimize rendering performance, I implemented a Bindless-style texture management system. The workflow is as follows</p>
+
+<ul>
+<li class="placeholder"><code>Texture Loading:</code>Upon initialization, the <code>TextureManager</code> uses <code>Texture2DLoader</code> to load all texture data and allocate device memory. To ensure efficient access, I enforced a strict memory layout for each material. Texture slots are assigned fixed indices, which is defined in <code>TextureSlot</code></li>
+<br>
+<li class="placeholder"><code>Descriptor Setup:</code>Since texture resources are static, I moved the descriptor update logic from the render loop to the Pipeline initialization phase. Instead of binding textures per material, I bind all loaded textures to a single, large descriptor set.</li>
+<br>
+<li class="placeholder"><code>Rendering Strategy:</code>During the <code>Application.render</code> loop, I avoid switching descriptor sets for every mesh. Instead, I utilize <code>Push Constants</code> to pass the specific material index to the shader. The shader then uses this index to sample from the correct texture in the bindless array.</li>
+</ul>
+
+<p class="placeholder">This approach will reduces the CPU overhead caused by frequent descriptor binding and state changes. However, since it's hard to change my codebase to a non-bindless texture management, I cannot provide a direct comparison.</p>
+
+<h4>Optimization 2: Scene Graph Dirty Flags</h4>
+
+<p class="placeholder">To further optimize performance, I implemented a <code>Dirty Flag</code> mechanism within the scene graph to cache TRS (Translation-Rotation-Scale) matrices and avoid redundant calculations. When a node is modified by the animation system, it—and its descendants—are marked as "dirty" (see the <code>SceneTree.update_animation</code>). During the subsequent traversal, the system checks this flag; if the node is dirty, it calcute the TRS martix and refresh the cache; otherwise, it retrieves the cached TRS matrix directly(see the <code>SceneTree.traverse</code>).</p>
+
+<p class="placeholder">Here is the comparison between cache and no cache implementations.</p>
+
+<h2>Feedback</h2>
+<p class="placeholder">
+This is the end of the structured report. Feel free to add feedback about A1 to this section.
+</p>
+
+</body></html>

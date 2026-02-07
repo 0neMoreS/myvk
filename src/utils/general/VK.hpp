@@ -69,11 +69,11 @@ inline void print_mat4(const glm::mat4& m, const std::string& name = "Matrix") {
 }
 
 enum TextureSlot : size_t {
-        Normal = 0,
-        Displacement = 1,
-        Albedo = 2,
-        Roughness = 3,
-        Metallic = 4
+    Normal = 0,
+    Displacement = 1,
+    Albedo = 2,
+    Roughness = 3,
+    Metallic = 4
 };
 
 inline std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices

@@ -27,12 +27,12 @@ glm::mat4 compute_cached_local_matrix(std::shared_ptr<S72Loader::Document> doc,
                                 size_t node_index) {
     S72Loader::Node &node = doc->nodes[node_index];
 
-    if (!node.model_matrix_is_dirty) {
-        auto cache_it = local_matrix_cache.find(node_index);
-        if (cache_it != local_matrix_cache.end()) {
-            return cache_it->second;
-        }
-    }
+    // if (!node.model_matrix_is_dirty) {
+    //     auto cache_it = local_matrix_cache.find(node_index);
+    //     if (cache_it != local_matrix_cache.end()) {
+    //         return cache_it->second;
+    //     }
+    // }
 
     glm::mat4 local_matrix = compute_local_matrix(node.translation, node.rotation, node.scale);
     local_matrix_cache[node_index] = local_matrix;

@@ -8,7 +8,7 @@ import sys
 
 # ================= 配置区域 =================
 # C++ 程序路径
-EXE_PATH = r".\bin\main.exe"
+EXE_PATH = r"..\bin\main.exe"
 
 # 测试的 GPU 名称
 # DEVICE_NAME = "NVIDIA GeForce RTX 5080 Laptop GPU"

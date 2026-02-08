@@ -481,7 +481,29 @@ Ideally, develop a scene for which the optimization does improve performance and
 
 <p class="placeholder">To further optimize performance, I implemented a <code>Dirty Flag</code> mechanism within the scene graph to cache TRS (Translation-Rotation-Scale) matrices and avoid redundant calculations. When a node is modified by the animation system, it—and its descendants—are marked as "dirty" (see the <code>SceneTree.update_animation</code>). During the subsequent traversal, the system checks this flag; if the node is dirty, it calcute the TRS martix and refresh the cache; otherwise, it retrieves the cached TRS matrix directly(see the <code>SceneTree.traverse</code>).</p>
 
-<p class="placeholder">Here is the comparison between cache and no cache implementations.</p>
+<p class="placeholder">I first test the difference between cache and no cache implementations using sphereflake scene, which contain a big scene graph. On the other hand, I also test this optimization on a simpler scene to observe the impact.</p>
+
+<figure style="text-align: center;">
+  <img src="images/Optimize2-Optimized.png" alt="Optimized Scene Graph with Dirty Flags in the Sphereflake Scene" width="400">
+  <figcaption class="placeholder">Optimized Scene Graph with Dirty Flags in the Sphereflake Scene</figcaption>
+</figure>
+
+<figure style="text-align: center;">
+  <img src="images/Optimize2-Original.png" alt="Original Scene Graph without Dirty Flags in the Sphereflake Scene" width="400">
+  <figcaption class="placeholder">Original Scene Graph without Dirty Flags in the Sphereflake Scene</figcaption>
+</figure>
+
+<figure style="text-align: center;">
+  <img src="images/Optimize2-Optimized2.png" alt="Optimized Scene Graph with Dirty Flags in the sg-Articulation Scene" width="400">
+  <figcaption class="placeholder">Optimized Scene Graph with Dirty Flags in the sg-Articulation Scene</figcaption>
+</figure>
+
+<figure style="text-align: center;">
+  <img src="images/Optimize2-Original2.png" alt="Original Scene Graph without Dirty Flags in the sg-Articulation Scene" width="400">
+  <figcaption class="placeholder">Original Scene Graph without Dirty Flags in the sg-Articulation Scene</figcaption>
+</figure>
+
+<p class="placeholder">The results show that the optimized version with dirty flags has a higher frame rate compared to the original version without caching. However, the actual performance gain may vary depending on the complexity and structure of the scene graph. In simple scenes with fewer nodes, the overhead of managing dirty flags might outweigh the benefits.</p>
 
 <h2>Feedback</h2>
 <p class="placeholder">

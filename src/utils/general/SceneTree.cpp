@@ -22,29 +22,31 @@ glm::mat4 compute_local_matrix(const glm::vec3 &translation, const glm::vec4 &ro
     return T * R * S;
 }
 
-// Compute world matrix for a node, using cache if available
-glm::mat4 compute_world_matrix(std::shared_ptr<S72Loader::Document> doc, 
-                                size_t node_index, 
-                                const glm::mat4 &parent_matrix) {
+// Compute local matrix for a node, using cache if available
+glm::mat4 compute_cached_local_matrix(std::shared_ptr<S72Loader::Document> doc,
+                                size_t node_index) {
     S72Loader::Node &node = doc->nodes[node_index];
-    
-    // Check cache if not dirty
+
     if (!node.model_matrix_is_dirty) {
-        auto cache_it = world_matrix_cache.find(node_index);
-        if (cache_it != world_matrix_cache.end()) {
+        auto cache_it = local_matrix_cache.find(node_index);
+        if (cache_it != local_matrix_cache.end()) {
             return cache_it->second;
         }
     }
-    
-    // Dirty or not in cache: Compute from scratch
+
     glm::mat4 local_matrix = compute_local_matrix(node.translation, node.rotation, node.scale);
-    glm::mat4 world_matrix = parent_matrix * local_matrix;
-    
-    // Update Cache & Reset Flag
-    world_matrix_cache[node_index] = world_matrix;
+    local_matrix_cache[node_index] = local_matrix;
     node.model_matrix_is_dirty = false;
-    
-    return world_matrix;
+
+    return local_matrix;
+}
+
+// Compute world matrix for a node (no world cache; safe for instancing)
+glm::mat4 compute_world_matrix(std::shared_ptr<S72Loader::Document> doc, 
+                                size_t node_index, 
+                                const glm::mat4 &parent_matrix) {
+    glm::mat4 local_matrix = compute_cached_local_matrix(doc, node_index);
+    return parent_matrix * local_matrix;
 }
 
 // Recursive traversal helper
@@ -114,7 +116,7 @@ void mark_children_dirty_recursive(std::shared_ptr<S72Loader::Document> doc, siz
 
     node.model_matrix_is_dirty = true;
 
-    world_matrix_cache.erase(node_index);
+    local_matrix_cache.erase(node_index);
     
     for (const auto &child_name : node.children) {
         auto it = S72Loader::node_map.find(child_name);

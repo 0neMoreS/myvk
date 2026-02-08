@@ -3,6 +3,7 @@
 #include "Helpers.hpp"
 #include "InputEvent.hpp"
 #include "sejp.hpp"
+#include "Timer.hpp"
 
 #include <vulkan/vulkan_core.h>
 #include <vulkan/utility/vk_format_utils.h>
@@ -81,7 +82,8 @@ struct RTG {
 		};
 		//requested (priority-ranked) presentation modes for output surface: (will use first available)
 		std::vector< VkPresentModeKHR > present_modes{
-			VK_PRESENT_MODE_FIFO_KHR
+			// VK_PRESENT_MODE_FIFO_KHR
+			VK_PRESENT_MODE_IMMEDIATE_KHR
 		};
 
 		//requested size of the output surface:

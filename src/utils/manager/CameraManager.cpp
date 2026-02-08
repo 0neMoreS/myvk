@@ -226,20 +226,17 @@ CameraManager::Frustum CameraManager::get_frustum() const {
 }
 
 bool CameraManager::Frustum::is_box_visible(const glm::vec3& min, const glm::vec3& max) const {
-	// Check if AABB is outside any plane
-	for (const auto& plane : planes) {
-		// Find the positive vertex (furthest along plane normal)
-		glm::vec3 positive_vertex;
-		positive_vertex.x = (plane.normal.x >= 0) ? max.x : min.x;
-		positive_vertex.y = (plane.normal.y >= 0) ? max.y : min.y;
-		positive_vertex.z = (plane.normal.z >= 0) ? max.z : min.z;
-		
-		// If positive vertex is outside, the box is outside
-		if (glm::dot(plane.normal, positive_vertex) + plane.distance < 0) {
-			return false;
-		}
-	}
-	return true;
+    const glm::vec3 center = (min + max) * 0.5f;
+    const glm::vec3 extent = (max - min) * 0.5f;
+
+    for (const auto& plane : planes) {
+        const float d = glm::dot(plane.normal, center) + plane.distance;
+        const float r = glm::dot(glm::abs(plane.normal), extent);
+        if (d + r < 0.0f) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void CameraManager::on_input(const InputEvent& event) {

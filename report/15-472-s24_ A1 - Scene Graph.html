@@ -97,6 +97,20 @@ code var {
 }
 
 </style>
+
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']] // 允许用 $...$ 写行内公式
+    }
+  };
+</script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
+</script>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" rel="stylesheet" />
+
 </head>
 <body>
 <h1>A1: Scene Viewer
@@ -263,9 +277,9 @@ The <code>CameraManager.hpp</code> handles three distinct types of cameras, each
 </p>
 
 <ul>
-<li class="placeholder"><code>Scene Camera:</code>Initialized using data from the scene graph. It updates its parameters every frame by retrieving the latest Model matrix from the scene graph nodes. The specific logic is implemented in <code>CameraManager.update_scene_camera()</code></li>
+<li class="placeholder"><code>Scene Camera:</code>Initialized using data from the scene graph. It updates its parameters every frame by retrieving the latest Model matrix from the scene graph nodes. The specific logic is implemented in <code>CameraManager.update_scene_camera</code></li>
 <br>
-<li class="placeholder"><code>User Camera:</code>An instance is automatically created during the <code>CameraManager</code> initialization and is always placed at the beginning of the <code>std::vector<Camera></code>. It utilizes a standard free-look control scheme (similar to FPS games), updating its state in real-time based on <code>InputEvent</code> data. This is handled in <code>CameraManager.update_user_camera()</code>.</li>
+<li class="placeholder"><code>User Camera:</code>An instance is automatically created during the <code>CameraManager</code> initialization and is always placed at the beginning of the <code>std::vector<Camera></code>. It utilizes a standard free-look control scheme (similar to FPS games), updating its state in real-time based on <code>InputEvent</code> data. This is handled in <code>CameraManager.update_user_camera</code>.</li>
 <br>
 <li class="placeholder"><code>Debug Camera:</code>The debug camera shares the same control logic as the User Camera. It is stored as a separate reference rather than in the <code>std::vector<Camera></code>. This structural separation allows for easy access to the View and Projection matrices of the currently active main camera (for visualization or culling debugging)</li>
 </ul>
@@ -279,7 +293,7 @@ The <code>CameraManager.hpp</code> handles three distinct types of cameras, each
 
 <h3>Frustum culling <span class="atag">A1-cull</span></h3>
 
-<p class="placeholder">
+<!-- <p class="placeholder">
 Describe, in a few sentences,
 where your culling test is implemented;
 how you computed bounding boxes and the camera frustum;
@@ -298,8 +312,94 @@ Also include evidence that your culling works on any particularly difficult case
 <p class="placeholder">
 Demonstrate a scene and camera angle where your culling code improves performance; and demonstrate one where it does not improve performance.
 Include screen shots and make a chart or graph of median frame times as evidence for the performance impact.
+</p> -->
+
+<h5>Implementation</h5>
+
+<p class="placeholder">The frustum culling is executed within the <code>Application.update</code></p>
+
+<ul>
+<li class="placeholder"><code>Camera Update:</code>First, I call <code>camera_manager.update</code> to refresh the camera's state and retrieve the current viewing frustum via <code>camera_manager.get_frustum</code></li>
+<br>
+<li class="placeholder"><code>Bounding Box Transformation:</code>To calculate the World Space AABB, I transform the mesh's local AABB using its current Model Matrix. Note that the local AABB is already recorded by the <code>SceneManager</code> from the vertex loading stage.</li>
+<br>
+<li class="placeholder"><code>Visibility Test:</code>Finally, I perform an intersection test using <code>frustum.is_box_visible</code>. Only meshes that pass this check are added to the instance vector.</li>
+</ul>
+
+<h5>Frustum Plane Derivation</h5>
+
+<p class="placeholder">
+    Mathematically, a plane can be defined by the equation $n \cdot p + d = 0$, where $n$ is the normal vector, $p$ is any point on the plane, and $d$ represents the offset distance from the origin.
 </p>
 
+<p class="placeholder">
+    To derive the frustum planes in World Space, consider a World Space point $p$ located on the left boundary of the frustum. In NDC (after applying the Projection-View matrix, $PV$), this point satisfies the condition $(PV \times p).x = -1$.
+</p>
+
+<p class="placeholder">
+    By expanding the matrix multiplication and rearranging the terms, we obtain:
+</p>
+
+<p class="placeholder">
+$$
+(m_{00} + m_{30}) p_x + (m_{01} + m_{31}) p_y + (m_{02} + m_{32}) p_z + (m_{03} + m_{33}) = 0
+$$
+</p>
+
+<p class="placeholder">
+    where $m_{ij}$ denotes the corresponding element of the $PV$ matrix. This equation perfectly matches the standard plane equation form in World Space. The derivations for the remaining planes follow similar logic. So we can derive all six frustum planes using the $PV$ matrix. The complete implementation is located in <code>CameraManager.get_frustum</code>.
+</p>
+
+<h5>AABB Transformation</h5>
+
+<p class="placeholder">
+To obtain the AABB in World Space, we transform the Model Space AABB using the Model Matrix. Instead of transforming all eight corner points, I utilized a more efficient approach based on the independence of components. Since the X, Y, and Z components of the Model Space AABB affect the resulting World Space dimensions independently, we can calculate the minimum and maximum contributions of each axis separately. By accumulating these contributions (as shown in the code below), we derive the final World Space bounds.
+</p>
+
+<pre><code class="language-cpp">
+// Loop through x, y, z axes
+for (int i = 0; i < 3; ++i) {
+    // Calculate the contributions of the min and max extents
+    glm::vec3 a = glm::vec3(MODEL[i]) * bmin[i];
+    glm::vec3 b = glm::vec3(MODEL[i]) * bmax[i];
+
+    // Accumulate the smallest and largest contributions
+    world_min += glm::min(a, b);
+    world_max += glm::max(a, b);
+}
+</code></pre>
+
+<h5>Box-Frustum Intersection Test</h5>
+
+<p class="placeholder">
+    To determine if an AABB is outside the frustum, we calculate two values relative to the plane's normal vector $n$:
+</p>
+
+<ul>
+    <li class="placeholder">
+        <strong>Signed Center Distance:</strong> The distance from the plane to the AABB center $c$.
+        $$c = (aabb.max + aabb.min) \div 2$$
+		$$ center_d = n \cdot c + d $$
+    </li>
+    <li class="placeholder">
+        <strong>Projected Radius:</strong> The projected extent of the AABB along the normal. This is calculated using the half-extents $h$ of the box.
+		$$h = (aabb.max - aabb.min) \div 2$$
+        $$ r = |n| \cdot h $$
+        </li>
+</ul>
+
+<p class="placeholder">
+    If the condition $center_d + r < 0$ is met, it indicates that the nearest point of the AABB is still behind the plane. Therefore, the AABB is completely outside the frustum and can be culled. The implementation is found in <code>Frustum.is_box_visible</code>.
+</p>
+
+<p class="placeholder"></p>
+
+<p class="placeholder">
+<video width="640" height="360" controls poster="thumbnail.jpg">
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.webm" type="video/webm">
+</video>
+</p>
 
 <h3>Animating the scene <span class="atag">A1-move</span></h3>
 
@@ -320,7 +420,7 @@ When the S72 file is parsed, I store all keyframe information in the <code>Drive
 </p>
 
 <p class="placeholder">
-For the actual animation logic, I use <code>SceneTree::update_animation</code>, which is called by <code>Application.update()</code> every frame. This function takes the current time as input, loops through all <code>Driver</code> nodes to calculate the correct interpolation, and finally updates the scene graph with the new values.
+For the actual animation logic, I use <code>SceneTree::update_animation</code>, which is called by <code>Application.update</code> every frame. This function takes the current time as input, loops through all <code>Driver</code> nodes to calculate the correct interpolation, and finally updates the scene graph with the new values.
 </p>
 
 <p class="placeholder">
@@ -331,7 +431,8 @@ For the actual animation logic, I use <code>SceneTree::update_animation</code>, 
 </p>
 
 <h3>Bottleneck Hunting <span class="atag">A1-test</span></h3>
-
+<!-- 多实例，更改分辨率 -> 帧率不变 -> CPU bottleneck -->
+ <!-- 单实例，更改分辨率 -> 帧率下降 -> GPU bottleneck	 -->
 <p class="placeholder">
 Describe for your CPU- and GPU-bottlenecked scenes what your approach was to moving the critical part of the workload to the CPU or GPU, respectively.
 Include a screenshot of the scenes as well as s72 and b72 files as needed.
@@ -371,7 +472,7 @@ Ideally, develop a scene for which the optimization does improve performance and
 <br>
 <li class="placeholder"><code>Descriptor Setup:</code>Since texture resources are static, I moved the descriptor update logic from the render loop to the Pipeline initialization phase. Instead of binding textures per material, I bind all loaded textures to a single, large descriptor set.</li>
 <br>
-<li class="placeholder"><code>Rendering Strategy:</code>During the <code>Application.render</code> loop, I avoid switching descriptor sets for every mesh. Instead, I utilize <code>Push Constants</code> to pass the specific material index to the shader. The shader then uses this index to sample from the correct texture in the bindless array.</li>
+<li class="placeholder"><code>Descriptor Binding:</code>During the <code>Application.render</code>, I avoid switching descriptor sets for every mesh. Instead, I bind the descriptor set once and utilize <code>Push Constants</code> to pass the specific material index to the shader. The shader then uses this index to sample from the correct texture in the bindless array.</li>
 </ul>
 
 <p class="placeholder">This approach will reduces the CPU overhead caused by frequent descriptor binding and state changes. However, since it's hard to change my codebase to a non-bindless texture management, I cannot provide a direct comparison.</p>
@@ -386,5 +487,8 @@ Ideally, develop a scene for which the optimization does improve performance and
 <p class="placeholder">
 This is the end of the structured report. Feel free to add feedback about A1 to this section.
 </p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
 
 </body></html>

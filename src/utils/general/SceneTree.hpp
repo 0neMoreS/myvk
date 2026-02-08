@@ -34,7 +34,7 @@ struct EnvironmentTreeData
     size_t environment_index;
 };
 
-inline std::unordered_map<size_t, glm::mat4> world_matrix_cache;
+inline std::unordered_map<size_t, glm::mat4> local_matrix_cache;
 
 void traverse_scene(std::shared_ptr<S72Loader::Document> doc, 
                     std::vector<MeshTreeData> &out_meshes,

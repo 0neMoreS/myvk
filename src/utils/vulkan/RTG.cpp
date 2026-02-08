@@ -903,6 +903,21 @@ void RTG::run(Application &application) {
 		std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
 
 		while (configuration.headless || !glfwWindowShouldClose(window)) {
+			// Timer timer([&](double dt){
+			// 	static double acc_time = 0.0;
+			// 	static uint32_t acc_frames = 0;
+
+			// 	acc_time += dt;
+			// 	acc_frames += 1;
+
+			// 	if (acc_time >= 1.0) {
+			// 		const double avg_fps = (acc_time > 0.0) ? (acc_frames / acc_time) : 0.0;
+			// 		std::cout << "AVG FPS (1s): " << avg_fps << std::endl;
+			// 		acc_time = 0.0;
+			// 		acc_frames = 0;
+			// 	}
+			// });
+
 			float headless_dt = 0.0f;
 			std::string headless_save = "";
 

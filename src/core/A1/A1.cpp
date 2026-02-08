@@ -378,8 +378,8 @@ void A1::update(float dt) {
 	line_vertices.clear();
 	object_instances.clear();
 
-	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 	SceneTree::update_animation(doc, time);
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
 	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
@@ -391,8 +391,8 @@ void A1::update(float dt) {
 
 		if(light_tree_data.size() > 0){
 			// use the first light as sun direction
-			const S72Loader::Light& light = doc->lights[light_tree_data[0].light_index];
-			const std::optional<S72Loader::Light::Sun>& light_sun = light.sun;
+			const S72Loader::Light& light_sky = doc->lights[light_tree_data[0].light_index];
+			const S72Loader::Light& light_sun = doc->lights[light_tree_data[1].light_index];
 			const glm::mat4 sky_model = BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix;
 			const glm::mat4 sun_model = BLENDER_TO_VULKAN_4 * light_tree_data[1].model_matrix;
 
@@ -400,19 +400,19 @@ void A1::update(float dt) {
 			world_lighting.SKY_DIRECTION.y = 0.0f;
 			world_lighting.SKY_DIRECTION.z = -1.0f;
 
-			world_lighting.SKY_ENERGY.r = light.tint.x * light_sun->strength;
-			world_lighting.SKY_ENERGY.g = light.tint.y * light_sun->strength;
-			world_lighting.SKY_ENERGY.b = light.tint.z * light_sun->strength;
+			world_lighting.SKY_ENERGY.r = light_sky.tint.x * light_sky.sun->strength;
+			world_lighting.SKY_ENERGY.g = light_sky.tint.y * light_sky.sun->strength;
+			world_lighting.SKY_ENERGY.b = light_sky.tint.z * light_sky.sun->strength;
 
 			glm::vec3 sun_dir = glm::normalize(glm::vec3(sun_model[2][0], sun_model[2][1], sun_model[2][2]));
 			world_lighting.SUN_DIRECTION.x = sun_dir.x;
 			world_lighting.SUN_DIRECTION.y = sun_dir.y;
 			world_lighting.SUN_DIRECTION.z = sun_dir.z;
 
-;			world_lighting.SUN_ENERGY.r = light.tint.x * light_sun->strength;
-			world_lighting.SUN_ENERGY.g = light.tint.y * light_sun->strength;
-			world_lighting.SUN_ENERGY.b = light.tint.z * light_sun->strength;
-		} else {
+			world_lighting.SUN_ENERGY.r = light_sun.tint.x * light_sun.sun->strength;
+			world_lighting.SUN_ENERGY.g = light_sun.tint.y * light_sun.sun->strength;
+			world_lighting.SUN_ENERGY.b = light_sun.tint.z * light_sun.sun->strength;
+
 			world_lighting.SKY_DIRECTION.x = 0.0f;
 			world_lighting.SKY_DIRECTION.y = 0.0f;
 			world_lighting.SKY_DIRECTION.z = 1.0f;
@@ -434,7 +434,7 @@ void A1::update(float dt) {
 	const std::array<uint8_t, 4> yellow = {0xff, 0xff, 0x00, 0xff};
 	const std::array<uint8_t, 4> red = {0xff, 0x00, 0x00, 0xff};
 	const std::array<uint8_t, 4> green = {0x00, 0xff, 0x00, 0xff};
-	auto add_line = [&](glm::vec3 corners[8] , int i, int j, std::array<uint8_t, 4> color) {
+	auto add_line = [&](const std::array< glm::vec3, 8> &corners, int i, int j, const std::array<uint8_t, 4> &color) {
 		line_vertices.push_back({{corners[i].x, corners[i].y, corners[i].z}, {color[0], color[1], color[2], color[3]}});
 		line_vertices.push_back({{corners[j].x, corners[j].y, corners[j].z}, {color[0], color[1], color[2], color[3]}});
 	};
@@ -453,7 +453,7 @@ void A1::update(float dt) {
 
 		// planes: 0:left, 1:right, 2:bottom, 3:top, 4:near, 5:far
 		const auto& planes = frustum.planes;
-		glm::vec3 corners[8] = {
+		std::array< glm::vec3, 8> corners = {
 			intersection(planes[0], planes[2], planes[4]), // Left, Bottom, Near
 			intersection(planes[1], planes[2], planes[4]), // Right, Bottom, Near
 			intersection(planes[1], planes[3], planes[4]), // Right, Top, Near
@@ -483,21 +483,27 @@ void A1::update(float dt) {
 			// Transform local AABB to world AABB (8 corners method)
             const glm::vec3& bmin = object_range.aabb_min;
             const glm::vec3& bmax = object_range.aabb_max;
-            glm::vec3 corners[8] = {
-				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
-			};
-			glm::vec3 world_min(std::numeric_limits<float>::max());
-			glm::vec3 world_max(std::numeric_limits<float>::lowest());
-			for (int c = 0; c < 8; ++c) {
-				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-				world_min = glm::min(world_min, wp);
-				world_max = glm::max(world_max, wp);
+
+			glm::vec3 world_min = glm::vec3(MODEL[3]);
+			glm::vec3 world_max = world_min;
+
+			for (int i = 0; i < 3; ++i) {
+				glm::vec3 a = glm::vec3(MODEL[i]) * bmin[i];
+				glm::vec3 b = glm::vec3(MODEL[i]) * bmax[i];
+
+				world_min += glm::min(a, b);
+				world_max += glm::max(a, b);
 			}
 
-			glm::vec3 world_corners[8] = {
-				{world_min.x, world_min.y, world_min.z}, {world_max.x, world_min.y, world_min.z}, {world_min.x, world_max.y, world_min.z}, {world_max.x, world_max.y, world_min.z},
-				{world_min.x, world_min.y, world_max.z}, {world_max.x, world_min.y, world_max.z}, {world_min.x, world_max.y, world_max.z}, {world_max.x, world_max.y, world_max.z}
+			std::array<glm::vec3, 8> world_corners = {
+				glm::vec3(world_min.x, world_min.y, world_min.z),
+				glm::vec3(world_max.x, world_min.y, world_min.z),
+				glm::vec3(world_min.x, world_max.y, world_min.z),
+				glm::vec3(world_max.x, world_max.y, world_min.z),
+				glm::vec3(world_min.x, world_min.y, world_max.z),
+				glm::vec3(world_max.x, world_min.y, world_max.z),
+				glm::vec3(world_min.x, world_max.y, world_max.z),
+				glm::vec3(world_max.x, world_max.y, world_max.z)
 			};
 
 			if(!frustum.is_box_visible(world_min, world_max)) {
@@ -514,6 +520,39 @@ void A1::update(float dt) {
 				// Vertical edges: 0-4, 1-5, 2-6, 3-7
 				add_line(world_corners, 0, 4, green); add_line(world_corners, 1, 5, green); add_line(world_corners, 2, 6, green); add_line(world_corners, 3, 7, green);
 			}
+
+			std::array<glm::vec3, 8> local_corners = {
+				glm::vec3(bmin.x, bmin.y, bmin.z), // 0: 000
+				glm::vec3(bmax.x, bmin.y, bmin.z), // 1: 100
+				glm::vec3(bmin.x, bmax.y, bmin.z), // 2: 010
+				glm::vec3(bmax.x, bmax.y, bmin.z), // 3: 110
+				glm::vec3(bmin.x, bmin.y, bmax.z), // 4: 001
+				glm::vec3(bmax.x, bmin.y, bmax.z), // 5: 101
+				glm::vec3(bmin.x, bmax.y, bmax.z), // 6: 011
+				glm::vec3(bmax.x, bmax.y, bmax.z)  // 7: 111
+			};
+
+			std::array<glm::vec3, 8> obb_corners;
+			for(int i = 0; i < 8; ++i) {
+				obb_corners[i] = glm::vec3(MODEL * glm::vec4(local_corners[i], 1.0f));
+			}
+
+			const std::array<uint8_t, 4> blue = {0x00, 0x00, 0xff, 0xff};
+
+			add_line(obb_corners, 0, 1, blue); 
+			add_line(obb_corners, 1, 3, blue); 
+			add_line(obb_corners, 3, 2, blue); 
+			add_line(obb_corners, 2, 0, blue);
+
+			add_line(obb_corners, 4, 5, blue); 
+			add_line(obb_corners, 5, 7, blue); 
+			add_line(obb_corners, 7, 6, blue); 
+			add_line(obb_corners, 6, 4, blue);
+
+			add_line(obb_corners, 0, 4, blue); 
+			add_line(obb_corners, 1, 5, blue); 
+			add_line(obb_corners, 2, 6, blue); 
+			add_line(obb_corners, 3, 7, blue);
 
 			object_instances.emplace_back(ObjectInstance{
 				.object_ranges = object_range,

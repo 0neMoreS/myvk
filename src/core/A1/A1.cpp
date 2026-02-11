@@ -34,7 +34,9 @@ A1::A1(RTG &rtg, const std::string &filename) :
 {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	render_pass_manager.create(rtg);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
+	
+	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 
 	texture_manager.create(rtg, doc, 1);
 
@@ -96,8 +98,6 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	);
 
 	scene_manager.create(rtg, doc);
-
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 }
 
 A1::~A1() {
@@ -123,8 +123,7 @@ A1::~A1() {
 
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
-	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
 }
 
 void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
@@ -258,9 +257,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// run pipelines here
 				{ //set scissor rectangle:
 					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-				}
-				{ //configure viewport transform:
 					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
 				}
 
 				{ // draw with the lines pipeline:
@@ -396,9 +394,10 @@ void A1::update(float dt) {
 			const glm::mat4 sky_model = BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix;
 			const glm::mat4 sun_model = BLENDER_TO_VULKAN_4 * light_tree_data[1].model_matrix;
 
-			world_lighting.SKY_DIRECTION.x = 0.0f;
-			world_lighting.SKY_DIRECTION.y = 0.0f;
-			world_lighting.SKY_DIRECTION.z = -1.0f;
+			glm::vec3 sky_dir = glm::normalize(glm::vec3(sky_model[2][0], sky_model[2][1], sky_model[2][2]));
+			world_lighting.SKY_DIRECTION.x = sky_dir.x;
+			world_lighting.SKY_DIRECTION.y = sky_dir.y;
+			world_lighting.SKY_DIRECTION.z = sky_dir.z;
 
 			world_lighting.SKY_ENERGY.r = light_sky.tint.x * light_sky.sun->strength;
 			world_lighting.SKY_ENERGY.g = light_sky.tint.y * light_sky.sun->strength;
@@ -412,7 +411,7 @@ void A1::update(float dt) {
 			world_lighting.SUN_ENERGY.r = light_sun.tint.x * light_sun.sun->strength;
 			world_lighting.SUN_ENERGY.g = light_sun.tint.y * light_sun.sun->strength;
 			world_lighting.SUN_ENERGY.b = light_sun.tint.z * light_sun.sun->strength;
-
+		} else {
 			world_lighting.SKY_DIRECTION.x = 0.0f;
 			world_lighting.SKY_DIRECTION.y = 0.0f;
 			world_lighting.SKY_DIRECTION.z = 1.0f;
@@ -569,4 +568,12 @@ void A1::update(float dt) {
 
 void A1::on_input(InputEvent const &event) {
 	camera_manager.on_input(event);
+
+	if (event.type == InputEvent::KeyDown) {
+	// Change active camera with TAB
+		if (event.key.key == GLFW_KEY_TAB) {
+			camera_manager.change_active_camera();
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
+	}
 }

@@ -30,8 +30,7 @@ std::unique_ptr<Texture> load_image(
 std::unique_ptr<Texture> create_rgb_texture(
     Helpers &helpers,
     const glm::vec3 &color,
-    VkFilter filter = VK_FILTER_LINEAR,
-	bool srgb = false
+    VkFilter filter = VK_FILTER_LINEAR
 );
 
 void destroy(std::unique_ptr<Texture> texture, RTG& rtg);

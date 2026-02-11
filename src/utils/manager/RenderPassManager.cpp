@@ -2,7 +2,7 @@
 #include "RTG.hpp"
 #include <array>
 
-void RenderPassManager::create(RTG& rtg) {
+void RenderPassManager::create(RTG& rtg, float aspect) {
     //select a depth format:
 	//  (at least one of these two must be supported, according to the spec; but neither are required)
 	depth_format = rtg.helpers.find_image_format(
@@ -97,23 +97,21 @@ void RenderPassManager::create(RTG& rtg) {
 		};
 	}
 
-	{ // scissor
-		scissor = {
-			.offset = {.x = 0, .y = 0},
-			.extent = rtg.swapchain_extent,
+	{ // clear_center_attachment
+		clear_center_attachment = {
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.colorAttachment = 0,
+			.clearValue = VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+		};
+
+		clear_center_rect = {
+			.rect = scissor,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
 		};
 	}
 
-	{ //viewport
-		viewport = {
-			.x = 0.0f,
-			.y = 0.0f,
-			.width = float(rtg.swapchain_extent.width),
-			.height = float(rtg.swapchain_extent.height),
-			.minDepth = 0.0f,
-			.maxDepth = 1.0f,
-		};
-	}
+	update_scissor_and_viewport(rtg, rtg.swapchain_extent, aspect);
 }
 
 void RenderPassManager::destroy(RTG& rtg) {
@@ -123,22 +121,38 @@ void RenderPassManager::destroy(RTG& rtg) {
 	}
 }
 
-void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent) {
+void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent, float aspect) {
+	const float swap_aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+
+	uint32_t w = extent.width;
+	uint32_t h = extent.height;
+
+	if (swap_aspect >= aspect) {
+		w = static_cast<uint32_t>(std::round(h * aspect));
+	} else {
+		h = static_cast<uint32_t>(std::round(w / aspect));
+	}
+
+	int32_t offset_x = (static_cast<int32_t>(extent.width) - static_cast<int32_t>(w)) / 2;
+    int32_t offset_y = (static_cast<int32_t>(extent.height) - static_cast<int32_t>(h)) / 2;
+	
 	// scissor
 	scissor = {
-		.offset = {.x = 0, .y = 0},
-		.extent = extent,
+		.offset = {.x = offset_x, .y = offset_y},
+		.extent = VkExtent2D{w, h},
 	};
 
 	//viewport
 	viewport = {
-		.x = 0.0f,
-		.y = 0.0f,
-		.width = float(extent.width),
-		.height = float(extent.height),
+		.x = float(offset_x),
+		.y = float(offset_y),
+		.width = float(w),
+		.height = float(h),
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
+
+	clear_center_rect.rect = scissor;
 }
 
 RenderPassManager::~RenderPassManager() {

@@ -36,7 +36,9 @@ A2::A2(RTG &rtg, const std::string &filename) :
 {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	render_pass_manager.create(rtg);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
+
+	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 
 	texture_manager.create(rtg, doc, 4);
 
@@ -126,8 +128,6 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	);
 
 	scene_manager.create(rtg, doc);
-
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 }
 
 A2::~A2() {
@@ -158,8 +158,7 @@ A2::~A2() {
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
-	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
 }
 
 

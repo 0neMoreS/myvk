@@ -152,7 +152,7 @@ A3::~A3() {
 
 void A3::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
-	camera_manager.resize_all_cameras(swapchain.extent.width, swapchain.extent.height);
+	camera_manager.resize_scene_cameras(swapchain.extent.width, swapchain.extent.height);
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
 }
 

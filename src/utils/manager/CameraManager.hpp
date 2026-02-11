@@ -34,10 +34,9 @@ public:
 		glm::vec3 camera_up;
 		glm::vec3 world_up;
 		float camera_fov;
-        uint32_t camera_height;
-        uint32_t camera_width;
         float camera_near;
         float camera_far;
+		float aspect;
 	};
 
 	CameraManager() = default;
@@ -56,7 +55,7 @@ public:
 	// Handle input events
 	void on_input(const InputEvent& event);
 
-	void resize_all_cameras(const uint32_t swapchain_width, const uint32_t swapchain_height);
+	float get_aspect_ratio(bool open_debug_camera, VkExtent2D swapchain_extent);
 
 	// Get current camera matrices
 	glm::mat4 get_perspective() const;
@@ -79,6 +78,8 @@ public:
 
 	Camera& get_debug_camera() { return debug_camera; }
 	const Camera& get_debug_camera() const { return debug_camera; }
+
+	void change_active_camera() { active_camera_index = (active_camera_index + 1) % cameras.size();	}
 
 private:
 	// Cameras loaded from scene

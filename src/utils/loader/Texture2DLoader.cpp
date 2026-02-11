@@ -71,8 +71,7 @@ std::unique_ptr<Texture> load_image(
 std::unique_ptr<Texture> create_rgb_texture(
     Helpers &helpers,
     const glm::vec3 &color,
-    VkFilter filter, 
-	bool srgb
+    VkFilter filter
 ) {
     uint8_t pixel_data[4] = {
         static_cast<uint8_t>(glm::clamp(color.r, 0.0f, 1.0f) * 255.0f),
@@ -85,7 +84,7 @@ std::unique_ptr<Texture> create_rgb_texture(
     
     texture->image = helpers.create_image(
         VkExtent2D{.width = 1, .height = 1},
-        srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FORMAT_R8G8B8A8_UNORM,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -93,7 +92,7 @@ std::unique_ptr<Texture> create_rgb_texture(
     );
 
 	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1);
-	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
 	texture->sampler = TextureCommon::create_sampler(
 		helpers.rtg.device,
 		filter,

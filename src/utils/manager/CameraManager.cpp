@@ -17,10 +17,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.camera_fov = glm::radians(60.0f),
-		.camera_height = swapchain_height,
-		.camera_width = swapchain_width,
 		.camera_near = 0.1f,
 		.camera_far = 1000.0f,
+		.aspect = 1.0f,
 	});
 
 
@@ -30,10 +29,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		.camera_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.camera_fov = glm::radians(60.0f),
-		.camera_height = swapchain_height,
-		.camera_width = swapchain_width,
 		.camera_near = 0.1f,
 		.camera_far = 5000.0f,
+		.aspect = 1.0f,
 	};
 
 	// Create scene cameras
@@ -50,10 +48,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 			.camera_up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f},
 			.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 			.camera_fov = camera.perspective.has_value() ? camera.perspective.value().vfov : 90.0f,
-			.camera_height = swapchain_height,
-			.camera_width = swapchain_width,
 			.camera_near = camera.perspective.has_value() ? camera.perspective.value().near : 0.1f,
 			.camera_far = camera.perspective.has_value() ? (camera.perspective.value().far.has_value() ? camera.perspective.value().far.value() : 1000.0f) : 1000.0f,
+			.aspect = camera.perspective.has_value() ? camera.perspective.value().aspect : 1.0f,
 		});
 
 		if(camera.name == init_camera_name){
@@ -154,19 +151,18 @@ void CameraManager::update_user_camera(float dt, Camera &active_camera) {
 	active_camera.camera_fov = glm::clamp(active_camera.camera_fov, 0.0f, glm::radians(120.0f));
 }
 
-void CameraManager::resize_all_cameras(const uint32_t swapchain_width, const uint32_t swapchain_height) {
-	for(auto &camera : cameras) {
-		camera.camera_width = swapchain_width;
-		camera.camera_height = swapchain_height;
+float CameraManager::get_aspect_ratio(bool open_debug_camera, VkExtent2D swapchain_extent) {
+	if (open_debug_camera || active_camera_index == 0) {
+		return  static_cast<float>(swapchain_extent.width) / static_cast<float>(swapchain_extent.height);
+	} else {
+		return cameras[active_camera_index].aspect;
 	}
-
-	debug_camera.camera_width = swapchain_width;
-	debug_camera.camera_height = swapchain_height;
 }
+
 
 glm::mat4 CameraManager::get_perspective() const{
     const Camera& active_camera = cameras[active_camera_index];
-    glm::mat4 perspective = glm::perspectiveRH_ZO(active_camera.camera_fov, (float)active_camera.camera_width / (float)active_camera.camera_height, active_camera.camera_near, active_camera.camera_far);
+    glm::mat4 perspective = glm::perspectiveRH_ZO(active_camera.camera_fov, active_camera.aspect, active_camera.camera_near, active_camera.camera_far);
     perspective[1][1] *= -1.0f;
 	return perspective;
 }
@@ -177,7 +173,7 @@ glm::mat4 CameraManager::get_view() const{
 }
 
 glm::mat4 CameraManager::get_debug_perspective() const{
-	glm::mat4 perspective = glm::perspectiveRH_ZO(debug_camera.camera_fov, (float)debug_camera.camera_width / (float)debug_camera.camera_height, debug_camera.camera_near, debug_camera.camera_far);
+	glm::mat4 perspective = glm::perspectiveRH_ZO(debug_camera.camera_fov, debug_camera.aspect, debug_camera.camera_near, debug_camera.camera_far);
 	perspective[1][1] *= -1.0f;
 	return perspective;
 }
@@ -243,11 +239,6 @@ void CameraManager::on_input(const InputEvent& event) {
 	if (event.type == InputEvent::KeyDown) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {
 			keys_down[event.key.key] = true;
-		}
-
-		// Change active camera with TAB
-		if (event.key.key == GLFW_KEY_TAB) {
-			active_camera_index = (active_camera_index + 1) % cameras.size();
 		}
 	} else if (event.type == InputEvent::KeyUp) {
 		if (event.key.key >= 0 && event.key.key <= GLFW_KEY_LAST) {

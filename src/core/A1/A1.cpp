@@ -575,5 +575,10 @@ void A1::on_input(InputEvent const &event) {
 			camera_manager.change_active_camera();
 			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 		}
+
+		if (event.key.key == GLFW_KEY_LEFT_ALT){
+			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
 	}
 }

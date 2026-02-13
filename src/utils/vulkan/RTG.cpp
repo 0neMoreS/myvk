@@ -56,6 +56,11 @@ void RTG::Configuration::parse(int argc, char **argv) {
 		else if (arg == "--open-debug-camera") {
 			open_debug_camera = true;
 		}
+		else if (arg == "--s72-filename") {
+			if (argi + 1 >= argc) throw std::runtime_error("--s72-filename requires a parameter (a filename).");
+			argi += 1;
+			s72_filename = argv[argi];
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -69,6 +74,7 @@ void RTG::Configuration::usage(std::function< void(const char *, const char *) >
 	callback("--headless", "Don't create a window; read events from stdin.");
 	callback("--index <index>", "Set the index count.");
 	callback("--open-debug-camera", "Open the debug camera.");
+	callback("--s72-filename <filename>", "Set the s72 filename.");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(

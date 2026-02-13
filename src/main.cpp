@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 		// BatchCache application(rtg, configuration.index);
 		// Tutorial application(rtg);
 		// A1 application(rtg, "sg-Articulation.s72");
-		A1 application(rtg, "sphereflake-blue.s72");
+		A1 application(rtg, configuration.s72_filename);
 		// A2 application(rtg, "origin-check.s72");
 		// A3 application(rtg, "lights-Mix.s72");
 

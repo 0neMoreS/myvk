@@ -75,7 +75,7 @@ struct RTG {
 		// A1 Parameters
 		std::string init_camera_name = "";
 		bool open_debug_camera = false;
-		bool timer = false;
+		std::string s72_filename = "";
 
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{

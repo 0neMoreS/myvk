@@ -61,6 +61,9 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			argi += 1;
 			s72_filename = argv[argi];
 		}
+		else if (arg == "--timer") {
+			timer = true;
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -909,29 +912,6 @@ void RTG::run(Application &application) {
 		std::chrono::high_resolution_clock::time_point before = std::chrono::high_resolution_clock::now();
 
 		while (configuration.headless || !glfwWindowShouldClose(window)) {
-			Timer frame_timer([&](double dt){
-				std::cout << "Headless frame time: " << (dt * 1000.0) << " ms\n";
-			});
-
-			// Timer timer([&](double dt){
-			// 	static double acc_time = 0.0;
-			// 	static uint32_t acc_frames = 0;
-
-			// 	// Print individual frame time
-			// 	std::cout << "Window frame time: " << (dt * 1000.0) << " ms ("
-			// 				<< (dt > 0.0 ? 1.0 / dt : 0.0) << " FPS)" << std::endl;
-
-			// 	acc_time += dt;
-			// 	acc_frames += 1;
-
-			// 	if (acc_time >= 1.0) {
-			// 		const double avg_fps = (acc_time > 0.0) ? (acc_frames / acc_time) : 0.0;
-			// 		std::cout << "AVG FPS (1s): " << avg_fps << std::endl;
-			// 		acc_time = 0.0;
-			// 		acc_frames = 0;
-			// 	}
-			// });
-
 			float headless_dt = 0.0f;
 			std::string headless_save = "";
 
@@ -974,7 +954,7 @@ void RTG::run(Application &application) {
 			} else {
 				glfwPollEvents();
 			}
-
+			
 			//deliver all input events to application:
 			for (InputEvent const &input : event_queue) {
 				application.on_input(input);
@@ -1061,6 +1041,30 @@ retry:
 				}
 			}
 
+			std::unique_ptr<Timer> frame_timer;
+			if (configuration.timer) {
+				if (configuration.headless) {
+					frame_timer.reset(new Timer([&](double dt) {
+						std::cout << "Headless frame time: " << (dt * 1000.0) << " ms\n";
+					}));
+				} else {
+					frame_timer.reset(new Timer([&](double dt) {
+						static double acc_time = 0.0;
+						static uint32_t acc_frames = 0;
+
+						acc_time += dt;
+						acc_frames += 1;
+
+						if (acc_time >= 1.0) {
+							const double avg_fps = (acc_time > 0.0) ? (acc_frames / acc_time) : 0.0;
+							std::cout << "Windows AVG FPS (1s): " << avg_fps << std::endl;
+							acc_time = 0.0;
+							acc_frames = 0;
+						}
+					}));
+				}
+			}
+
 			//call render function:
 			application.render(*this, RenderParams{
 				.workspace_index = workspace_index,
@@ -1071,7 +1075,6 @@ retry:
 			});
 
 			{ //queue the work for presentation:
-
 				if (configuration.headless) {
 				//in headless mode, submit the copy command we recorded previously:
 

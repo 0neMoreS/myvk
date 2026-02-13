@@ -75,6 +75,7 @@ struct RTG {
 		// A1 Parameters
 		std::string init_camera_name = "";
 		bool open_debug_camera = false;
+		bool timer = false;
 
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{
@@ -82,8 +83,8 @@ struct RTG {
 		};
 		//requested (priority-ranked) presentation modes for output surface: (will use first available)
 		std::vector< VkPresentModeKHR > present_modes{
-			// VK_PRESENT_MODE_FIFO_KHR
-			VK_PRESENT_MODE_IMMEDIATE_KHR
+			VK_PRESENT_MODE_FIFO_KHR
+			// VK_PRESENT_MODE_IMMEDIATE_KHR
 		};
 
 		//requested size of the output surface:

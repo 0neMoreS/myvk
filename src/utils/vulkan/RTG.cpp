@@ -61,9 +61,6 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			argi += 1;
 			s72_filename = argv[argi];
 		}
-		else if (arg == "--timer") {
-			timer = true;
-		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -962,7 +959,7 @@ void RTG::run(Application &application) {
 			event_queue.clear();
 
 			std::unique_ptr<Timer> frame_timer;
-			if (configuration.headless && configuration.timer) {
+			if (configuration.headless) {
 				frame_timer.reset(new Timer([&](double dt) {
 					double adjusted_dt = dt;
 					if (adjusted_dt < 0.0) adjusted_dt = 0.0;
@@ -1011,7 +1008,7 @@ void RTG::run(Application &application) {
 
 				//save buffer, if needed:
 				if (headless_swapchain[image_index].save_to != "") {
-					std::cout << "Saving headless image to '" << headless_swapchain[image_index].save_to << "'." << std::endl;
+					// std::cout << "Saving headless image to '" << headless_swapchain[image_index].save_to << "'." << std::endl;
 					headless_swapchain[image_index].save();
 					headless_swapchain[image_index].save_to = "";
 				}

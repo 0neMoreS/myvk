@@ -122,8 +122,6 @@ void WorkspaceManager::Workspace::create(RTG& rtg) {
             data_buffer_pairs[i].push_back(std::make_unique<BufferPair>());
         }
     }
-
-    std::cout << "Workspace created." << std::endl;
 }
 
 void WorkspaceManager::Workspace::destroy(RTG &rtg) {

@@ -4,7 +4,6 @@ node .\Maekfile.js && ^
 --physical-device "NVIDIA GeForce RTX 5080 Laptop GPU" ^
 --drawing-size 1920 1080 ^
 --camera "Camera" ^
---scene A1-GPU-Bottleneck-6.s72 ^
---timer ^
+--scene sphereflake-blue.s72 ^
 --no-debug ^
---headless ^ < ./report/A1/headless_input/gpu-bottleneck.txt
+--headless ^ < ./report/A1/headless_input/sphereflake.txt > ./drawer/headless_frame_time.txt

@@ -376,7 +376,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
 
-	if (rtg.configuration.headless && rtg.configuration.timer && query_pool_manager.is_enabled()) {
+	if (rtg.configuration.headless &&  query_pool_manager.is_enabled()) {
 		double frame_ms = 0.0;
         if (query_pool_manager.fetch_frame_ms(rtg, render_params.workspace_index, frame_ms)) {
             ++gpu_frame_counter;
@@ -388,7 +388,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 void A1::update(float dt) {
-	time = fmod(time + dt, 5.0f);
+	time = fmod(time + dt, 2.0f);
 
 	line_vertices.clear();
 	object_instances.clear();

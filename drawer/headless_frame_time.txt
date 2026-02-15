@@ -1,0 +1,21 @@
+Selected physical device 'NVIDIA GeForce RTX 5080 Laptop GPU'.
+GPU Headless frame time: 7.91437 ms
+CPU Headless frame time: 1066.17 ms
+GPU Headless frame time: 21.2227 ms
+CPU Headless frame time: 987.59 ms
+GPU Headless frame time: 7.91437 ms
+CPU Headless frame time: 959.387 ms
+GPU Headless frame time: 21.2227 ms
+CPU Headless frame time: 982.806 ms
+GPU Headless frame time: 21.1618 ms
+CPU Headless frame time: 977.019 ms
+GPU Headless frame time: 36.6434 ms
+CPU Headless frame time: 944.427 ms
+GPU Headless frame time: 36.5095 ms
+CPU Headless frame time: 950.855 ms
+GPU Headless frame time: 36.4261 ms
+CPU Headless frame time: 946.228 ms
+GPU Headless frame time: 36.3381 ms
+CPU Headless frame time: 948.411 ms
+GPU Headless frame time: 36.414 ms
+CPU Headless frame time: 952.491 ms

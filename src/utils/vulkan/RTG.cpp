@@ -962,29 +962,12 @@ void RTG::run(Application &application) {
 			event_queue.clear();
 
 			std::unique_ptr<Timer> frame_timer;
-			if (configuration.timer) {
-				if (configuration.headless) {
-					frame_timer.reset(new Timer([&](double dt) {
-						double adjusted_dt = dt;
-						if (adjusted_dt < 0.0) adjusted_dt = 0.0;
-						std::cout << "CPU Headless frame time: " << (adjusted_dt * 1000.0) << " ms\n";
-					}));
-				} else {
-					frame_timer.reset(new Timer([&](double dt) {
-						static double acc_time = 0.0;
-						static uint32_t acc_frames = 0;
-
-						acc_time += dt;
-						acc_frames += 1;
-
-						if (acc_time >= 1.0) {
-							const double avg_fps = acc_frames / acc_time;
-							std::cout << "CPU Windows AVG FPS (1s): " << avg_fps << std::endl;
-							acc_time = 0.0;
-							acc_frames = 0;
-						}
-					}));
-				}
+			if (configuration.headless && configuration.timer) {
+				frame_timer.reset(new Timer([&](double dt) {
+					double adjusted_dt = dt;
+					if (adjusted_dt < 0.0) adjusted_dt = 0.0;
+					std::cout << "CPU Headless frame time: " << (adjusted_dt * 1000.0) << " ms\n";
+				}));
 			}
 
 			{ //elapsed time handling:

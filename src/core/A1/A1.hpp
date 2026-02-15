@@ -21,6 +21,7 @@
 #include "SceneTree.hpp"
 #include "A1CommonData.hpp"
 #include "PosColVertex.hpp"
+#include "QueryPoolManager.hpp"
 
 #include "RTG.hpp"
 
@@ -68,6 +69,10 @@ struct A1 : RTG::Application {
 
 	A1CommonData::PV pv_matrix;
 	A1CommonData::World world_lighting;
+
+	QueryPoolManager query_pool_manager;
+	uint64_t gpu_frame_counter = 0;
+	double last_gpu_frame_ms = 0.0;
 
 	struct ObjectInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

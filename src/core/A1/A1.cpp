@@ -38,6 +38,8 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 
+	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
+
 	texture_manager.create(rtg, doc, 1);
 
 	lines_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
@@ -119,6 +121,8 @@ A1::~A1() {
 	workspace_manager.destroy(rtg);
 
 	render_pass_manager.destroy(rtg);
+
+	query_pool_manager.destroy(rtg);
 }
 
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
@@ -140,6 +144,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	
 	{ //begin recording:
 		workspace.begin_recording();
+
+		query_pool_manager.begin_frame(workspace.command_buffer, render_params.workspace_index);
 
 		{ //upload world info:
 			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A1CommonData::PV));
@@ -338,6 +344,8 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			vkCmdEndRenderPass(workspace.command_buffer);
 		}
 
+		query_pool_manager.end_frame(workspace.command_buffer, render_params.workspace_index);
+
 		//end recording:
 		workspace.end_recording();
 	}
@@ -366,6 +374,15 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		};
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
+	}
+
+	if (rtg.configuration.headless && rtg.configuration.timer && query_pool_manager.is_enabled()) {
+		double frame_ms = 0.0;
+        if (query_pool_manager.fetch_frame_ms(rtg, render_params.workspace_index, frame_ms)) {
+            ++gpu_frame_counter;
+            last_gpu_frame_ms = frame_ms;
+			std::cout << "GPU Headless frame time: " << last_gpu_frame_ms << " ms" << std::endl;
+        }
 	}
 }
 

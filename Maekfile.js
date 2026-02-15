@@ -133,6 +133,7 @@ const common_objs = [
 	maek.CPP('./src/utils/loader/TextureCubeLoader.cpp'),
 	maek.CPP('./src/utils/manager/CameraManager.cpp'),
 	maek.CPP('./src/utils/manager/FrameBufferManager.cpp'),
+	maek.CPP('./src/utils/manager/QueryPoolManager.cpp'),
 	maek.CPP('./src/utils/manager/RenderPassManager.cpp'),
 	maek.CPP('./src/utils/manager/SceneManager.cpp'),
 	maek.CPP('./src/utils/manager/TextureManager.cpp'),

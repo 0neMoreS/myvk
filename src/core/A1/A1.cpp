@@ -404,12 +404,26 @@ void A1::update(float dt) {
 		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
 
-		if(light_tree_data.size() > 0){
-			// use the first light as sun direction
-			const S72Loader::Light& light_sky = doc->lights[light_tree_data[0].light_index];
-			const S72Loader::Light& light_sun = doc->lights[light_tree_data[1].light_index];
+		// Defaults first, then override per available light.
+		world_lighting.SKY_DIRECTION.x = 0.0f;
+		world_lighting.SKY_DIRECTION.y = 0.0f;
+		world_lighting.SKY_DIRECTION.z = 1.0f;
+
+		world_lighting.SKY_ENERGY.r = 0.1f;
+		world_lighting.SKY_ENERGY.g = 0.1f;
+		world_lighting.SKY_ENERGY.b = 0.2f;
+
+		world_lighting.SUN_DIRECTION.x = 6.0f / 23.0f;
+		world_lighting.SUN_DIRECTION.y = 13.0f / 23.0f;
+		world_lighting.SUN_DIRECTION.z = 18.0f / 23.0f;
+
+		world_lighting.SUN_ENERGY.r = 1.0f;
+		world_lighting.SUN_ENERGY.g = 1.0f;
+		world_lighting.SUN_ENERGY.b = 0.9f;
+
+		if (light_tree_data.size() > 0) {
+			const S72Loader::Light &light_sky = doc->lights[light_tree_data[0].light_index];
 			const glm::mat4 sky_model = BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix;
-			const glm::mat4 sun_model = BLENDER_TO_VULKAN_4 * light_tree_data[1].model_matrix;
 
 			glm::vec3 sky_dir = glm::normalize(glm::vec3(sky_model[2][0], sky_model[2][1], sky_model[2][2]));
 			world_lighting.SKY_DIRECTION.x = sky_dir.x;
@@ -419,6 +433,11 @@ void A1::update(float dt) {
 			world_lighting.SKY_ENERGY.r = light_sky.tint.x * light_sky.sun->strength;
 			world_lighting.SKY_ENERGY.g = light_sky.tint.y * light_sky.sun->strength;
 			world_lighting.SKY_ENERGY.b = light_sky.tint.z * light_sky.sun->strength;
+		}
+
+		if (light_tree_data.size() > 1) {
+			const S72Loader::Light &light_sun = doc->lights[light_tree_data[1].light_index];
+			const glm::mat4 sun_model = BLENDER_TO_VULKAN_4 * light_tree_data[1].model_matrix;
 
 			glm::vec3 sun_dir = glm::normalize(glm::vec3(sun_model[2][0], sun_model[2][1], sun_model[2][2]));
 			world_lighting.SUN_DIRECTION.x = sun_dir.x;
@@ -428,22 +447,6 @@ void A1::update(float dt) {
 			world_lighting.SUN_ENERGY.r = light_sun.tint.x * light_sun.sun->strength;
 			world_lighting.SUN_ENERGY.g = light_sun.tint.y * light_sun.sun->strength;
 			world_lighting.SUN_ENERGY.b = light_sun.tint.z * light_sun.sun->strength;
-		} else {
-			world_lighting.SKY_DIRECTION.x = 0.0f;
-			world_lighting.SKY_DIRECTION.y = 0.0f;
-			world_lighting.SKY_DIRECTION.z = 1.0f;
-
-			world_lighting.SKY_ENERGY.r = 0.1f;
-			world_lighting.SKY_ENERGY.g = 0.1f;
-			world_lighting.SKY_ENERGY.b = 0.2f;
-
-			world_lighting.SUN_DIRECTION.x = 6.0f / 23.0f;
-			world_lighting.SUN_DIRECTION.y = 13.0f / 23.0f;
-			world_lighting.SUN_DIRECTION.z = 18.0f / 23.0f;
-
-			world_lighting.SUN_ENERGY.r = 1.0f;
-			world_lighting.SUN_ENERGY.g = 1.0f;
-			world_lighting.SUN_ENERGY.b = 0.9f;
 		}
 	}
 

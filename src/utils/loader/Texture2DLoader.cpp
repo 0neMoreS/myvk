@@ -52,14 +52,15 @@ std::unique_ptr<Texture> load_image(
 
 	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1);
 	
-	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM, false);
-	texture->sampler = TextureCommon::create_sampler(
+	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->sampler = create_sampler(
 		helpers.rtg.device,
 		filter,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		VK_BORDER_COLOR_INT_OPAQUE_BLACK
+		VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		0.0f
 	);
 
 	// Free CPU-side pixel data
@@ -92,14 +93,15 @@ std::unique_ptr<Texture> create_rgb_texture(
     );
 
 	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1);
-	texture->image_view = TextureCommon::create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
-	texture->sampler = TextureCommon::create_sampler(
+	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->sampler = create_sampler(
 		helpers.rtg.device,
 		filter,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		VK_BORDER_COLOR_INT_OPAQUE_BLACK
+		VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		0.0f
 	);
 
     return texture;

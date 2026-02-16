@@ -9,11 +9,57 @@
 #include <vector>
 #include <stdexcept>
 #include <cstring>
+#include <algorithm>
+#include <cmath>
 
 namespace TextureCubeLoader {
 using Face = TextureCubeLoader::Face;
 
 namespace {
+uint32_t pack_e5b9g9r9(float r, float g, float b) {
+    if (!std::isfinite(r) || !std::isfinite(g) || !std::isfinite(b)) {
+        return 0u;
+    }
+
+    r = std::max(0.0f, r);
+    g = std::max(0.0f, g);
+    b = std::max(0.0f, b);
+
+    constexpr float max_rgb9e5 = 65408.0f;
+    r = std::min(r, max_rgb9e5);
+    g = std::min(g, max_rgb9e5);
+    b = std::min(b, max_rgb9e5);
+
+    float max_c = std::max(r, std::max(g, b));
+    if (max_c < 1.52587890625e-5f) {
+        return 0u;
+    }
+
+    int exp_shared = static_cast<int>(std::floor(std::log2(max_c)));
+    exp_shared = std::max(-15, exp_shared) + 1;
+    exp_shared = std::min(16, exp_shared);
+
+    float denom = std::ldexp(1.0f, exp_shared - 9);
+    uint32_t r9 = static_cast<uint32_t>(std::lround(r / denom));
+    uint32_t g9 = static_cast<uint32_t>(std::lround(g / denom));
+    uint32_t b9 = static_cast<uint32_t>(std::lround(b / denom));
+
+    if (exp_shared < 16 && (r9 > 511u || g9 > 511u || b9 > 511u)) {
+        exp_shared++;
+        denom *= 2.0f;
+        r9 = static_cast<uint32_t>(std::lround(r / denom));
+        g9 = static_cast<uint32_t>(std::lround(g / denom));
+        b9 = static_cast<uint32_t>(std::lround(b / denom));
+    }
+
+    r9 = std::min(r9, 511u);
+    g9 = std::min(g9, 511u);
+    b9 = std::min(b9, 511u);
+
+    uint32_t e = static_cast<uint32_t>(exp_shared + 15);
+    return (e << 27) | (b9 << 18) | (g9 << 9) | r9;
+}
+
 // Copy a square tile from (src_w x src_h) image into dest buffer (face_w x face_h)
 void blit_tile_rgba8(
     const unsigned char* src,
@@ -23,7 +69,7 @@ void blit_tile_rgba8(
     int tile_y,
     int tile_w,
     int tile_h,
-    float* dst,
+    uint32_t* dst,
     int rotate_deg
 ) {
     const int channels = 4;
@@ -48,8 +94,9 @@ void blit_tile_rgba8(
                     break;
             }
             const unsigned char* src_px = src + (sy * src_w + sx) * channels;
-            float* dst_px = dst + (y * tile_w + x) * channels;
-            TextureCommon::decode_rgbe(src_px, dst_px);
+            float decoded[4];
+            decode_rgbe(src_px, decoded);
+            dst[y * tile_w + x] = pack_e5b9g9r9(decoded[0], decoded[1], decoded[2]);
         }
     }
 }
@@ -132,12 +179,12 @@ std::unique_ptr<Texture> load_cubemap(
     }
     
     // Process all mipmap levels and prepare GPU texture
-    std::vector<std::vector<float>> all_mipmap_data(mipmap_levels);
+    std::vector<std::vector<uint32_t>> all_mipmap_data(mipmap_levels);
     
     for (uint32_t level = 0; level < mipmap_levels; ++level) {
         const int face_w = widths[level];
         const int face_h = heights[level] / 6;
-        const size_t face_offset = static_cast<size_t>(face_w) * static_cast<size_t>(face_h) * 4UL;
+        const size_t face_offset = static_cast<size_t>(face_w) * static_cast<size_t>(face_h);
         
         all_mipmap_data[level].resize(face_offset * 6);
         
@@ -145,7 +192,7 @@ std::unique_ptr<Texture> load_cubemap(
         for (int tile = 0; tile < 6; ++tile) {
             const int tx = 0;
             const int ty = static_cast<int>(tile_for_vulkan_face[tile].first) * face_h;
-            float* dst = all_mipmap_data[level].data() + tile * face_offset;
+            uint32_t* dst = all_mipmap_data[level].data() + tile * face_offset;
             blit_tile_rgba8(pixel_data_levels[level], widths[level], heights[level], 
                            tx, ty, face_w, face_h, dst, static_cast<int>(tile_for_vulkan_face[tile].second));
         }
@@ -155,7 +202,7 @@ std::unique_ptr<Texture> load_cubemap(
     auto texture = std::make_unique<Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = static_cast<uint32_t>(widths[0]), .height = static_cast<uint32_t>(heights[0] / 6) },
-        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -170,15 +217,15 @@ std::unique_ptr<Texture> load_cubemap(
     
     for (uint32_t level = 0; level < mipmap_levels; ++level) {
         mipmap_ptrs.push_back(all_mipmap_data[level].data());
-        mipmap_byte_sizes.push_back(all_mipmap_data[level].size() * sizeof(float));
+        mipmap_byte_sizes.push_back(all_mipmap_data[level].size() * sizeof(uint32_t));
     }
     
     helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6);
     
-    texture->image_view = TextureCommon::create_image_view(
-        helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true
+    texture->image_view = create_image_view(
+        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true
     );
-    texture->sampler = TextureCommon::create_sampler(
+    texture->sampler = create_sampler(
         helpers.rtg.device,
         filter,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -201,15 +248,14 @@ std::unique_ptr<Texture> create_default_cubemap(
     VkFilter filter
 ) {
     const size_t pixel_count_per_face = 1;
-    const size_t channels = 4;
     const size_t face_count = 6;
-    std::vector<float> cubemap_data(pixel_count_per_face * channels * face_count, 0.0f);
+    std::vector<uint32_t> cubemap_data(pixel_count_per_face * face_count, pack_e5b9g9r9(0.0f, 0.0f, 0.0f));
     
     // Create GPU cubemap image (single mipmap level)
     auto texture = std::make_unique<Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = 1, .height = 1 },
-        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -223,20 +269,21 @@ std::unique_ptr<Texture> create_default_cubemap(
     std::vector<void*> mipmap_ptrs(1, cubemap_data.data());
     
     // The size must be the total of all 6 faces, so the created Staging Buffer is large enough (96 bytes instead of 16 bytes)
-    std::vector<size_t> mipmap_byte_sizes(1, cubemap_data.size() * sizeof(float));
+    std::vector<size_t> mipmap_byte_sizes(1, cubemap_data.size() * sizeof(uint32_t));
     
     helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, face_count);
     
-    texture->image_view = TextureCommon::create_image_view(
-        helpers.rtg.device, texture->image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, true
+    texture->image_view = create_image_view(
+        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true
     );
-    texture->sampler = TextureCommon::create_sampler(
+    texture->sampler = create_sampler(
         helpers.rtg.device,
         filter,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+        0.0f
     );
     
     return texture;

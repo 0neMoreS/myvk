@@ -40,6 +40,8 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 
+	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
+
 	texture_manager.create(rtg, doc, 4);
 
 	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
@@ -154,6 +156,8 @@ A2::~A2() {
 	workspace_manager.destroy(rtg);
 
 	render_pass_manager.destroy(rtg);
+
+	query_pool_manager.destroy(rtg);
 }
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
@@ -176,6 +180,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	
 	{ //begin recording:
 		workspace.begin_recording();
+
+		query_pool_manager.begin_frame(workspace.command_buffer, render_params.workspace_index);
 
 		{ //upload global data:
 			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A2CommonData::PV));
@@ -414,6 +420,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			vkCmdEndRenderPass(workspace.command_buffer);
 		}
 
+		query_pool_manager.end_frame(workspace.command_buffer, render_params.workspace_index);
+
 		//end recording:
 		workspace.end_recording();
 	}
@@ -443,14 +451,23 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
+
+	if (rtg.configuration.headless &&  query_pool_manager.is_enabled()) {
+		double frame_ms = 0.0;
+        if (query_pool_manager.fetch_frame_ms(rtg, render_params.workspace_index, frame_ms)) {
+            ++gpu_frame_counter;
+            last_gpu_frame_ms = frame_ms;
+			std::cout << "GPU Headless frame time: " << last_gpu_frame_ms << " ms" << std::endl;
+        }
+	}
 }
 
 
 void A2::update(float dt) {
 	time = std::fmod(time + dt, 60.0f);
 
-	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 	SceneTree::update_animation(doc, time);
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
 	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
@@ -561,4 +578,17 @@ void A2::update(float dt) {
 
 void A2::on_input(InputEvent const &event) {
 	camera_manager.on_input(event);
+
+	if (event.type == InputEvent::KeyDown) {
+	// Change active camera with TAB
+		if (event.key.key == GLFW_KEY_TAB) {
+			camera_manager.change_active_camera();
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
+
+		if (event.key.key == GLFW_KEY_LEFT_ALT){
+			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
+	}
 }

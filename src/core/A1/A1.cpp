@@ -116,6 +116,7 @@ A1::~A1() {
 	framebuffer_manager.destroy(rtg);
 
 	lines_pipeline.destroy(rtg);
+	
 	objects_pipeline.destroy(rtg);
 
 	workspace_manager.destroy(rtg);

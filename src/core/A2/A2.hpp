@@ -21,6 +21,7 @@
 #include "FrameBufferManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
+#include "QueryPoolManager.hpp"
 
 #include "RTG.hpp"
 
@@ -72,6 +73,10 @@ struct A2 : RTG::Application {
 
 	A2CommonData::PV pv_matrix;
 	A2CommonData::Light light;
+
+	QueryPoolManager query_pool_manager;
+	uint64_t gpu_frame_counter = 0;
+	double last_gpu_frame_ms = 0.0;
 
 	struct ReflectionInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

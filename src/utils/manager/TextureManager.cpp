@@ -118,8 +118,13 @@ void TextureManager::create(
         }
 
         { // Load BRDF LUT texture
-            std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
-            raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR);
+            for(const auto &material : doc->materials) {
+                if (material.pbr) {
+                    std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
+                    raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR);
+                    break;
+                }
+            }
         }
 
         { // the descriptor pool for texture descriptors

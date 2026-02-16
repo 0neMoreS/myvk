@@ -52,7 +52,7 @@ static const glm::mat4 VULKAN_TO_BLENDER_4 = glm::mat4(
     0.0f,  0.0f,  0.0f, 1.0f
 );
 
-static std::string s72_dir = "./external/s72/examples/";
+inline std::string s72_dir = "./external/s72/examples/";
 
 inline void print_mat4(const glm::mat4& m, const std::string& name = "Matrix") {
     std::cout << name << ":" << std::endl;

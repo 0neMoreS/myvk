@@ -13,6 +13,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <set>
 
 void RTG::Configuration::parse(int argc, char **argv) {
@@ -59,7 +60,14 @@ void RTG::Configuration::parse(int argc, char **argv) {
 		else if (arg == "--scene") {
 			if (argi + 1 >= argc) throw std::runtime_error("--scene requires a parameter (a filename).");
 			argi += 1;
-			s72_filename = argv[argi];
+			std::filesystem::path scene_path(argv[argi]);
+			std::filesystem::path parent = scene_path.parent_path();
+			std::string parent_dir = parent.empty() ? std::string(".") : parent.generic_string();
+			if (!parent_dir.empty() && parent_dir.back() != '/') {
+				parent_dir.push_back('/');
+			}
+			s72_dir = parent_dir;
+			s72_filename = scene_path.filename().string();
 		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");

@@ -33,7 +33,7 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 	}
 
 	// Create HDR depth image
-	hdr_depth_image = rtg.helpers.create_image(
+	depth_image = rtg.helpers.create_image(
 		swapchain.extent,
 		render_pass_manager.depth_format,
 		VK_IMAGE_TILING_OPTIMAL,
@@ -45,7 +45,7 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 	{ // Create HDR depth image view
 		VkImageViewCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = hdr_depth_image.handle,
+			.image = depth_image.handle,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.format = render_pass_manager.depth_format,
 			.subresourceRange{
@@ -57,13 +57,13 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 			},
 		};
 
-		VK( vkCreateImageView(rtg.device, &create_info, nullptr, &hdr_depth_image_view) );
+		VK( vkCreateImageView(rtg.device, &create_info, nullptr, &depth_image_view) );
 	}
 
 	{ // Create HDR framebuffer
 		std::array< VkImageView, 2 > hdr_attachments{
 			hdr_color_image_view,
-			hdr_depth_image_view,
+			depth_image_view,
 		};
 
 		VkFramebufferCreateInfo create_info{
@@ -104,13 +104,14 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 	// Create swapchain framebuffers for tone mapping pass (no depth)
 	swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
 	for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
-		std::array< VkImageView, 1 > attachments{
+		std::array< VkImageView, 2 > attachments{
 			swapchain.image_views[i],
+			depth_image_view
 		};
 
 		VkFramebufferCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = render_pass_manager.tonemap_render_pass,
+			.renderPass = render_pass_manager.render_pass,
 			.attachmentCount = uint32_t(attachments.size()),
 			.pAttachments = attachments.data(),
 			.width = swapchain.extent.width,
@@ -149,11 +150,11 @@ void  FrameBufferManager::destroy(RTG &rtg){
 	rtg.helpers.destroy_image(std::move(hdr_color_image));
 
 	// Destroy HDR depth image and view
-	if (hdr_depth_image_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, hdr_depth_image_view, nullptr);
-		hdr_depth_image_view = VK_NULL_HANDLE;
+	if (depth_image_view != VK_NULL_HANDLE) {
+		vkDestroyImageView(rtg.device, depth_image_view, nullptr);
+		depth_image_view = VK_NULL_HANDLE;
 	}
-	rtg.helpers.destroy_image(std::move(hdr_depth_image));
+	rtg.helpers.destroy_image(std::move(depth_image));
 
 	// Destroy HDR sampler
 	if (hdr_sampler != VK_NULL_HANDLE) {
@@ -174,8 +175,8 @@ FrameBufferManager::~FrameBufferManager(){
     if(hdr_color_image_view != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_color_image_view not destroyed" << std::endl;
     }
-    if(hdr_depth_image_view != VK_NULL_HANDLE){
-        std::cerr << "FrameBufferManager: hdr_depth_image_view not destroyed" << std::endl;
+    if(depth_image_view != VK_NULL_HANDLE){
+        std::cerr << "FrameBufferManager: depth_image_view not destroyed" << std::endl;
     }
     if(hdr_sampler != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_sampler not destroyed" << std::endl;

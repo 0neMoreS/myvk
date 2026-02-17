@@ -167,10 +167,9 @@ A2::~A2() {
 }
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
+	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 
-	// Allocate and update descriptor for tone mapping pipeline (HDR texture)
 	{
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
@@ -293,9 +292,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
-					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available

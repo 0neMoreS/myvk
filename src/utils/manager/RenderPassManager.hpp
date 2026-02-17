@@ -37,4 +37,6 @@ public:
 
     VkRect2D scissor;
     VkViewport viewport;
+    VkRect2D full_scissor;
+    VkViewport full_viewport;
 };

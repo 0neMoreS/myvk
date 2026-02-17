@@ -230,7 +230,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		};
 
 		tonemap_clears = {
-			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
 		};
 	}
 
@@ -300,6 +300,22 @@ void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& 
 	};
 
 	clear_center_rect.rect = scissor;
+
+	{
+		full_scissor = {
+			.offset = {.x = 0, .y = 0},
+			.extent = VkExtent2D{rtg.swapchain_extent.width, rtg.swapchain_extent.height},
+		};
+
+		full_viewport = {
+			.x = 0.0f,
+			.y = 0.0f,
+			.width = float(rtg.swapchain_extent.width),
+			.height = float(rtg.swapchain_extent.height),
+			.minDepth = 0.0f,
+			.maxDepth = 1.0f,
+		};
+	}
 }
 
 RenderPassManager::~RenderPassManager() {

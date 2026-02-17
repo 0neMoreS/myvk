@@ -15,6 +15,7 @@
 #include "A2LambertianPipeline.hpp"
 #include "A2PBRPipeline.hpp"
 #include "A2ReflectionPipeline.hpp"
+#include "A2ToneMappingPipeline.hpp"
 #include "A2CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
@@ -48,6 +49,7 @@ struct A2 : RTG::Application {
 	A2LambertianPipeline lambertian_pipeline;
 	A2PBRPipeline pbr_pipeline;
 	A2ReflectionPipeline reflection_pipeline;
+	A2ToneMappingPipeline tonemapping_pipeline;
 
 	//-------------------------------------------------------------------
 	//static scene resources:

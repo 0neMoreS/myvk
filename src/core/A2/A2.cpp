@@ -42,15 +42,19 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
-	texture_manager.create(rtg, doc, 4);
+	texture_manager.create(rtg, doc, 5); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
-	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	// Scene pipelines render to HDR framebuffer
+	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
 
-	lambertian_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
 
-	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
 
-	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	reflection_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+
+	// Tone mapping pipeline renders to swapchain
+	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
@@ -153,6 +157,8 @@ A2::~A2() {
 
 	reflection_pipeline.destroy(rtg);
 
+	tonemapping_pipeline.destroy(rtg);
+
 	workspace_manager.destroy(rtg);
 
 	render_pass_manager.destroy(rtg);
@@ -163,6 +169,45 @@ A2::~A2() {
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
+
+	// Allocate and update descriptor for tone mapping pipeline (HDR texture)
+	{
+		// Allocate descriptor set from texture_manager's descriptor pool
+		VkDescriptorSetAllocateInfo alloc_info{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			.descriptorPool = texture_manager.texture_descriptor_pool,
+			.descriptorSetCount = 1,
+			.pSetLayouts = &tonemapping_pipeline.set0_HDRTexture,
+		};
+
+		VK( vkAllocateDescriptorSets(rtg_.device, &alloc_info, &tonemapping_pipeline.set0_HDRTexture_instance) );
+
+		// Get a sampler from existing textures (reuse from 2D textures)
+		VkSampler sampler = VK_NULL_HANDLE;
+		if (!texture_manager.raw_2d_textures_by_material.empty() &&
+		    texture_manager.raw_2d_textures_by_material[0][0].has_value()) {
+			sampler = texture_manager.raw_2d_textures_by_material[0][0].value()->sampler;
+		}
+
+		// Update descriptor to bind HDR color image
+		VkDescriptorImageInfo image_info{
+			.sampler = sampler,
+			.imageView = framebuffer_manager.hdr_color_image_view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+
+		VkWriteDescriptorSet write{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = tonemapping_pipeline.set0_HDRTexture_instance,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &image_info,
+		};
+
+		vkUpdateDescriptorSets(rtg_.device, 1, &write, 0, nullptr);
+	}
 }
 
 
@@ -244,12 +289,15 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			);
 		}
 
-		
-		{ //render pass
+
+		// =====================================================================
+		// First pass: Render scene to HDR framebuffer
+		// =====================================================================
+		{
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-				.renderPass = render_pass_manager.render_pass,
-				.framebuffer = framebuffer,
+				.renderPass = render_pass_manager.hdr_render_pass,
+				.framebuffer = framebuffer_manager.hdr_framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -415,6 +463,102 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 					}
 				}
+			}
+
+			vkCmdEndRenderPass(workspace.command_buffer);
+		}
+
+		// =====================================================================
+		// Image barrier: HDR texture ready for sampling
+		// =====================================================================
+		{
+			VkImageMemoryBarrier image_barrier{
+				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+				.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.image = framebuffer_manager.hdr_color_image.handle,
+				.subresourceRange{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				},
+			};
+
+			vkCmdPipelineBarrier(
+				workspace.command_buffer,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // srcStageMask
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,        // dstStageMask
+				0,                                             // dependencyFlags
+				0, nullptr,                                    // memoryBarriers
+				0, nullptr,                                    // bufferMemoryBarriers
+				1, &image_barrier                              // imageMemoryBarriers
+			);
+		}
+
+		// =====================================================================
+		// Second pass: Tone mapping HDR texture to swapchain
+		// =====================================================================
+		{
+			std::array< VkClearValue, 1 > tonemap_clears{
+				VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+			};
+
+			VkRenderPassBeginInfo begin_info{
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				.renderPass = render_pass_manager.tonemap_render_pass,
+				.framebuffer = framebuffer,
+				.renderArea{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				},
+				.clearValueCount = uint32_t(tonemap_clears.size()),
+				.pClearValues = tonemap_clears.data(),
+			};
+
+			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				// Full-screen viewport for tone mapping
+				VkViewport viewport{
+					.x = 0.0f,
+					.y = 0.0f,
+					.width = static_cast<float>(rtg.swapchain_extent.width),
+					.height = static_cast<float>(rtg.swapchain_extent.height),
+					.minDepth = 0.0f,
+					.maxDepth = 1.0f,
+				};
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &viewport);
+
+				VkRect2D scissor{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				};
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &scissor);
+
+				// Bind tone mapping pipeline
+				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapping_pipeline.pipeline);
+
+				// Bind HDR texture descriptor
+				std::array< VkDescriptorSet, 1 > descriptor_sets{
+					tonemapping_pipeline.set0_HDRTexture_instance,
+				};
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					tonemapping_pipeline.layout,
+					0,
+					uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+					0, nullptr
+				);
+
+				// Draw full-screen triangle (no vertex buffer)
+				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
 			}
 
 			vkCmdEndRenderPass(workspace.command_buffer);

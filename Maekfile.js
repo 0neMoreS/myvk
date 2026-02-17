@@ -75,6 +75,11 @@ const a2_reflection_shaders = [
 	maek.GLSLC('./src/shaders/A2/A2-reflection.frag'),
 ];
 
+const a2_tonemap_shaders = [
+	maek.GLSLC('./src/shaders/A2/tonemap.vert'),
+	maek.GLSLC('./src/shaders/A2/tonemap.frag'),
+];
+
 // const a3_background_shaders = [
 // 	maek.GLSLC('./src/shaders/A3/A3-background.vert'),
 // 	maek.GLSLC('./src/shaders/A3/A3-background.frag'),
@@ -118,6 +123,7 @@ const common_objs = [
 	maek.CPP('./src/core/A2/A2LambertianPipeline.cpp', undefined, { depends: [...a2_lambertian_shaders] }),
 	maek.CPP('./src/core/A2/A2PBRPipeline.cpp', undefined, { depends: [...a2_pbr_shaders] }),
 	maek.CPP('./src/core/A2/A2ReflectionPipeline.cpp', undefined, { depends: [...a2_reflection_shaders] }),
+	maek.CPP('./src/core/A2/A2TonemappingPipeline.cpp', undefined, { depends: [...a2_tonemap_shaders] }),
 	// A3 files
 	// maek.CPP('./src/core/A3/A3.cpp'),
 	// maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),

@@ -19,6 +19,14 @@ public:
     void update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent, float aspect);
 
     VkRenderPass render_pass = VK_NULL_HANDLE;
+
+    // HDR render pass: scene -> HDR texture (with depth)
+    VkRenderPass hdr_render_pass = VK_NULL_HANDLE;
+
+    // Tone mapping render pass: HDR texture -> swapchain (no depth)
+    VkRenderPass tonemap_render_pass = VK_NULL_HANDLE;
+
+    VkFormat hdr_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
 
     std::array<VkClearValue, 2> clears;

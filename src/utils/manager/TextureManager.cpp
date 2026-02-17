@@ -128,7 +128,7 @@ void TextureManager::create(
         }
 
         { // the descriptor pool for texture descriptors
-            uint32_t total_2d_descriptors = 1; // BRDF LUT
+            uint32_t total_2d_descriptors = 2; // BRDF LUT + Tone mapping target (swapchain image)
             uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
 
             for (const auto &material_slots : raw_2d_textures_by_material) {

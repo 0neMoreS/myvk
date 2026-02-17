@@ -228,6 +228,10 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
 			VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
 		};
+
+		tonemap_clears = {
+			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+		};
 	}
 
 	{ // clear_center_attachment

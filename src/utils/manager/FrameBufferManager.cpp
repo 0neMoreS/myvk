@@ -79,6 +79,28 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &hdr_framebuffer) );
 	}
 
+	{ // Create HDR sampler for tone mapping
+		VkSamplerCreateInfo sampler_info{
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_LINEAR,
+			.minFilter = VK_FILTER_LINEAR,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.mipLodBias = 0.0f,
+			.anisotropyEnable = VK_FALSE,
+			.maxAnisotropy = 1.0f,
+			.compareEnable = VK_FALSE,
+			.minLod = 0.0f,
+			.maxLod = 0.0f,
+			.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+			.unnormalizedCoordinates = VK_FALSE,
+		};
+
+		VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &hdr_sampler) );
+	}
+
 	// Create swapchain framebuffers for tone mapping pass (no depth)
 	swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
 	for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
@@ -132,6 +154,12 @@ void  FrameBufferManager::destroy(RTG &rtg){
 		hdr_depth_image_view = VK_NULL_HANDLE;
 	}
 	rtg.helpers.destroy_image(std::move(hdr_depth_image));
+
+	// Destroy HDR sampler
+	if (hdr_sampler != VK_NULL_HANDLE) {
+		vkDestroySampler(rtg.device, hdr_sampler, nullptr);
+		hdr_sampler = VK_NULL_HANDLE;
+	}
 }
 
 FrameBufferManager::~FrameBufferManager(){
@@ -148,5 +176,8 @@ FrameBufferManager::~FrameBufferManager(){
     }
     if(hdr_depth_image_view != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_depth_image_view not destroyed" << std::endl;
+    }
+    if(hdr_sampler != VK_NULL_HANDLE){
+        std::cerr << "FrameBufferManager: hdr_sampler not destroyed" << std::endl;
     }
 }

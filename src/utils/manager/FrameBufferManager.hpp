@@ -12,6 +12,7 @@ class FrameBufferManager {
         Helpers::AllocatedImage hdr_depth_image;
         VkImageView hdr_depth_image_view = VK_NULL_HANDLE;
         VkFramebuffer hdr_framebuffer = VK_NULL_HANDLE;
+        VkSampler hdr_sampler = VK_NULL_HANDLE;
 
         // Swapchain framebuffers (for tone mapping pass, no depth)
         std::vector< VkFramebuffer > swapchain_framebuffers;

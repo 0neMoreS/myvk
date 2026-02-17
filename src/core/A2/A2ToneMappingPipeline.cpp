@@ -43,6 +43,17 @@ void A2ToneMappingPipeline::create(
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_HDRTexture) );
     }
 
+    { // allocate descriptor set for HDR texture
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = texture_manager.texture_descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &set0_HDRTexture,
+        };
+
+    VK( vkAllocateDescriptorSets(rtg.device, &alloc_info, &set0_HDRTexture_instance) );
+    }
+
     { // create pipeline layout
         std::array< VkDescriptorSetLayout, 1 > layouts{
             set0_HDRTexture,

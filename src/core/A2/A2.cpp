@@ -172,26 +172,9 @@ void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 
 	// Allocate and update descriptor for tone mapping pipeline (HDR texture)
 	{
-		// Allocate descriptor set from texture_manager's descriptor pool
-		VkDescriptorSetAllocateInfo alloc_info{
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = texture_manager.texture_descriptor_pool,
-			.descriptorSetCount = 1,
-			.pSetLayouts = &tonemapping_pipeline.set0_HDRTexture,
-		};
-
-		VK( vkAllocateDescriptorSets(rtg_.device, &alloc_info, &tonemapping_pipeline.set0_HDRTexture_instance) );
-
-		// Get a sampler from existing textures (reuse from 2D textures)
-		VkSampler sampler = VK_NULL_HANDLE;
-		if (!texture_manager.raw_2d_textures_by_material.empty() &&
-		    texture_manager.raw_2d_textures_by_material[0][0].has_value()) {
-			sampler = texture_manager.raw_2d_textures_by_material[0][0].value()->sampler;
-		}
-
-		// Update descriptor to bind HDR color image
+		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
-			.sampler = sampler,
+			.sampler = framebuffer_manager.hdr_sampler,
 			.imageView = framebuffer_manager.hdr_color_image_view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
@@ -311,9 +294,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				// run pipelines here
 				{ //set scissor rectangle:
 					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-				}
-				{ //configure viewport transform:
 					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -505,10 +487,6 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// Second pass: Tone mapping HDR texture to swapchain
 		// =====================================================================
 		{
-			std::array< VkClearValue, 1 > tonemap_clears{
-				VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
-			};
-
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.tonemap_render_pass,
@@ -517,28 +495,17 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(tonemap_clears.size()),
-				.pClearValues = tonemap_clears.data(),
+				.clearValueCount = uint32_t(render_pass_manager.tonemap_clears.size()),
+				.pClearValues = render_pass_manager.tonemap_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				// Full-screen viewport for tone mapping
-				VkViewport viewport{
-					.x = 0.0f,
-					.y = 0.0f,
-					.width = static_cast<float>(rtg.swapchain_extent.width),
-					.height = static_cast<float>(rtg.swapchain_extent.height),
-					.minDepth = 0.0f,
-					.maxDepth = 1.0f,
-				};
-				vkCmdSetViewport(workspace.command_buffer, 0, 1, &viewport);
-
-				VkRect2D scissor{
-					.offset = {.x = 0, .y = 0},
-					.extent = rtg.swapchain_extent,
-				};
-				vkCmdSetScissor(workspace.command_buffer, 0, 1, &scissor);
+				{
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
+				}		
 
 				// Bind tone mapping pipeline
 				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapping_pipeline.pipeline);

@@ -33,6 +33,8 @@ public:
     VkClearAttachment clear_center_attachment;
     VkClearRect clear_center_rect;
 
+    std::array< VkClearValue, 1 > tonemap_clears;
+
     VkRect2D scissor;
     VkViewport viewport;
 };

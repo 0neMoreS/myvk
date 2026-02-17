@@ -215,7 +215,7 @@ void main() {
 	}
 
 	// HDR tonemapping
-	vec3 ldr = aces_approx(color);
+	vec3 ldr = aces_approx(color, 2.0);
 	// outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
 	outColor = vec4(ldr, 1.0);
 	// outColor = vec4(texture(Textures[nonuniformEXT(0)], vec2(max(dot(N, V), 0.0), roughness)).rg, 0.0, 1.0);

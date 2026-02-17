@@ -77,6 +77,10 @@ struct RTG {
 		bool open_debug_camera = false;
 		std::string s72_filename = "";
 
+		// A2 Parameters
+		float background_exposure = 0.0f;
+		std::string tone_map_method = "linear"; // "linear", "aces"
+
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{
 			VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},

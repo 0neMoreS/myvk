@@ -69,7 +69,7 @@ void main() {
 	}
 
 	// HDR tonemapping
-	vec3 ldr = aces_approx(color);
+	vec3 ldr = aces_approx(color, 2.0);
 	// outColor = vec4(pow(ldr, vec3(1.0/2.2)), 1.0);
 	outColor = vec4(ldr, 1.0);
 }

@@ -24,6 +24,6 @@ void main() {
 		refl = normalize(normal);
 	}
 	vec3 hdr = texture(CUBEMAP, refl).rgb;
-	vec3 ldr = aces_approx(hdr);
+	vec3 ldr = aces_approx(hdr, 2.0);
 	outColor = vec4(ldr, 1.0);
 }

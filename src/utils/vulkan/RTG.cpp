@@ -69,6 +69,19 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			s72_dir = parent_dir;
 			s72_filename = scene_path.filename().string();
 		}
+		else if (arg == "exposure") {
+			if (argi + 1 >= argc) throw std::runtime_error("--exposure requires a parameter (a float).");
+			argi += 1;
+			background_exposure = std::stof(argv[argi]);
+		}
+		else if (arg == "--tone-map") {
+			if (argi + 1 >= argc) throw std::runtime_error("--tone-map requires a parameter (a method name).");
+			argi += 1;
+			tone_map_method = argv[argi];
+			if (tone_map_method != "linear" && tone_map_method != "aces") {
+				throw std::runtime_error("--tone-map method should be 'linear' or 'aces', got '" + tone_map_method + "'.");
+			}
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -83,6 +96,8 @@ void RTG::Configuration::usage(std::function< void(const char *, const char *) >
 	callback("--index <index>", "Set the index count.");
 	callback("--open-debug-camera", "Open the debug camera.");
 	callback("--scene <filename>", "Set the scene filename.");
+	callback("--exposure <float>", "Set the background exposure (A2).");
+	callback("--tone-map <method>", "Set the tone mapping method (A2). Method should be 'linear' or 'aces'.");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(

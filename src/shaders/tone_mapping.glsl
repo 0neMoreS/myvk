@@ -1,5 +1,6 @@
-vec3 aces_approx(vec3 v)
+vec3 aces_approx(vec3 v, float E)
 {
+    v *= exp2(E);
     v *= 0.6f;
     float a = 2.51f;
     float b = 0.03f;

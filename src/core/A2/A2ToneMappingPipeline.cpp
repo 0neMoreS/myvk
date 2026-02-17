@@ -48,12 +48,18 @@ void A2ToneMappingPipeline::create(
             set0_HDRTexture,
         };
 
+        VkPushConstantRange push_constant_range{
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .offset = 0,
+            .size = sizeof(Push),
+        };
+
         VkPipelineLayoutCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = uint32_t(layouts.size()),
             .pSetLayouts = layouts.data(),
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges = nullptr,
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &push_constant_range,
         };
 
         VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );

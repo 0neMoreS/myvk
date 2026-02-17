@@ -10,6 +10,5 @@ void main() {
     vec3 dir = normalize(-normal);
     dir.x = -dir.x;
     vec3 hdr = texture(CUBEMAP, normalize(normal)).rgb;
-    vec3 ldr = aces_approx(hdr, 2.0);
-    outColor = vec4(ldr, 1.0);
+    outColor = vec4(hdr, 1.0);
 }

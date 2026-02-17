@@ -17,6 +17,11 @@ struct A2ToneMappingPipeline : Pipeline {
         const TextureManager& texture_manager
     ) override;
 
+    struct Push{
+        float EXPOSURE;
+        uint32_t METHOD; // 0: linear, 1: aces
+    };
+
     void destroy(RTG &rtg) override;
 
     A2ToneMappingPipeline() = default;

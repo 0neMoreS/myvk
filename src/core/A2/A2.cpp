@@ -557,7 +557,12 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					0, nullptr
 				);
 
+				A2ToneMappingPipeline::Push push{
+					.EXPOSURE = rtg.configuration.tone_exposure,
+					.METHOD = static_cast<uint32_t>(rtg.configuration.tone_map_method)
+				};
 				// Draw full-screen triangle (no vertex buffer)
+				vkCmdPushConstants(workspace.command_buffer, tonemapping_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
 			}
 

@@ -44,8 +44,6 @@ int main(int argc, char **argv) {
 		//loads vulkan library, creates surface, initializes helpers:
 		RTG rtg(configuration);
 
-		std::cout << "Loaded scene '" << configuration.s72_filename << "path " << s72_dir << "'." << std::endl;
-
 		//initializes global (whole-life-of-application) resources:
 		// BatchCache application(rtg, configuration.index);
 		A2 application(rtg, configuration.s72_filename);

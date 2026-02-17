@@ -69,17 +69,21 @@ void RTG::Configuration::parse(int argc, char **argv) {
 			s72_dir = parent_dir;
 			s72_filename = scene_path.filename().string();
 		}
-		else if (arg == "exposure") {
+		else if (arg == "--exposure") {
 			if (argi + 1 >= argc) throw std::runtime_error("--exposure requires a parameter (a float).");
 			argi += 1;
-			background_exposure = std::stof(argv[argi]);
+			tone_exposure = std::stof(argv[argi]);
 		}
 		else if (arg == "--tone-map") {
 			if (argi + 1 >= argc) throw std::runtime_error("--tone-map requires a parameter (a method name).");
 			argi += 1;
-			tone_map_method = argv[argi];
-			if (tone_map_method != "linear" && tone_map_method != "aces") {
-				throw std::runtime_error("--tone-map method should be 'linear' or 'aces', got '" + tone_map_method + "'.");
+			std::string tone_map_method_str = argv[argi];
+			if (tone_map_method_str == "linear") {
+				tone_map_method = ToneMapMethod::Linear;
+			} else if (tone_map_method_str == "aces") {
+				tone_map_method = ToneMapMethod::ACES;
+			} else {
+				throw std::runtime_error("--tone-map method should be 'linear' or 'aces', got '" + tone_map_method_str + "'.");
 			}
 		}
 		else {

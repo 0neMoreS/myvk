@@ -76,4 +76,9 @@ enum TextureSlot : size_t {
     Metallic = 4
 };
 
+enum ToneMapMethod : uint32_t {
+    Linear = 0,
+    ACES = 1
+};
+
 inline std::unordered_map<std::string, uint32_t> pipeline_name_to_index; //map pipeline names to indices

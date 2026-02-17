@@ -4,6 +4,7 @@
 #include "InputEvent.hpp"
 #include "sejp.hpp"
 #include "Timer.hpp"
+#include "VK.hpp"
 
 #include <vulkan/vulkan_core.h>
 #include <vulkan/utility/vk_format_utils.h>
@@ -78,8 +79,8 @@ struct RTG {
 		std::string s72_filename = "";
 
 		// A2 Parameters
-		float background_exposure = 0.0f;
-		std::string tone_map_method = "linear"; // "linear", "aces"
+		float tone_exposure = 0.0f;
+		ToneMapMethod tone_map_method = ToneMapMethod::Linear; // "linear", "aces"
 
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{

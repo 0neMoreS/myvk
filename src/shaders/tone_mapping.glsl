@@ -10,3 +10,8 @@ vec3 aces_approx(vec3 v, float E)
     // return v;
     return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0f, 1.0f);
 }
+
+vec3 linear_tone_map(vec3 v, float E)
+{
+    return v *= exp2(E);
+}

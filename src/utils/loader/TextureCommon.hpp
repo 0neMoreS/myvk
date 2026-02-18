@@ -4,6 +4,8 @@
 
 #include <stdexcept>
 #include <string>
+#include <cmath>
+#include <algorithm>
 
 inline void decode_rgbe(const unsigned char* src, float* dst){
     unsigned char r = src[0];
@@ -18,11 +20,26 @@ inline void decode_rgbe(const unsigned char* src, float* dst){
         return;
     };
 
-	int exp = int(e) - 128;
-	dst[0] = std::ldexp((r + 0.5f) / 256.0f, exp);
-	dst[1] = std::ldexp((g + 0.5f) / 256.0f, exp);
-	dst[2] = std::ldexp((b + 0.5f) / 256.0f, exp);
-	dst[3] = 1.0f;
+    int exp = int(e) - 128;
+    dst[0] = std::ldexp((r + 0.5f) / 256.0f, exp);
+    dst[1] = std::ldexp((g + 0.5f) / 256.0f, exp);
+    dst[2] = std::ldexp((b + 0.5f) / 256.0f, exp);
+    dst[3] = 1.0f;
+}
+
+inline void encode_rgbe(float r, float g, float b, unsigned char* dst) {
+    float max_c = std::max({r, g, b});
+    if (max_c < 1e-32f) {
+        dst[0] = dst[1] = dst[2] = dst[3] = 0;
+        return;
+    }
+    int exp;
+    float m = std::frexp(max_c, &exp); // max_c = m * 2^exp, m in [0.5, 1.0)
+    float scale = m * 256.0f / max_c;  // = 256 / 2^exp
+    dst[0] = static_cast<unsigned char>(std::min(r * scale, 255.0f));
+    dst[1] = static_cast<unsigned char>(std::min(g * scale, 255.0f));
+    dst[2] = static_cast<unsigned char>(std::min(b * scale, 255.0f));
+    dst[3] = static_cast<unsigned char>(exp + 128);
 }
 
 inline uint32_t pack_e5b9g9r9(float r, float g, float b) {

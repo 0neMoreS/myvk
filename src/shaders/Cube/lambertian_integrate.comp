@@ -1,0 +1,128 @@
+#version 450
+
+// Lambertian irradiance pre-integration.
+// For each output texel (face, u, v), integrate L(omega) * dot(N, omega) over the upper hemisphere.
+// Uses cosine-weighted importance sampling: sample direction omega with pdf = dot(N,omega)/pi,
+// so the estimator weight is just L(omega) (the pi and dot cancel).
+// We use a Hammersley low-discrepancy sequence for stable convergence.
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// Input: the source environment cubemap uploaded as a plain 2D array (6 layers).
+// Layer order matches the input PNG atlas row order exactly (no remapping).
+layout(set = 0, binding = 0) uniform sampler2DArray env_map;
+
+// Output: irradiance cubemap, same layer order as input.
+layout(set = 0, binding = 1, rgba32f) uniform image2DArray out_irradiance;
+
+const float PI = 3.14159265358979323846;
+const uint  NUM_SAMPLES = 1024u;
+
+// Convert (face_index, uv in [-1,1]^2) to a 3D direction.
+// Conventions match the atlas layout produced by the cube tool
+// (which is loaded verbatim from the PNG without any remapping):
+//   layer 0 == atlas row 0, layer 1 == atlas row 1, ...
+// The face-to-direction mapping below is Vulkan's standard cubemap convention
+// (PX=0, NX=1, PY=2, NY=3, PZ=4, NZ=5) applied to the raw atlas order.
+// Since we own both the writer (cube tool) and the reader (this shader),
+// the atlas order can be anything consistent; we just have to be internally
+// consistent when we write out the irradiance map too.
+// Here we embed Vulkan's standard mapping directly.
+vec3 face_uv_to_dir(int face, vec2 uv) {
+    switch (face) {
+        case 0: return normalize(vec3( 1.0,  uv.y, -uv.x)); // +X
+        case 1: return normalize(vec3(-1.0,  uv.y,  uv.x)); // -X
+        case 2: return normalize(vec3( uv.x,  1.0, -uv.y)); // +Y
+        case 3: return normalize(vec3( uv.x, -1.0,  uv.y)); // -Y
+        case 4: return normalize(vec3( uv.x,  uv.y,  1.0)); // +Z
+        case 5: return normalize(vec3(-uv.x,  uv.y, -1.0)); // -Z
+        default: return vec3(0.0);
+    }
+}
+
+// Sample the env_map (sampler2DArray with 6 layers) given a direction.
+// Finds the dominant face and maps the direction back to (layer, uv).
+vec3 sample_env(vec3 dir) {
+    vec3 abs_dir = abs(dir);
+    float max_c = max(abs_dir.x, max(abs_dir.y, abs_dir.z));
+    int face;
+    vec2 uv;
+    if (abs_dir.x >= max_c) {
+        if (dir.x > 0.0) { face = 0; uv = vec2(-dir.z, dir.y) / dir.x; }
+        else              { face = 1; uv = vec2( dir.z, dir.y) / -dir.x; }
+    } else if (abs_dir.y >= max_c) {
+        if (dir.y > 0.0) { face = 2; uv = vec2( dir.x, -dir.z) / dir.y; }
+        else              { face = 3; uv = vec2( dir.x,  dir.z) / -dir.y; }
+    } else {
+        if (dir.z > 0.0) { face = 4; uv = vec2( dir.x,  dir.y) / dir.z; }
+        else              { face = 5; uv = vec2(-dir.x,  dir.y) / -dir.z; }
+    }
+    // uv in [-1,1] -> [0,1]
+    vec2 st = uv * 0.5 + 0.5;
+    return texture(env_map, vec3(st, float(face))).rgb;
+}
+
+// Hammersley low-discrepancy point set
+vec2 hammersley(uint i, uint N) {
+    // Van der Corput radical inverse base 2
+    uint bits = i;
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    float vdc = float(bits) * 2.3283064365386963e-10;
+    return vec2(float(i) / float(N), vdc);
+}
+
+// Cosine-weighted hemisphere sample. Returns direction in tangent space (Z = up).
+// pdf = cos(theta)/pi  =>  estimator = L / pdf * (1/N) = L * pi / (N * cos) * cos = L * pi / N
+// But since we sum and divide by N: result = (1/N) * sum( L * pi ) = pi * mean(L).
+// We scale by 1/pi at the output to match the irradiance definition E = (1/pi)*integral L cos dw.
+// Actually for cosine-weighted sampling, the unbiased estimator of int_H L cos dw
+// is (1/N) * sum_i L(omega_i) * pi (because pdf = cos/pi, weight = cos/(pi*pdf) = 1/1 wait...)
+// Let's be explicit:
+//   E = int_H L(w) cos(theta) dw
+//   With pdf p(w) = cos(theta)/pi:
+//   E ≈ (1/N) sum_i L(w_i) * cos(theta_i) / p(w_i)
+//     = (1/N) sum_i L(w_i) * cos(theta_i) / (cos(theta_i)/pi)
+//     = (1/N) sum_i L(w_i) * pi
+//     = pi * (1/N) sum_i L(w_i)
+// So we just average L samples and multiply by pi.
+vec3 cosine_hemisphere_sample(vec2 xi) {
+    float phi = 2.0 * PI * xi.x;
+    float sin_theta = sqrt(xi.y);
+    float cos_theta = sqrt(1.0 - xi.y);
+    return vec3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+}
+
+void main() {
+    ivec3 gid = ivec3(gl_GlobalInvocationID);
+    ivec2 out_size = imageSize(out_irradiance).xy;
+    int face = int(gid.z);
+
+    if (gid.x >= out_size.x || gid.y >= out_size.y || face >= 6) return;
+
+    // Map texel center to [-1, 1]
+    vec2 uv = (vec2(gid.xy) + vec2(0.5)) / vec2(out_size) * 2.0 - 1.0;
+
+    // Normal direction for this output texel
+    vec3 N = face_uv_to_dir(face, uv);
+
+    // Build TBN so we can transform cosine-hemisphere samples into world space
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, N));
+    vec3 B = cross(N, T);
+
+    vec3 irradiance = vec3(0.0);
+    for (uint i = 0u; i < NUM_SAMPLES; ++i) {
+        vec2 xi = hammersley(i, NUM_SAMPLES);
+        vec3 l_tan = cosine_hemisphere_sample(xi);
+        vec3 L = T * l_tan.x + B * l_tan.y + N * l_tan.z;
+        irradiance += sample_env(L);
+    }
+    // estimator = pi * mean(L), see comment above
+    irradiance = irradiance * (PI / float(NUM_SAMPLES));
+
+    imageStore(out_irradiance, gid, vec4(irradiance, 1.0));
+}

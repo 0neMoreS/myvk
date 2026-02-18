@@ -87,6 +87,19 @@ struct Helpers {
 		uint32_t face_count
 	);
 
+	// Transition image layout (useful for storage images, transfer operations, etc.)
+	// Uses transfer_command_buffer to submit a one-time command.
+	// Common use cases:
+	//   - UNDEFINED -> GENERAL for storage images
+	//   - GENERAL -> TRANSFER_SRC_OPTIMAL for readback
+	void transition_image_layout(
+		VkImage image,
+		VkImageLayout old_layout,
+		VkImageLayout new_layout,
+		uint32_t mip_levels = 1,
+		uint32_t array_layers = 1
+	);
+
 	VkCommandPool transfer_command_pool = VK_NULL_HANDLE;
 	VkCommandBuffer transfer_command_buffer = VK_NULL_HANDLE;
 	//-----------------------
@@ -117,4 +130,15 @@ struct Helpers {
 	//used to synchronize create/destroy with RTG:
 	void create(); //create vulkan resources (after GPU-held handles are created)
 	void destroy(); //destroy vulkan resources (before GPU-held handles are destroyed)
+
+private:
+	// Helper: record image layout transition barrier into command buffer (does not submit)
+	void record_image_layout_transition(
+		VkCommandBuffer cmd_buffer,
+		VkImage image,
+		VkImageLayout old_layout,
+		VkImageLayout new_layout,
+		uint32_t mip_levels,
+		uint32_t array_layers
+	);
 };

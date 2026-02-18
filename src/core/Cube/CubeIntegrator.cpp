@@ -212,134 +212,47 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
     }
     stbi_image_free(raw);
 
-    // Create VK_FORMAT_R32G32B32A32_SFLOAT image2DArray with 6 layers
-    // We create a plain 2D-array image (not cube-compatible) for raw access.
-    VkExtent2D extent{ (uint32_t)face_size, (uint32_t)face_size };
-
-    // Staging buffer -> image transfer
-    // Reuse helpers.transfer_to_image by treating it as a 1-mip 6-face cubemap upload.
-    // (That function accepts face_count=6 and treats the image as a layered image.)
-    // However the function expects VK_FORMAT_E5B9G9R9_UFLOAT_PACK32 and doesn't know about
-    // float RGBA. We'll do the transfer manually below.
-
-    // Create the image
-    VkImageCreateInfo img_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .extent = { (uint32_t)face_size, (uint32_t)face_size, 1 },
-        .mipLevels = 1,
-        .arrayLayers = 6,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    VkImage image;
-    VK(vkCreateImage(rtg.device, &img_info, nullptr, &image));
-
-    VkMemoryRequirements mem_req;
-    vkGetImageMemoryRequirements(rtg.device, image, &mem_req);
-    auto alloc = rtg.helpers.allocate(mem_req, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK(vkBindImageMemory(rtg.device, image, alloc.handle, alloc.offset));
-
-    // Staging buffer
-    size_t data_bytes = float_data.size() * sizeof(float);
-    auto staging = rtg.helpers.create_buffer(
-        data_bytes,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        Helpers::Mapped
+    // Create image: is_cube=true yields 6 arrayLayers + VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT.
+    // A VK_IMAGE_VIEW_TYPE_2D_ARRAY view is valid on a cube-compatible image.
+    auto allocated_image = rtg.helpers.create_image(
+        VkExtent2D{ (uint32_t)face_size, (uint32_t)face_size },
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        Helpers::Unmapped,
+        true, 1
     );
-    std::memcpy(staging.allocation.data(), float_data.data(), data_bytes);
 
-    // Upload via command buffer
-    VkCommandBufferBeginInfo begin{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
-    VK(vkBeginCommandBuffer(command_buffer, &begin));
+    // transfer_to_image handles: staging buffer, memcpy, UNDEFINED->TRANSFER_DST->SHADER_READ_ONLY,
+    // submit, and vkQueueWaitIdle. Uses helpers' own transfer_command_buffer — no conflict.
+    // Data layout: face * face_size^2 * 16 bytes — identical to float_data's layout.
+    size_t data_bytes = float_data.size() * sizeof(float);
+    rtg.helpers.transfer_to_image(
+        { static_cast<void*>(float_data.data()) },
+        { data_bytes },
+        allocated_image,
+        6
+    );
 
-    // Transition to TRANSFER_DST
-    VkImageMemoryBarrier barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = 0,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 },
-    };
-    vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &barrier);
+    VkImageView view = create_image_view(
+        rtg.device, 
+        allocated_image.handle,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        true
+    );
 
-    // Copy each face
-    for (int face = 0; face < 6; ++face) {
-        VkBufferImageCopy copy{
-            .bufferOffset = (VkDeviceSize)(face * pixels_per_face * 4 * sizeof(float)),
-            .bufferRowLength = 0,
-            .bufferImageHeight = 0,
-            .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, (uint32_t)face, 1 },
-            .imageOffset = { 0, 0, 0 },
-            .imageExtent = { (uint32_t)face_size, (uint32_t)face_size, 1 },
-        };
-        vkCmdCopyBufferToImage(command_buffer, staging.handle, image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-    }
+    VkSampler sampler = create_sampler(
+        rtg.device, VK_FILTER_LINEAR,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK, 0.0f
+    );
 
-    // Transition to SHADER_READ_ONLY
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-    VK(vkEndCommandBuffer(command_buffer));
-
-    VkSubmitInfo submit{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                         .commandBufferCount = 1, .pCommandBuffers = &command_buffer };
-    VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit, fence));
-    VK(vkWaitForFences(rtg.device, 1, &fence, VK_TRUE, UINT64_MAX));
-    VK(vkResetFences(rtg.device, 1, &fence));
-    VK(vkResetCommandBuffer(command_buffer, 0));
-
-    rtg.helpers.destroy_buffer(std::move(staging));
-
-    // Image view (2DArray, 6 layers)
-    VkImageViewCreateInfo view_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 },
-    };
-    VkImageView view;
-    VK(vkCreateImageView(rtg.device, &view_info, nullptr, &view));
-
-    VkSamplerCreateInfo sampler_info{
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .maxLod = 0.0f,
-    };
-    VkSampler sampler;
-    VK(vkCreateSampler(rtg.device, &sampler_info, nullptr, &sampler));
-
-    // Package into AllocatedImage-like struct
     LoadedCubemap result;
-    result.image.handle = image;
-    result.image.extent = extent;
-    result.image.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    result.image.allocation = std::move(alloc);
-    result.view = view;
+    result.image   = std::move(allocated_image);
+    result.view    = view;
     result.sampler = sampler;
     result.face_size = (uint32_t)face_size;
     return result;
@@ -348,88 +261,51 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
 void CubeIntegrator::destroy_loaded_cubemap(LoadedCubemap &c) {
     vkDestroySampler(rtg.device, c.sampler, nullptr);
     vkDestroyImageView(rtg.device, c.view, nullptr);
-    vkDestroyImage(rtg.device, c.image.handle, nullptr);
-    rtg.helpers.free(std::move(c.image.allocation));
-    c.image.handle = VK_NULL_HANDLE;
+    rtg.helpers.destroy_image(std::move(c.image));
 }
 
 // -------------------------------------------------------------------------
 // Create output image
 // -------------------------------------------------------------------------
 CubeIntegrator::OutputImage CubeIntegrator::create_output(uint32_t face_size) {
-    VkImageCreateInfo img_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .extent = { face_size, face_size, 1 },
-        .mipLevels = 1,
-        .arrayLayers = 6,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    VkImage image;
-    VK(vkCreateImage(rtg.device, &img_info, nullptr, &image));
+    // Create image: is_cube=true yields 6 arrayLayers + VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT.
+    auto allocated_image = rtg.helpers.create_image(
+        VkExtent2D{ face_size, face_size },
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        Helpers::Unmapped,
+        true, 1
+    );
 
-    VkMemoryRequirements mem_req;
-    vkGetImageMemoryRequirements(rtg.device, image, &mem_req);
-    auto alloc = rtg.helpers.allocate(mem_req, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK(vkBindImageMemory(rtg.device, image, alloc.handle, alloc.offset));
+    // Transition to GENERAL for storage image use in compute shader.
+    // transfer_to_image only transitions to SHADER_READ_ONLY, so use the helper for GENERAL layout.
+    rtg.helpers.transition_image_layout(
+        allocated_image.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_GENERAL,
+        1,  // mip levels
+        6   // array layers (cubemap faces)
+    );
 
-    // Transition to GENERAL for storage image
-    VkCommandBufferBeginInfo begin{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
-    VK(vkBeginCommandBuffer(command_buffer, &begin));
-    VkImageMemoryBarrier barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = 0,
-        .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 },
-    };
-    vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &barrier);
-    VK(vkEndCommandBuffer(command_buffer));
-
-    VkSubmitInfo submit{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                         .commandBufferCount = 1, .pCommandBuffers = &command_buffer };
-    VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit, fence));
-    VK(vkWaitForFences(rtg.device, 1, &fence, VK_TRUE, UINT64_MAX));
-    VK(vkResetFences(rtg.device, 1, &fence));
-    VK(vkResetCommandBuffer(command_buffer, 0));
-
-    VkImageViewCreateInfo view_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 },
-    };
-    VkImageView view;
-    VK(vkCreateImageView(rtg.device, &view_info, nullptr, &view));
+    VkImageView view = create_image_view(
+        rtg.device, 
+        allocated_image.handle,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        true
+    );
 
     OutputImage result;
-    result.image.handle = image;
-    result.image.extent = { face_size, face_size };
-    result.image.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    result.image.allocation = std::move(alloc);
-    result.view = view;
+    result.image     = std::move(allocated_image);
+    result.view      = view;
     result.face_size = face_size;
     return result;
 }
 
 void CubeIntegrator::destroy_output(OutputImage &o) {
     vkDestroyImageView(rtg.device, o.view, nullptr);
-    vkDestroyImage(rtg.device, o.image.handle, nullptr);
-    rtg.helpers.free(std::move(o.image.allocation));
-    o.image.handle = VK_NULL_HANDLE;
+    rtg.helpers.destroy_image(std::move(o.image));
 }
 
 // -------------------------------------------------------------------------
@@ -449,25 +325,18 @@ void CubeIntegrator::readback_and_save(const OutputImage &out, const std::string
         Helpers::Mapped
     );
 
+    // Transition GENERAL -> TRANSFER_SRC for readback
+    rtg.helpers.transition_image_layout(
+        out.image.handle,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        1,  // mip levels
+        6   // array layers (cubemap faces)
+    );
+
     VkCommandBufferBeginInfo begin{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                     .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
     VK(vkBeginCommandBuffer(command_buffer, &begin));
-
-    // Transition GENERAL -> TRANSFER_SRC
-    VkImageMemoryBarrier barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = out.image.handle,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6 },
-    };
-    vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &barrier);
 
     for (int face = 0; face < 6; ++face) {
         VkBufferImageCopy copy{
@@ -478,8 +347,7 @@ void CubeIntegrator::readback_and_save(const OutputImage &out, const std::string
             .imageOffset = { 0, 0, 0 },
             .imageExtent = { face_size, face_size, 1 },
         };
-        vkCmdCopyImageToBuffer(command_buffer, out.image.handle,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.handle, 1, &copy);
+        vkCmdCopyImageToBuffer(command_buffer, out.image.handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.handle, 1, &copy);
     }
 
     VK(vkEndCommandBuffer(command_buffer));

@@ -283,38 +283,15 @@ void Helpers::transfer_to_image(
 
     VK( vkBeginCommandBuffer(transfer_command_buffer, &begin_info) );
 
-    VkImageSubresourceRange whole_image{
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = static_cast<uint32_t>(mipmap_data.size()),
-        .baseArrayLayer = 0,
-        .layerCount = face_count,
-    };
-
-    // Transition to transfer destination layout
-    {
-        VkImageMemoryBarrier barrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = target.handle,
-            .subresourceRange = whole_image,
-        };
-
-        vkCmdPipelineBarrier(
-            transfer_command_buffer,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0, //dependencyFlags
-			0, nullptr, //memory barrier count, pointer
-			0, nullptr, //buffer memory barrier count, pointer
-			1, &barrier //image memory barrier count, pointer
-        );
-    }
+    // Transition to transfer destination layout (UNDEFINED -> TRANSFER_DST_OPTIMAL)
+    record_image_layout_transition(
+        transfer_command_buffer,
+        target.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        static_cast<uint32_t>(mipmap_data.size()),
+        face_count
+    );
 
     // Create copy regions for all mipmap levels
     {
@@ -362,30 +339,15 @@ void Helpers::transfer_to_image(
         );
     }
 
-    // Transition to shader read-only layout
-    {
-        VkImageMemoryBarrier barrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = target.handle,
-            .subresourceRange = whole_image,
-        };
-
-        vkCmdPipelineBarrier(
-            transfer_command_buffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            0, //dependencyFlags
-			0, nullptr, //memory barrier count, pointer
-			0, nullptr, //buffer memory barrier count, pointer
-			1, &barrier //image memory barrier count, pointer
-        );
-    }
+    // Transition to shader read-only layout (TRANSFER_DST_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL)
+    record_image_layout_transition(
+        transfer_command_buffer,
+        target.handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        static_cast<uint32_t>(mipmap_data.size()),
+        face_count
+    );
 
     VK( vkEndCommandBuffer(transfer_command_buffer) );
 
@@ -399,6 +361,117 @@ void Helpers::transfer_to_image(
     VK( vkQueueWaitIdle(rtg.graphics_queue) );
 
     destroy_buffer(std::move(transfer_src));
+}
+
+// Private helper: record image layout transition barrier (does not submit)
+void Helpers::record_image_layout_transition(
+    VkCommandBuffer cmd_buffer,
+    VkImage image,
+    VkImageLayout old_layout,
+    VkImageLayout new_layout,
+    uint32_t mip_levels,
+    uint32_t array_layers
+) {
+    // Determine access masks and pipeline stages based on layouts
+    VkAccessFlags src_access = 0;
+    VkAccessFlags dst_access = 0;
+    VkPipelineStageFlags src_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags dst_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+    // Source layout
+    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+        src_access = 0;
+        src_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        src_access = VK_ACCESS_TRANSFER_WRITE_BIT;
+        src_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        src_access = VK_ACCESS_SHADER_READ_BIT;
+        src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_GENERAL) {
+        src_access = VK_ACCESS_SHADER_WRITE_BIT;
+        src_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        src_access = VK_ACCESS_TRANSFER_READ_BIT;
+        src_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+
+    // Destination layout
+    if (new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        dst_access = VK_ACCESS_TRANSFER_WRITE_BIT;
+        dst_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        dst_access = VK_ACCESS_SHADER_READ_BIT;
+        dst_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (new_layout == VK_IMAGE_LAYOUT_GENERAL) {
+        dst_access = VK_ACCESS_SHADER_WRITE_BIT;
+        dst_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    } else if (new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        dst_access = VK_ACCESS_TRANSFER_READ_BIT;
+        dst_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+
+    VkImageMemoryBarrier barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = src_access,
+        .dstAccessMask = dst_access,
+        .oldLayout = old_layout,
+        .newLayout = new_layout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = mip_levels,
+            .baseArrayLayer = 0,
+            .layerCount = array_layers,
+        },
+    };
+
+    vkCmdPipelineBarrier(
+        cmd_buffer,
+        src_stage, dst_stage,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+}
+
+void Helpers::transition_image_layout(
+    VkImage image,
+    VkImageLayout old_layout,
+    VkImageLayout new_layout,
+    uint32_t mip_levels,
+    uint32_t array_layers
+) {
+    // Record command buffer
+    VK(vkResetCommandBuffer(transfer_command_buffer, 0));
+
+    VkCommandBufferBeginInfo begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    VK(vkBeginCommandBuffer(transfer_command_buffer, &begin_info));
+
+    // Use helper to record the barrier
+    record_image_layout_transition(
+        transfer_command_buffer,
+        image,
+        old_layout, new_layout,
+        mip_levels, array_layers
+    );
+
+    VK(vkEndCommandBuffer(transfer_command_buffer));
+
+    VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &transfer_command_buffer,
+    };
+    VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
+    VK(vkQueueWaitIdle(rtg.graphics_queue));
 }
 
 //----------------------------

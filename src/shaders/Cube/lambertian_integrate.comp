@@ -8,59 +8,16 @@
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-// Input: the source environment cubemap uploaded as a plain 2D array (6 layers).
-// Layer order matches the input PNG atlas row order exactly (no remapping).
-layout(set = 0, binding = 0) uniform sampler2DArray env_map;
+// Input: the source environment cubemap
+layout(set = 0, binding = 0) uniform samplerCube env_map;
 
-// Output: irradiance cubemap, same layer order as input.
-layout(set = 0, binding = 1, rgba32f) uniform image2DArray out_irradiance;
+// Output: irradiance cubemap
+layout(set = 0, binding = 1, rgba32f) uniform imageCube out_irradiance;
 
 const float PI = 3.14159265358979323846;
 const uint  NUM_SAMPLES = 1024u;
 
-// Convert (face_index, uv in [-1,1]^2) to a 3D direction.
-// Conventions match the atlas layout produced by the cube tool
-// (which is loaded verbatim from the PNG without any remapping):
-//   layer 0 == atlas row 0, layer 1 == atlas row 1, ...
-// The face-to-direction mapping below is Vulkan's standard cubemap convention
-// (PX=0, NX=1, PY=2, NY=3, PZ=4, NZ=5) applied to the raw atlas order.
-// Since we own both the writer (cube tool) and the reader (this shader),
-// the atlas order can be anything consistent; we just have to be internally
-// consistent when we write out the irradiance map too.
-// Here we embed Vulkan's standard mapping directly.
-vec3 face_uv_to_dir(int face, vec2 uv) {
-    switch (face) {
-        case 0: return normalize(vec3( 1.0,  uv.y, -uv.x)); // +X
-        case 1: return normalize(vec3(-1.0,  uv.y,  uv.x)); // -X
-        case 2: return normalize(vec3( uv.x,  1.0, -uv.y)); // +Y
-        case 3: return normalize(vec3( uv.x, -1.0,  uv.y)); // -Y
-        case 4: return normalize(vec3( uv.x,  uv.y,  1.0)); // +Z
-        case 5: return normalize(vec3(-uv.x,  uv.y, -1.0)); // -Z
-        default: return vec3(0.0);
-    }
-}
 
-// Sample the env_map (sampler2DArray with 6 layers) given a direction.
-// Finds the dominant face and maps the direction back to (layer, uv).
-vec3 sample_env(vec3 dir) {
-    vec3 abs_dir = abs(dir);
-    float max_c = max(abs_dir.x, max(abs_dir.y, abs_dir.z));
-    int face;
-    vec2 uv;
-    if (abs_dir.x >= max_c) {
-        if (dir.x > 0.0) { face = 0; uv = vec2(-dir.z, dir.y) / dir.x; }
-        else              { face = 1; uv = vec2( dir.z, dir.y) / -dir.x; }
-    } else if (abs_dir.y >= max_c) {
-        if (dir.y > 0.0) { face = 2; uv = vec2( dir.x, -dir.z) / dir.y; }
-        else              { face = 3; uv = vec2( dir.x,  dir.z) / -dir.y; }
-    } else {
-        if (dir.z > 0.0) { face = 4; uv = vec2( dir.x,  dir.y) / dir.z; }
-        else              { face = 5; uv = vec2(-dir.x,  dir.y) / -dir.z; }
-    }
-    // uv in [-1,1] -> [0,1]
-    vec2 st = uv * 0.5 + 0.5;
-    return texture(env_map, vec3(st, float(face))).rgb;
-}
 
 // Hammersley low-discrepancy point set
 vec2 hammersley(uint i, uint N) {
@@ -103,11 +60,21 @@ void main() {
 
     if (gid.x >= out_size.x || gid.y >= out_size.y || face >= 6) return;
 
-    // Map texel center to [-1, 1]
+    // Map output pixel (face_idx, x, y) to normalized UV in [-1,1]^2
     vec2 uv = (vec2(gid.xy) + vec2(0.5)) / vec2(out_size) * 2.0 - 1.0;
 
-    // Normal direction for this output texel
-    vec3 N = face_uv_to_dir(face, uv);
+    // Compute the normal direction from face index and UV
+    // Vulkan cubemap convention: +X, -X, +Y, -Y, +Z, -Z
+    vec3 N;
+    switch (face) {
+        case 0: N = normalize(vec3( 1.0,  uv.y, -uv.x)); break; // +X
+        case 1: N = normalize(vec3(-1.0,  uv.y,  uv.x)); break; // -X
+        case 2: N = normalize(vec3( uv.x,  1.0, -uv.y)); break; // +Y
+        case 3: N = normalize(vec3( uv.x, -1.0,  uv.y)); break; // -Y
+        case 4: N = normalize(vec3( uv.x,  uv.y,  1.0)); break; // +Z
+        case 5: N = normalize(vec3(-uv.x,  uv.y, -1.0)); break; // -Z
+        default: N = vec3(0.0);
+    }
 
     // Build TBN so we can transform cosine-hemisphere samples into world space
     vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
@@ -119,10 +86,10 @@ void main() {
         vec2 xi = hammersley(i, NUM_SAMPLES);
         vec3 l_tan = cosine_hemisphere_sample(xi);
         vec3 L = T * l_tan.x + B * l_tan.y + N * l_tan.z;
-        irradiance += sample_env(L);
+        irradiance += texture(env_map, L).rgb;
     }
     // estimator = pi * mean(L), see comment above
     irradiance = irradiance * (PI / float(NUM_SAMPLES));
 
-    imageStore(out_irradiance, gid, vec4(irradiance, 1.0));
+    imageStore(out_irradiance, ivec3(gid.xy, face), vec4(irradiance, 1.0));
 }

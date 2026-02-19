@@ -543,8 +543,8 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
         };
         vkUpdateDescriptorSets(rtg.device, 2, writes, 0, nullptr);
 
-        uint32_t gx = (fs + 7) / 8;
-        uint32_t gy = (fs + 7) / 8;
+        uint32_t gx = fs / 8;
+        uint32_t gy = fs / 8;
         dispatch_and_wait(ggx_pipeline, ggx_pipeline_layout, ds, gx, gy, 6,
                           &roughness, sizeof(float));
 

@@ -1,15 +1,5 @@
 #version 450
 
-// GGX specular pre-integration (split-sum approximation, first term).
-// For each output texel (face, u, v), the reflection direction R is computed,
-// then the environment is importance-sampled with the GGX distribution:
-//
-//   L_spec(R, roughness) ≈ sum_i L(H_i) * D_GGX(H_i, roughness) * G_Smith(V, L_i, roughness)
-//                            * dot(V, H_i) / (dot(N, H_i) * dot(N, V)) / N
-//
-// For the pre-filter we assume V = R = N (isotropic), which is the standard
-// approximation used in real-time IBL (Epic split-sum).
-
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(set = 0, binding = 0) uniform samplerCube env_map;
@@ -20,53 +10,74 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 const float PI = 3.14159265358979323846;
-const uint  NUM_SAMPLES = 1024u;
+const uint  NUM_SAMPLES = 1024u * 128u;
 
+// ----------------------------------------------------------------------------
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
 
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
 
-vec2 hammersley(uint i, uint N) {
-    uint bits = i;
+    return nom / denom;
+}
+
+// ----------------------------------------------------------------------------
+float RadicalInverse_VdC(uint bits)
+{
     bits = (bits << 16u) | (bits >> 16u);
     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
     bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
     bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-    float vdc = float(bits) * 2.3283064365386963e-10;
-    return vec2(float(i) / float(N), vdc);
+    return float(bits) * 2.3283064365386963e-10;
 }
 
-// GGX importance sample: returns a half-vector H in tangent space (Z=N).
-// pdf(H) = D_GGX(H) * dot(N,H) / (4 * dot(V,H))
-// Ref: "Real Shading in Unreal Engine 4", Brian Karis, SIGGRAPH 2013.
-vec3 importance_sample_ggx(vec2 xi, float roughness) {
+// ----------------------------------------------------------------------------
+vec2 Hammersley(uint i, uint N)
+{
+    return vec2(float(i) / float(N), RadicalInverse_VdC(i));
+}
+
+// ----------------------------------------------------------------------------
+vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
+{
     float a = roughness * roughness;
-    float phi = 2.0 * PI * xi.x;
-    float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
-    float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-    return vec3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+
+    float phi      = 2.0 * PI * Xi.x;
+    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    // Spherical coordinates -> cartesian (tangent space halfway vector)
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+
+    // Tangent space -> world space
+    vec3 up      = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    return normalize(tangent * H.x + bitangent * H.y + N * H.z);
 }
 
-// Smith G1 (Schlick-GGX, Epic's variant)
-float G1_smith(float NdotV, float roughness) {
-    float k = roughness * roughness / 2.0;
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-// Smith G2 (height-correlated, separable approx.)
-float G_smith(float NdotV, float NdotL, float roughness) {
-    return G1_smith(NdotV, roughness) * G1_smith(NdotL, roughness);
-}
-
-void main() {
-    ivec3 gid = ivec3(gl_GlobalInvocationID);
+// ----------------------------------------------------------------------------
+void main()
+{
+    ivec3 gid      = ivec3(gl_GlobalInvocationID);
     ivec2 out_size = imageSize(out_specular).xy;
-    int face = int(gid.z);
+    int   face     = int(gid.z);
 
     if (gid.x >= out_size.x || gid.y >= out_size.y || face >= 6) return;
 
     vec2 uv = (vec2(gid.xy) + vec2(0.5)) / vec2(out_size) * 2.0 - 1.0;
 
-    // Compute the reflection/normal direction from face index and UV
     // Vulkan cubemap convention: +X, -X, +Y, -Y, +Z, -Z
     vec3 R;
     switch (face) {
@@ -78,44 +89,43 @@ void main() {
         case 5: R = normalize(vec3(-uv.x,  uv.y, -1.0)); break; // -Z
         default: R = vec3(0.0);
     }
-    
-    // For the prefilter approximation: V = R = N
+
+    // Prefilter approximation: V = R = N
     vec3 N = R;
     vec3 V = R;
 
-    // Build TBN
-    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-    vec3 T = normalize(cross(up, N));
-    vec3 B = cross(N, T);
-
     float roughness = pc.roughness;
 
-    vec3 prefiltered = vec3(0.0);
-    float total_weight = 0.0;
+    vec3  prefilteredColor = vec3(0.0);
+    float totalWeight      = 0.0;
 
-    for (uint i = 0u; i < NUM_SAMPLES; ++i) {
-        vec2 xi = hammersley(i, NUM_SAMPLES);
-        vec3 H_tan = importance_sample_ggx(xi, roughness);
-        vec3 H = normalize(T * H_tan.x + B * H_tan.y + N * H_tan.z);
-        vec3 L = normalize(2.0 * dot(V, H) * H - V);
+    for (uint i = 0u; i < NUM_SAMPLES; ++i)
+    {
+        vec2 Xi = Hammersley(i, NUM_SAMPLES);
+        vec3 H  = ImportanceSampleGGX(Xi, N, roughness);
+        vec3 L  = normalize(2.0 * dot(V, H) * H - V);
 
         float NdotL = max(dot(N, L), 0.0);
-        if (NdotL > 0.0) {
-            float NdotV = max(dot(N, V), 0.0);
-            float NdotH = max(dot(N, H), 0.0);
-            float VdotH = max(dot(V, H), 0.0);
+        if (NdotL > 0.0)
+        {
+            // Sample from the environment's mip level based on roughness/pdf
+            float D      = DistributionGGX(N, H, roughness);
+            float NdotH  = max(dot(N, H), 0.0);
+            float HdotV  = max(dot(H, V), 0.0);
+            float pdf    = D * NdotH / (4.0 * HdotV) + 0.0001;
 
-            // Weight by G * VdotH / (NdotH * NdotV) — this is the standard
-            // importance-sampling correction factor for GGX specular prefilter.
-            float G = G_smith(NdotV, NdotL, roughness);
-            float weight = G * VdotH / (NdotH * NdotV + 1e-4);
+            float resolution = float(textureSize(env_map, 0).x); // source cubemap face resolution
+            float saTexel    = 4.0 * PI / (6.0 * resolution * resolution);
+            float saSample   = 1.0 / (float(NUM_SAMPLES) * pdf + 0.0001);
 
-            prefiltered += texture(env_map, L).rgb * weight;
-            total_weight += weight;
+            float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
+
+            prefilteredColor += textureLod(env_map, L, mipLevel).rgb * NdotL;
+            totalWeight      += NdotL;
         }
     }
 
-    prefiltered = (total_weight > 0.0) ? prefiltered / total_weight : vec3(0.0);
+    prefilteredColor = prefilteredColor / totalWeight;
 
-    imageStore(out_specular, ivec3(gid.xy, face), vec4(prefiltered, 1.0));
+    imageStore(out_specular, ivec3(gid.xy, face), vec4(prefilteredColor, 1.0));
 }

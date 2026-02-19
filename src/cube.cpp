@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
             .apiVersion = VK_API_VERSION_1_4,
         };
         configuration.headless = true;
-        configuration.debug = true;
+        configuration.debug = false;
 		configuration.physical_device_name = "NVIDIA GeForce RTX 5080 Laptop GPU";
 
         RTG rtg(configuration);

@@ -17,9 +17,7 @@ layout(set = 0, binding = 1, rgba32f) uniform imageCube out_irradiance;
 const float PI = 3.14159265358979323846;
 const uint  NUM_SAMPLES = 1024u;
 
-
-
-// Hammersley low-discrepancy point set
+// Hammersley low-discrepancy point set on [0,1]^2.
 vec2 hammersley(uint i, uint N) {
     // Van der Corput radical inverse base 2
     uint bits = i;

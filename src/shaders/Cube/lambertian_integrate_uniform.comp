@@ -1,0 +1,65 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// Input: the source environment cubemap
+layout(set = 0, binding = 0) uniform samplerCube env_map;
+
+// Output: irradiance cubemap
+layout(set = 0, binding = 1, rgba32f) uniform imageCube out_irradiance;
+
+const float PI = 3.14159265359;
+
+void main() {
+    ivec3 gid = ivec3(gl_GlobalInvocationID);
+    ivec2 out_size = imageSize(out_irradiance).xy;
+    int face = int(gid.z);
+
+    if (gid.x >= out_size.x || gid.y >= out_size.y || face >= 6) return;
+
+    // Map output pixel (face_idx, x, y) to normalized UV in [-1,1]^2
+    // Apply coordinate system correction: image coords (x right, y down) to texture coords (u right, v up)
+    vec2 uv = (vec2(gid.xy) + vec2(0.5)) / vec2(out_size) * 2.0 - 1.0;
+
+    // Compute the normal direction from face index and UV
+    // Vulkan cubemap convention: +X, -X, +Y, -Y, +Z, -Z
+    vec3 N;
+    switch (face) {
+        case 0: N = normalize(vec3( 1.0,  uv.y, -uv.x)); break; // +X
+        case 1: N = normalize(vec3(-1.0,  uv.y,  uv.x)); break; // -X
+        case 2: N = normalize(vec3( uv.x,  1.0, -uv.y)); break; // +Y
+        case 3: N = normalize(vec3( uv.x, -1.0,  uv.y)); break; // -Y
+        case 4: N = normalize(vec3( uv.x,  uv.y,  1.0)); break; // +Z
+        case 5: N = normalize(vec3(-uv.x,  uv.y, -1.0)); break; // -Z
+        default: N = vec3(0.0);
+    }
+
+    vec3 irradiance = vec3(0.0);
+    
+    // Tangent space calculation from origin point
+    vec3 up    = vec3(0.0, 1.0, 0.0);
+    vec3 right = normalize(cross(up, N));
+    up         = normalize(cross(N, right));
+    
+    float sampleDelta = 0.0025;
+    float nrSamples = 0.0;
+    
+    // Integrate over hemisphere using spherical coordinates
+    for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+    {
+        for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+        {
+            // Spherical to cartesian (in tangent space)
+            vec3 tangentSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            // Tangent space to world
+            vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
+
+            irradiance += texture(env_map, sampleVec).rgb * cos(theta) * sin(theta);
+            nrSamples++;
+        }
+    }
+    
+    irradiance = PI * irradiance * (1.0 / nrSamples);
+
+    imageStore(out_irradiance, ivec3(gid.xy, face), vec4(irradiance, 1.0));
+}

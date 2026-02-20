@@ -34,11 +34,4 @@ void main() {
 	texCoord = TexCoord;
 
 	reflective = TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL[3][3];
-
-	// if(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL[3][3] == 1.0){
-	// 	camera_view = CAMERA_POSITION.xyz - position;
-	// }
-	// else{
-	// 	camera_view = normal;
-	// }
 }

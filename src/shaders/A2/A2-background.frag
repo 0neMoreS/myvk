@@ -1,5 +1,4 @@
 #version 450
-#include "../tone_mapping.glsl"
 
 layout(set=1,binding=0) uniform samplerCube CUBEMAP;
 

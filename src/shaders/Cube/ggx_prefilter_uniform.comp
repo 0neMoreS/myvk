@@ -1,0 +1,104 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// Input: the source environment cubemap
+layout(set = 0, binding = 0) uniform samplerCube env_map;
+
+// Output: prefiltered specular cubemap
+layout(set = 0, binding = 1, rgba32f) uniform imageCube out_specular;
+
+layout(push_constant) uniform PushConstants {
+    float roughness;
+} pc;
+
+const float PI = 3.14159265358979323846;
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / denom;
+}
+
+void main()
+{
+    ivec3 gid      = ivec3(gl_GlobalInvocationID);
+    ivec2 out_size = imageSize(out_specular).xy;
+    int   face     = int(gid.z);
+
+    if (gid.x >= out_size.x || gid.y >= out_size.y || face >= 6) return;
+
+    // Map output pixel to normalized UV in [-1,1]^2
+    vec2 uv = (vec2(gid.xy) + vec2(0.5)) / vec2(out_size) * 2.0 - 1.0;
+
+    // Vulkan cubemap convention: +X, -X, +Y, -Y, +Z, -Z
+    vec3 N;
+    switch (face) {
+        case 0: N = normalize(vec3( 1.0,  uv.y, -uv.x)); break; // +X
+        case 1: N = normalize(vec3(-1.0,  uv.y,  uv.x)); break; // -X
+        case 2: N = normalize(vec3( uv.x,  1.0, -uv.y)); break; // +Y
+        case 3: N = normalize(vec3( uv.x, -1.0,  uv.y)); break; // -Y
+        case 4: N = normalize(vec3( uv.x,  uv.y,  1.0)); break; // +Z
+        case 5: N = normalize(vec3(-uv.x,  uv.y, -1.0)); break; // -Z
+        default: N = vec3(0.0);
+    }
+
+    // Prefilter approximation: V = R = N
+    vec3 V = N;
+
+    float roughness = pc.roughness;
+
+    // roughness=0 means perfect mirror: D -> delta function, return env sample directly
+    if (roughness < 0.001)
+    {
+        imageStore(out_specular, ivec3(gid.xy, face), vec4(texture(env_map, N).rgb, 1.0));
+        return;
+    }
+
+    // Build tangent space for N (same convention as lambertian_integrate_uniform)
+    vec3 up    = vec3(0.0, 1.0, 0.0);
+    vec3 right = normalize(cross(up, N));
+    up         = normalize(cross(N, right));
+
+    vec3  prefilteredColor = vec3(0.0);
+    float totalWeight      = 0.0;
+
+    float sampleDelta = 0.025;
+
+    // Integrate over hemisphere using spherical coordinates
+    for (float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+    {
+        for (float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+        {
+            // Spherical to cartesian (tangent space)
+            vec3 tangentSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            // Tangent space to world space: this is the incoming light direction L
+            vec3 L = normalize(tangentSample.x * right + tangentSample.y * up + tangentSample.z * N);
+
+            float NdotL = dot(N, L); // = cos(theta)
+            if (NdotL > 0.0)
+            {
+                // Half vector between V and L (V = N approximation)
+                vec3  H      = normalize(L + V);
+                float D      = DistributionGGX(N, H, roughness);
+                // Weight: GGX NDF * cosine * solid-angle Jacobian sin(theta)
+                float weight = D * NdotL * sin(theta);
+
+                prefilteredColor += texture(env_map, L).rgb * weight;
+                totalWeight      += weight;
+            }
+        }
+    }
+
+    prefilteredColor = prefilteredColor / max(totalWeight, 0.0001);
+
+    imageStore(out_specular, ivec3(gid.xy, face), vec4(prefilteredColor, 1.0));
+}

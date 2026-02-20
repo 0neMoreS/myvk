@@ -1,8 +1,5 @@
 #version 450
 
-// Full-screen triangle - no vertex buffer needed
-// Generates 3 vertices that cover the entire screen
-
 layout(location = 0) out vec2 outUV;
 
 void main() {

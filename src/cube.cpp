@@ -4,11 +4,12 @@
 #include <iostream>
 #include <string>
 #include <stdexcept>
+#include <filesystem>
 
 static void print_usage(const char *prog) {
     std::cerr << "Usage:\n"
               << "  " << prog << " <in.png> --lambertian <out.png>\n"
-              << "  " << prog << " <in.png> --ggx <out_stem>\n"
+              << "  " << prog << " <in.png> --ggx <out_stem>   (also writes brdf_LUT.png)\n"
               << "\n";
 }
 
@@ -79,6 +80,8 @@ int main(int argc, char **argv) {
                 stem = stem.substr(0, stem.size() - 4);
             }
             integrator.run_ggx(in_path, stem);
+            std::filesystem::path p(out_path);
+            integrator.run_brdf_lut(p.parent_path().string() + "/brdf_LUT.png");
         }
 
         return 0;

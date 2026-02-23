@@ -28,6 +28,9 @@ static const uint32_t lambertian_spv[] = {
 static const uint32_t ggx_spv[] = {
 #include "../../shaders/spv/ggx_prefilter.comp.inl"
 };
+static const uint32_t brdf_lut_spv[] = {
+#include "../../shaders/spv/brdf_lut.comp.inl"
+};
 
 // -------------------------------------------------------------------------
 CubeIntegrator::CubeIntegrator(RTG &rtg_) : rtg(rtg_) {
@@ -162,9 +165,28 @@ void CubeIntegrator::create_pipelines() {
         ggx_shader, ggx_descriptor_set_layout,
         ggx_pipeline_layout, ggx_pipeline
     );
+
+    // --- BRDF LUT ---
+    VkDescriptorSetLayoutBinding lut_bindings[1] = {
+        { .binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+          .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT },
+    };
+    create_compute_pipeline(
+        rtg.device,
+        brdf_lut_spv, sizeof(brdf_lut_spv),
+        lut_bindings, 1,
+        0, // no push constants
+        lut_shader, lut_descriptor_set_layout,
+        lut_pipeline_layout, lut_pipeline
+    );
 }
 
 void CubeIntegrator::destroy_pipelines() {
+    vkDestroyPipeline(rtg.device, lut_pipeline, nullptr);
+    vkDestroyPipelineLayout(rtg.device, lut_pipeline_layout, nullptr);
+    vkDestroyDescriptorSetLayout(rtg.device, lut_descriptor_set_layout, nullptr);
+    vkDestroyShaderModule(rtg.device, lut_shader, nullptr);
+
     vkDestroyPipeline(rtg.device, ggx_pipeline, nullptr);
     vkDestroyPipelineLayout(rtg.device, ggx_pipeline_layout, nullptr);
     vkDestroyDescriptorSetLayout(rtg.device, ggx_descriptor_set_layout, nullptr);
@@ -556,4 +578,174 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
     }
 
     destroy_loaded_cubemap(input);
+}
+
+// -------------------------------------------------------------------------
+// create_lut_output / destroy_lut_output
+// -------------------------------------------------------------------------
+CubeIntegrator::LUTImage CubeIntegrator::create_lut_output(uint32_t size) {
+    // Regular 2D image (is_cube=false, 1 array layer)
+    auto allocated_image = rtg.helpers.create_image(
+        VkExtent2D{ size, size },
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        Helpers::Unmapped,
+        false, // not a cubemap
+        1
+    );
+
+    rtg.helpers.transition_image_layout(
+        allocated_image.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_GENERAL,
+        1, // mip levels
+        1  // array layers
+    );
+
+    VkImageView view = create_image_view(
+        rtg.device,
+        allocated_image.handle,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        false // 2D view
+    );
+
+    LUTImage result;
+    result.image = std::move(allocated_image);
+    result.view  = view;
+    result.size  = size;
+    return result;
+}
+
+void CubeIntegrator::destroy_lut_output(LUTImage &o) {
+    vkDestroyImageView(rtg.device, o.view, nullptr);
+    rtg.helpers.destroy_image(std::move(o.image));
+}
+
+// -------------------------------------------------------------------------
+// readback_and_save_lut
+// -------------------------------------------------------------------------
+void CubeIntegrator::readback_and_save_lut(const LUTImage &out, const std::string &path) {
+    uint32_t size        = out.size;
+    size_t   num_pixels  = (size_t)size * size;
+    size_t   data_bytes  = num_pixels * 4 * sizeof(float); // rgba32f
+
+    auto staging = rtg.helpers.create_buffer(
+        data_bytes,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        Helpers::Mapped
+    );
+
+    // Transition GENERAL -> TRANSFER_SRC for readback
+    rtg.helpers.transition_image_layout(
+        out.image.handle,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        1, // mip levels
+        1  // array layers
+    );
+
+    VkCommandBufferBeginInfo begin{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
+    VK(vkBeginCommandBuffer(command_buffer, &begin));
+
+    VkBufferImageCopy copy{
+        .bufferOffset       = 0,
+        .bufferRowLength    = 0,
+        .bufferImageHeight  = 0,
+        .imageSubresource   = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .imageOffset        = { 0, 0, 0 },
+        .imageExtent        = { size, size, 1 },
+    };
+    vkCmdCopyImageToBuffer(command_buffer, out.image.handle,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.handle, 1, &copy);
+
+    VK(vkEndCommandBuffer(command_buffer));
+    VkSubmitInfo submit{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                         .commandBufferCount = 1, .pCommandBuffers = &command_buffer };
+    VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit, fence));
+    VK(vkWaitForFences(rtg.device, 1, &fence, VK_TRUE, UINT64_MAX));
+    VK(vkResetFences(rtg.device, 1, &fence));
+    VK(vkResetCommandBuffer(command_buffer, 0));
+
+    // Encode float (scale, bias) -> RGBA8 PNG: R=scale*255, G=bias*255, B=0, A=255
+    const float *floats = reinterpret_cast<const float *>(staging.allocation.data());
+    std::vector<unsigned char> pixels(num_pixels * 4);
+
+    for (size_t i = 0; i < num_pixels; ++i) {
+        float scale = floats[i * 4 + 0];
+        float bias  = floats[i * 4 + 1];
+        scale = std::max(0.0f, std::min(1.0f, scale));
+        bias  = std::max(0.0f, std::min(1.0f, bias));
+        pixels[i * 4 + 0] = static_cast<unsigned char>(scale * 255.0f + 0.5f);
+        pixels[i * 4 + 1] = static_cast<unsigned char>(bias  * 255.0f + 0.5f);
+        pixels[i * 4 + 2] = 0;
+        pixels[i * 4 + 3] = 255;
+    }
+
+    stbi_flip_vertically_on_write(true);
+    int ok = stbi_write_png(path.c_str(), (int)size, (int)size, 4, pixels.data(), (int)(size * 4));
+    if (!ok) {
+        throw std::runtime_error("CubeIntegrator: failed to write LUT '" + path + "'");
+    }
+    std::cout << "Wrote " << path << " (" << size << "x" << size << ")\n";
+
+    rtg.helpers.destroy_buffer(std::move(staging));
+}
+
+// -------------------------------------------------------------------------
+// run_brdf_lut
+// -------------------------------------------------------------------------
+void CubeIntegrator::run_brdf_lut(const std::string &out_path) {
+    std::cout << "BRDF LUT integration -> " << out_path << "\n";
+
+    const uint32_t LUT_SIZE = 512u;
+    auto output = create_lut_output(LUT_SIZE);
+
+    // Descriptor pool: only one storage image binding, no sampler
+    VkDescriptorPoolSize pool_size{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 };
+    VkDescriptorPoolCreateInfo dp_info{
+        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets       = 1,
+        .poolSizeCount = 1,
+        .pPoolSizes    = &pool_size,
+    };
+    VK(vkCreateDescriptorPool(rtg.device, &dp_info, nullptr, &descriptor_pool));
+
+    VkDescriptorSetAllocateInfo ds_alloc{
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = descriptor_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &lut_descriptor_set_layout,
+    };
+    VkDescriptorSet ds;
+    VK(vkAllocateDescriptorSets(rtg.device, &ds_alloc, &ds));
+
+    VkDescriptorImageInfo out_info{
+        .imageView   = output.view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    VkWriteDescriptorSet write{
+        .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet          = ds,
+        .dstBinding      = 0,
+        .descriptorCount = 1,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        .pImageInfo      = &out_info,
+    };
+    vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
+
+    // Dispatch: 8x8 local group, LUT_SIZE x LUT_SIZE output, 1 layer
+    uint32_t gx = LUT_SIZE / 8;
+    uint32_t gy = LUT_SIZE / 8;
+    dispatch_and_wait(lut_pipeline, lut_pipeline_layout, ds, gx, gy, 1);
+
+    readback_and_save_lut(output, out_path);
+
+    vkDestroyDescriptorPool(rtg.device, descriptor_pool, nullptr);
+    descriptor_pool = VK_NULL_HANDLE;
+
+    destroy_lut_output(output);
 }

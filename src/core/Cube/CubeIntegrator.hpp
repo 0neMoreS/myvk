@@ -9,6 +9,7 @@
 // Pre-integrates a cubemap (stored as RGBE PNG atlas) for IBL:
 //   run_lambertian: outputs a 32x32 irradiance cubemap
 //   run_ggx:        outputs 5 mip levels of GGX-prefiltered specular cubemaps
+//   run_brdf_lut:   outputs a 512x512 split-sum BRDF LUT (scale, bias) as RGBA8 PNG
 struct CubeIntegrator {
     CubeIntegrator(RTG &rtg);
     ~CubeIntegrator();
@@ -20,6 +21,10 @@ struct CubeIntegrator {
     // Read in.png (RGBE atlas), integrate GGX at 5 roughness levels,
     // write out.1.png (512x3072) ... out.5.png (32x192)
     void run_ggx(const std::string &in_path, const std::string &out_stem);
+
+    // Compute the split-sum BRDF LUT (no input required) and write out_path as RGBA8 PNG.
+    // R = scale (F0 contribution), G = bias (F90 contribution). Size: 512x512.
+    void run_brdf_lut(const std::string &out_path);
 
 private:
     RTG &rtg;
@@ -35,6 +40,12 @@ private:
     VkPipelineLayout      ggx_pipeline_layout       = VK_NULL_HANDLE;
     VkPipeline            ggx_pipeline              = VK_NULL_HANDLE;
     VkShaderModule        ggx_shader                = VK_NULL_HANDLE;
+
+    // --- BRDF LUT pipeline ---
+    VkDescriptorSetLayout lut_descriptor_set_layout = VK_NULL_HANDLE;
+    VkPipelineLayout      lut_pipeline_layout       = VK_NULL_HANDLE;
+    VkPipeline            lut_pipeline              = VK_NULL_HANDLE;
+    VkShaderModule        lut_shader                = VK_NULL_HANDLE;
 
     // Descriptor pool (shared for both pipelines; re-allocated per dispatch)
     VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
@@ -66,8 +77,20 @@ private:
     OutputImage create_output(uint32_t face_size);
     void destroy_output(OutputImage &o);
 
+    // Allocate a rgba32f 2D output image (size x size, 1 layer) for the BRDF LUT
+    struct LUTImage {
+        Helpers::AllocatedImage image;
+        VkImageView             view;
+        uint32_t                size;
+    };
+    LUTImage create_lut_output(uint32_t size);
+    void destroy_lut_output(LUTImage &o);
+
     // Readback from GPU image to CPU float buffer, encode RGBE, write PNG atlas
     void readback_and_save(const OutputImage &out, const std::string &path);
+
+    // Readback BRDF LUT from GPU, encode to RGBA8 (R=scale, G=bias), write PNG
+    void readback_and_save_lut(const LUTImage &out, const std::string &path);
 
     // Submit a compute dispatch and wait for completion
     void dispatch_and_wait(

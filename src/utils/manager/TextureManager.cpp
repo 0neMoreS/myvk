@@ -39,12 +39,12 @@ void TextureManager::create(
     { // Load raw textures from document
         raw_2d_textures_by_material.resize(doc->materials.size());
 
-        auto push_texture = [&](size_t material_index, TextureSlot slot, const std::optional<S72Loader::Texture> &texture_opt, const glm::vec3 &fallback_color) {
+        auto push_texture = [&](size_t material_index, TextureSlot slot, const std::optional<S72Loader::Texture> &texture_opt, const glm::vec3 &fallback_color, bool generate_mipmaps) {
             auto &texture_element = raw_2d_textures_by_material[material_index][slot];
             if (texture_opt.has_value()) {
                 const auto &texture = texture_opt.value();
                 std::string texture_path = s72_dir + texture.src;
-                texture_element = Texture2DLoader::load_image(rtg.helpers, texture_path, VK_FILTER_LINEAR, texture.format == "srgb", texture.format == "srgb");
+                texture_element = Texture2DLoader::load_image(rtg.helpers, texture_path, VK_FILTER_LINEAR, texture.format == "srgb", generate_mipmaps);
             } else {
                 texture_element = Texture2DLoader::create_rgb_texture(rtg.helpers, fallback_color);
             }
@@ -57,10 +57,10 @@ void TextureManager::create(
             size_t material_index = &material - &doc->materials[0];
 
             // normal
-            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.5f, 0.5f, 1.0f});
+            push_texture(material_index, TextureSlot::Normal, material.normal_map, glm::vec3{0.5f, 0.5f, 1.0f}, false);
 
             // displacement
-            push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f});
+            push_texture(material_index, TextureSlot::Displacement, material.displacement_map, glm::vec3{0.0f, 0.0f, 0.0f}, false);
 
             // albedo
             if (material.pbr && material.pbr->albedo_texture) {
@@ -75,7 +75,7 @@ void TextureManager::create(
                 albedo_value = *material.lambertian->albedo_value;
             }
 
-            push_texture(material_index, TextureSlot::Albedo, albedo_texture, albedo_value);
+            push_texture(material_index, TextureSlot::Albedo, albedo_texture, albedo_value, true);
 
             // roughness
             std::optional<S72Loader::Texture> roughness_texture;
@@ -84,7 +84,7 @@ void TextureManager::create(
                 if (material.pbr->roughness_texture) roughness_texture = material.pbr->roughness_texture;
                 if (material.pbr->roughness_value) roughness_value = *material.pbr->roughness_value;
             }
-            push_texture(material_index, TextureSlot::Roughness, roughness_texture, glm::vec3(roughness_value));
+            push_texture(material_index, TextureSlot::Roughness, roughness_texture, glm::vec3(roughness_value), false);
 
             // metallic
             std::optional<S72Loader::Texture> metallic_texture;
@@ -93,7 +93,7 @@ void TextureManager::create(
                 if (material.pbr->metalness_texture) metallic_texture = material.pbr->metalness_texture;
                 if (material.pbr->metalness_value) metallic_value = *material.pbr->metalness_value;
             }
-            push_texture(material_index, TextureSlot::Metallic, metallic_texture, glm::vec3(metallic_value));
+            push_texture(material_index, TextureSlot::Metallic, metallic_texture, glm::vec3(metallic_value), false);
         }
     }
 
@@ -107,9 +107,9 @@ void TextureManager::create(
                 const auto &radiance = env.radiance;
                 std::string texture_path = s72_dir + radiance.src;
                 
-                raw_environment_cubemap_texture[0] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1, true);
-                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1, false);
-                raw_environment_cubemap_texture[2] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5, false);
+                raw_environment_cubemap_texture[0] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[2] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
             } else {
                 raw_environment_cubemap_texture[0] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);
                 raw_environment_cubemap_texture[1] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);

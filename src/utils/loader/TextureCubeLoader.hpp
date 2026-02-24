@@ -53,8 +53,7 @@ std::unique_ptr<Texture> load_cubemap(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter = VK_FILTER_LINEAR,
-    uint32_t mipmap_levels = 1,
-    bool generate_mipmaps = false
+    uint32_t mipmap_levels = 1
 );
 
 std::unique_ptr<Texture> create_default_cubemap(

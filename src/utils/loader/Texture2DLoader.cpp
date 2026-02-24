@@ -7,14 +7,15 @@
 #include <iostream>
 #include <stdexcept>
 #include <memory>
+#include <algorithm>
 
 namespace Texture2DLoader {
-
 std::unique_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
 	VkFilter filter,
-	bool srgb
+	bool srgb,
+	bool generate_mipmaps
 ) {
 	// Load image file using stb_image
 	int width, height, channels;
@@ -39,20 +40,29 @@ std::unique_ptr<Texture> load_image(
 
 	// Create GPU texture resource
 	auto texture = std::make_unique<Texture>();
+	uint32_t mip_levels = generate_mipmaps ? helpers.calc_mip_levels(static_cast<uint32_t>(width), static_cast<uint32_t>(height)) : 1;
 
 	// Create GPU image with transfer destination flag
 	texture->image = helpers.create_image(
 		VkExtent2D{.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)},
 		srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		Helpers::Unmapped
+		Helpers::Unmapped,
+		false,
+		mip_levels
 	);
 
-	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1);
+	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1, generate_mipmaps);
 	
-	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->image_view = create_image_view(
+		helpers.rtg.device,
+		texture->image.handle,
+		srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
+		false,
+		mip_levels
+	);
 	texture->sampler = create_sampler(
 		helpers.rtg.device,
 		filter,
@@ -60,7 +70,7 @@ std::unique_ptr<Texture> load_image(
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-		0.0f
+		static_cast<float>(mip_levels - 1)
 	);
 
 	// Free CPU-side pixel data
@@ -89,7 +99,9 @@ std::unique_ptr<Texture> create_rgb_texture(
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        Helpers::Unmapped
+        Helpers::Unmapped,
+        false,
+        1
     );
 
 	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1);

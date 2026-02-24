@@ -234,16 +234,17 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
     }
     stbi_image_free(raw);
 
+    const uint32_t mip_levels = rtg.helpers.calc_mip_levels((uint32_t)face_size, (uint32_t)face_size);
+
     // Create image: is_cube=true yields 6 arrayLayers + VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT.
-    // A VK_IMAGE_VIEW_TYPE_2D_ARRAY view is valid on a cube-compatible image.
     auto allocated_image = rtg.helpers.create_image(
         VkExtent2D{ (uint32_t)face_size, (uint32_t)face_size },
         VK_FORMAT_R32G32B32A32_SFLOAT,
         VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        true, 1
+        true, mip_levels
     );
 
     // transfer_to_image handles: staging buffer, memcpy, UNDEFINED->TRANSFER_DST->SHADER_READ_ONLY,
@@ -254,22 +255,38 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
         { static_cast<void*>(float_data.data()) },
         { data_bytes },
         allocated_image,
-        6
-    );
-
-    VkImageView view = create_image_view(
-        rtg.device, 
-        allocated_image.handle,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
+        6,
         true
     );
+
+    VkImageViewCreateInfo view_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = allocated_image.handle,
+        .viewType = VK_IMAGE_VIEW_TYPE_CUBE,
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = mip_levels,
+            .baseArrayLayer = 0,
+            .layerCount = 6,
+        },
+    };
+    VkImageView view = VK_NULL_HANDLE;
+    VK(vkCreateImageView(rtg.device, &view_info, nullptr, &view));
 
     VkSampler sampler = create_sampler(
         rtg.device, VK_FILTER_LINEAR,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK, 0.0f
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK, static_cast<float>(mip_levels - 1)
     );
 
     LoadedCubemap result;

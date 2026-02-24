@@ -55,6 +55,7 @@ struct Helpers {
 		VkImage handle = VK_NULL_HANDLE;
 		VkExtent2D extent{.width = 0, .height = 0};
 		VkFormat format = VK_FORMAT_UNDEFINED;
+		uint32_t mipmap_levels = 1;
 		Allocation allocation;
 
 		//NOTE: could define default constructor, move constructor, move assignment, destructor for a bit more paranoia
@@ -84,7 +85,8 @@ struct Helpers {
 		const std::vector<void*>& mipmap_data,
 		const std::vector<size_t>& mipmap_sizes,
 		AllocatedImage& target,
-		uint32_t face_count
+		uint32_t face_count,
+		bool generate_mipmap = false
 	);
 
 	// Transition image layout (useful for storage images, transfer operations, etc.)
@@ -131,6 +133,8 @@ struct Helpers {
 	void create(); //create vulkan resources (after GPU-held handles are created)
 	void destroy(); //destroy vulkan resources (before GPU-held handles are destroyed)
 
+	uint32_t calc_mip_levels(uint32_t width, uint32_t height);
+
 private:
 	// Helper: record image layout transition barrier into command buffer (does not submit)
 	void record_image_layout_transition(
@@ -139,6 +143,8 @@ private:
 		VkImageLayout old_layout,
 		VkImageLayout new_layout,
 		uint32_t mip_levels,
-		uint32_t array_layers
+		uint32_t array_layers,
+		uint32_t base_mip_level = 0,
+		uint32_t base_array_layer = 0
 	);
 };

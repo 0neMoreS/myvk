@@ -24,7 +24,8 @@ std::unique_ptr<Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
 	VkFilter filter = VK_FILTER_LINEAR,
-	bool srgb = false
+	bool srgb = false,
+	bool generate_mipmaps = false
 );
 
 std::unique_ptr<Texture> create_rgb_texture(

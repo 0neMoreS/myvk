@@ -6,6 +6,7 @@
 #include <vulkan/utility/vk_format_utils.h>
 
 #include <utility>
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -143,6 +144,7 @@ Helpers::AllocatedImage Helpers::create_image(
 	AllocatedImage image;
 	image.extent = extent;
 	image.format = format;
+	image.mipmap_levels = mipmap_levels;
 
 	VkImageCreateInfo create_info{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -180,6 +182,7 @@ void Helpers::destroy_image(AllocatedImage &&image) {
 	image.handle = VK_NULL_HANDLE;
 	image.extent = VkExtent2D{.width = 0, .height = 0};
 	image.format = VK_FORMAT_UNDEFINED;
+	image.mipmap_levels = 1;
 
 	this->free(std::move(image.allocation));
 }
@@ -242,11 +245,17 @@ void Helpers::transfer_to_image(
     const std::vector<void*>& mipmap_data,
     const std::vector<size_t>& mipmap_sizes,
     AllocatedImage& target,
-    uint32_t face_count
+	uint32_t face_count,
+	bool generate_mipmap
 ) {
     assert(target.handle != VK_NULL_HANDLE);
     assert(mipmap_data.size() == mipmap_sizes.size());
+	assert(!mipmap_data.empty());
     assert(face_count >= 1);
+	if (generate_mipmap) {
+		assert(mipmap_data.size() == 1);
+		assert(target.mipmap_levels >= 1);
+	}
 
     // Calculate total size needed
     size_t total_size = 0;
@@ -339,15 +348,114 @@ void Helpers::transfer_to_image(
         );
     }
 
-    // Transition to shader read-only layout (TRANSFER_DST_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL)
-    record_image_layout_transition(
-        transfer_command_buffer,
-        target.handle,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        static_cast<uint32_t>(mipmap_data.size()),
-        face_count
-    );
+	if (generate_mipmap && target.mipmap_levels > 1) {
+		uint32_t src_width = target.extent.width;
+		uint32_t src_height = target.extent.height;
+
+		record_image_layout_transition(
+			transfer_command_buffer,
+			target.handle,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			1,
+			face_count,
+			0,
+			0
+		);
+
+		for (uint32_t mip_level = 1; mip_level < target.mipmap_levels; ++mip_level) {
+			uint32_t dst_width = std::max(1u, src_width / 2u);
+			uint32_t dst_height = std::max(1u, src_height / 2u);
+
+			record_image_layout_transition(
+				transfer_command_buffer,
+				target.handle,
+				VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1,
+				face_count,
+				mip_level,
+				0
+			);
+
+			VkImageBlit blit{
+				.srcSubresource = {
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.mipLevel = mip_level - 1,
+					.baseArrayLayer = 0,
+					.layerCount = face_count,
+				},
+				.srcOffsets = {
+					{ 0, 0, 0 },
+					{ static_cast<int32_t>(src_width), static_cast<int32_t>(src_height), 1 }
+				},
+				.dstSubresource = {
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.mipLevel = mip_level,
+					.baseArrayLayer = 0,
+					.layerCount = face_count,
+				},
+				.dstOffsets = {
+					{ 0, 0, 0 },
+					{ static_cast<int32_t>(dst_width), static_cast<int32_t>(dst_height), 1 }
+				},
+			};
+
+			vkCmdBlitImage(
+				transfer_command_buffer,
+				target.handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				target.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit,
+				VK_FILTER_LINEAR
+			);
+
+			record_image_layout_transition(
+				transfer_command_buffer,
+				target.handle,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				1,
+				face_count,
+				mip_level - 1,
+				0
+			);
+
+			record_image_layout_transition(
+				transfer_command_buffer,
+				target.handle,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				1,
+				face_count,
+				mip_level,
+				0
+			);
+
+			src_width = dst_width;
+			src_height = dst_height;
+		}
+
+		record_image_layout_transition(
+			transfer_command_buffer,
+			target.handle,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			1,
+			face_count,
+			target.mipmap_levels - 1,
+			0
+		);
+	} else {
+		// Transition to shader read-only layout (TRANSFER_DST_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL)
+		record_image_layout_transition(
+			transfer_command_buffer,
+			target.handle,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			static_cast<uint32_t>(mipmap_data.size()),
+			face_count
+		);
+	}
 
     VK( vkEndCommandBuffer(transfer_command_buffer) );
 
@@ -370,7 +478,9 @@ void Helpers::record_image_layout_transition(
     VkImageLayout old_layout,
     VkImageLayout new_layout,
     uint32_t mip_levels,
-    uint32_t array_layers
+	uint32_t array_layers,
+	uint32_t base_mip_level,
+	uint32_t base_array_layer
 ) {
     // Determine access masks and pipeline stages based on layouts
     VkAccessFlags src_access = 0;
@@ -387,7 +497,7 @@ void Helpers::record_image_layout_transition(
         src_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     } else if (old_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         src_access = VK_ACCESS_SHADER_READ_BIT;
-        src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     } else if (old_layout == VK_IMAGE_LAYOUT_GENERAL) {
         src_access = VK_ACCESS_SHADER_WRITE_BIT;
         src_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
@@ -402,7 +512,7 @@ void Helpers::record_image_layout_transition(
         dst_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     } else if (new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         dst_access = VK_ACCESS_SHADER_READ_BIT;
-        dst_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dst_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     } else if (new_layout == VK_IMAGE_LAYOUT_GENERAL) {
         dst_access = VK_ACCESS_SHADER_WRITE_BIT;
         dst_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
@@ -422,9 +532,9 @@ void Helpers::record_image_layout_transition(
         .image = image,
         .subresourceRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
+			.baseMipLevel = base_mip_level,
             .levelCount = mip_levels,
-            .baseArrayLayer = 0,
+			.baseArrayLayer = base_array_layer,
             .layerCount = array_layers,
         },
     };
@@ -550,4 +660,15 @@ void Helpers::destroy() {
 		vkDestroyCommandPool(rtg.device, transfer_command_pool, nullptr);
 		transfer_command_pool = VK_NULL_HANDLE;
 	}
+}
+
+
+uint32_t Helpers::calc_mip_levels(uint32_t width, uint32_t height) {
+	uint32_t levels = 1;
+	while (width > 1 || height > 1) {
+		width = std::max(1u, width / 2u);
+		height = std::max(1u, height / 2u);
+		++levels;
+	}
+	return levels;
 }

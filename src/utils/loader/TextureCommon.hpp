@@ -86,6 +86,25 @@ inline uint32_t pack_e5b9g9r9(float r, float g, float b) {
     return (e << 27) | (b9 << 18) | (g9 << 9) | r9;
 }
 
+inline void unpack_e5b9g9r9(uint32_t packed, float &r, float &g, float &b) {
+    if (packed == 0u) {
+        r = g = b = 0.0f;
+        return;
+    }
+
+    const uint32_t r9 = packed & 0x1ffu;
+    const uint32_t g9 = (packed >> 9) & 0x1ffu;
+    const uint32_t b9 = (packed >> 18) & 0x1ffu;
+    const uint32_t e5 = (packed >> 27) & 0x1fu;
+
+    const int exp_shared = static_cast<int>(e5) - 15;
+    const float scale = std::ldexp(1.0f, exp_shared - 9);
+
+    r = static_cast<float>(r9) * scale;
+    g = static_cast<float>(g9) * scale;
+    b = static_cast<float>(b9) * scale;
+}
+
 // Copy a square tile from (src_w x src_h) image into dest buffer (face_w x face_h)
 inline void blit_tile_rgba8(
     const unsigned char* src,
@@ -164,7 +183,8 @@ inline VkImageView create_image_view(
     VkDevice device,
     VkImage image,
     VkFormat format,
-    bool cube
+    bool cube,
+    uint32_t mip_levels = 1
 ) {
     VkImageViewCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -182,7 +202,7 @@ inline VkImageView create_image_view(
         .subresourceRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel = 0,
-            .levelCount = 1,
+            .levelCount = mip_levels,
             .baseArrayLayer = 0,
             .layerCount = cube ? 6u : 1u,
         },

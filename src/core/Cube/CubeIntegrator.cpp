@@ -256,7 +256,8 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
         { data_bytes },
         allocated_image,
         6,
-        true
+        true,
+        mip_levels
     );
 
     VkImageViewCreateInfo view_info{

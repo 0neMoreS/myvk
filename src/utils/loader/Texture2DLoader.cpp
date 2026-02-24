@@ -54,7 +54,7 @@ std::unique_ptr<Texture> load_image(
 		mip_levels
 	);
 
-	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1, generate_mipmaps);
+	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1, generate_mipmaps, mip_levels);
 	
 	texture->image_view = create_image_view(
 		helpers.rtg.device,
@@ -104,7 +104,7 @@ std::unique_ptr<Texture> create_rgb_texture(
         1
     );
 
-	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1);
+	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1, false, 1);
 	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
 	texture->sampler = create_sampler(
 		helpers.rtg.device,

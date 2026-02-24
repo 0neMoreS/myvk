@@ -10,7 +10,7 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 const float PI = 3.14159265358979323846;
-const uint  NUM_SAMPLES = 1024u * 64u;
+const uint  NUM_SAMPLES = 1024u * 4u;
 
 // ----------------------------------------------------------------------------
 float DistributionGGX(vec3 N, vec3 H, float roughness)
@@ -130,7 +130,9 @@ void main()
             float mipLevel = 0.5 * log2(max(saSample / saTexel, 1e-6));
             mipLevel = clamp(mipLevel, 0.0, float(maxMip));
 
-            prefilteredColor += textureLod(env_map, L, mipLevel).rgb * NdotL;
+            vec3 sampledColor = textureLod(env_map, L, mipLevel).rgb;
+            sampledColor = min(sampledColor, vec3(100.0)); // Avoid extreme values from bright environment maps
+            prefilteredColor += sampledColor * NdotL;
             totalWeight      += NdotL;
         }
     }

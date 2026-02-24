@@ -130,7 +130,7 @@ std::unique_ptr<Texture> load_cubemap(
         mipmap_byte_sizes.push_back(all_mipmap_data[level].size() * sizeof(uint32_t));
     }
     
-    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6);
+    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6, false, mipmap_levels);
     
     texture->image_view = create_image_view(
         helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true
@@ -181,7 +181,7 @@ std::unique_ptr<Texture> create_default_cubemap(
     // The size must be the total of all 6 faces, so the created Staging Buffer is large enough (96 bytes instead of 16 bytes)
     std::vector<size_t> mipmap_byte_sizes(1, cubemap_data.size() * sizeof(uint32_t));
     
-    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, face_count);
+    helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, face_count, false, 1);
     
     texture->image_view = create_image_view(
         helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true

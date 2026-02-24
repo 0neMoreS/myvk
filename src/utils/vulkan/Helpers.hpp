@@ -55,7 +55,6 @@ struct Helpers {
 		VkImage handle = VK_NULL_HANDLE;
 		VkExtent2D extent{.width = 0, .height = 0};
 		VkFormat format = VK_FORMAT_UNDEFINED;
-		uint32_t mipmap_levels = 1;
 		Allocation allocation;
 
 		//NOTE: could define default constructor, move constructor, move assignment, destructor for a bit more paranoia
@@ -86,7 +85,8 @@ struct Helpers {
 		const std::vector<size_t>& mipmap_sizes,
 		AllocatedImage& target,
 		uint32_t face_count,
-		bool generate_mipmap = false
+		bool generate_mipmap = false,
+		uint32_t mipmap_levels = 1
 	);
 
 	// Transition image layout (useful for storage images, transfer operations, etc.)

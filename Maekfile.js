@@ -87,7 +87,6 @@ const cube_lambertian_shader = [
 
 const cube_ggx_shader = [
 	maek.GLSLC('./src/shaders/Cube/ggx_prefilter.comp'),
-	maek.GLSLC('./src/shaders/Cube/ggx_prefilter_uniform.comp'),
 ];
 
 const cube_brdf_lut_shader = [

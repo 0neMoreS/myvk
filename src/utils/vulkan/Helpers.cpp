@@ -144,7 +144,6 @@ Helpers::AllocatedImage Helpers::create_image(
 	AllocatedImage image;
 	image.extent = extent;
 	image.format = format;
-	image.mipmap_levels = mipmap_levels;
 
 	VkImageCreateInfo create_info{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -182,7 +181,6 @@ void Helpers::destroy_image(AllocatedImage &&image) {
 	image.handle = VK_NULL_HANDLE;
 	image.extent = VkExtent2D{.width = 0, .height = 0};
 	image.format = VK_FORMAT_UNDEFINED;
-	image.mipmap_levels = 1;
 
 	this->free(std::move(image.allocation));
 }
@@ -246,7 +244,8 @@ void Helpers::transfer_to_image(
     const std::vector<size_t>& mipmap_sizes,
     AllocatedImage& target,
 	uint32_t face_count,
-	bool generate_mipmap
+	bool generate_mipmap,
+	uint32_t mipmap_levels
 ) {
     assert(target.handle != VK_NULL_HANDLE);
     assert(mipmap_data.size() == mipmap_sizes.size());
@@ -254,7 +253,6 @@ void Helpers::transfer_to_image(
     assert(face_count >= 1);
 	if (generate_mipmap) {
 		assert(mipmap_data.size() == 1);
-		assert(target.mipmap_levels >= 1);
 	}
 
     // Calculate total size needed
@@ -348,7 +346,7 @@ void Helpers::transfer_to_image(
         );
     }
 
-	if (generate_mipmap && target.mipmap_levels > 1) {
+	if (generate_mipmap && mipmap_levels > 1) {
 		uint32_t src_width = target.extent.width;
 		uint32_t src_height = target.extent.height;
 
@@ -363,7 +361,7 @@ void Helpers::transfer_to_image(
 			0
 		);
 
-		for (uint32_t mip_level = 1; mip_level < target.mipmap_levels; ++mip_level) {
+		for (uint32_t mip_level = 1; mip_level < mipmap_levels; ++mip_level) {
 			uint32_t dst_width = std::max(1u, src_width / 2u);
 			uint32_t dst_height = std::max(1u, src_height / 2u);
 
@@ -442,7 +440,7 @@ void Helpers::transfer_to_image(
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			1,
 			face_count,
-			target.mipmap_levels - 1,
+			mipmap_levels - 1,
 			0
 		);
 	} else {
@@ -452,7 +450,7 @@ void Helpers::transfer_to_image(
 			target.handle,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			static_cast<uint32_t>(mipmap_data.size()),
+			mipmap_levels,
 			face_count
 		);
 	}

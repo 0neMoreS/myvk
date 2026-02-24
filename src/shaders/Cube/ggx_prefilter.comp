@@ -96,8 +96,17 @@ void main()
 
     float roughness = pc.roughness;
 
+    if (roughness < 1e-4)
+    {
+        vec3 c = textureLod(env_map, R, 0.0).rgb;
+        imageStore(out_specular, ivec3(gid.xy, face), vec4(c, 1.0));
+        return;
+    }
+
     vec3  prefilteredColor = vec3(0.0);
     float totalWeight      = 0.0;
+
+    int maxMip = textureQueryLevels(env_map) - 1;
 
     for (uint i = 0u; i < NUM_SAMPLES; ++i)
     {
@@ -111,21 +120,22 @@ void main()
             // Sample from the environment's mip level based on roughness/pdf
             float D      = DistributionGGX(N, H, roughness);
             float NdotH  = max(dot(N, H), 0.0);
-            float HdotV  = max(dot(H, V), 0.0);
-            float pdf    = D * NdotH / (4.0 * HdotV) + 0.0001;
+            float HdotV  = max(dot(H, V), 1e-4);
+            float pdf    = max(D * NdotH / (4.0 * HdotV), 1e-4);
 
-            float resolution = float(textureSize(env_map, 0).x); // source cubemap face resolution
+            float resolution = float(textureSize(env_map, 0).x);
             float saTexel    = 4.0 * PI / (6.0 * resolution * resolution);
-            float saSample   = 1.0 / (float(NUM_SAMPLES) * pdf + 0.0001);
+            float saSample   = 1.0 / (float(NUM_SAMPLES) * pdf);
 
-            float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
+            float mipLevel = 0.5 * log2(max(saSample / saTexel, 1e-6));
+            mipLevel = clamp(mipLevel, 0.0, float(maxMip));
 
             prefilteredColor += textureLod(env_map, L, mipLevel).rgb * NdotL;
             totalWeight      += NdotL;
         }
     }
 
-    prefilteredColor = prefilteredColor / totalWeight;
+    prefilteredColor /= max(totalWeight, 1e-6);
 
     imageStore(out_specular, ivec3(gid.xy, face), vec4(prefilteredColor, 1.0));
 }

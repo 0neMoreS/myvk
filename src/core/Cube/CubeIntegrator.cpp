@@ -333,7 +333,8 @@ CubeIntegrator::OutputImage CubeIntegrator::create_output(uint32_t face_size) {
         rtg.device, 
         allocated_image.handle,
         VK_FORMAT_R32G32B32A32_SFLOAT,
-        true
+        true,
+        1
     );
 
     OutputImage result;
@@ -626,7 +627,8 @@ CubeIntegrator::LUTImage CubeIntegrator::create_lut_output(uint32_t size) {
         rtg.device,
         allocated_image.handle,
         VK_FORMAT_R32G32B32A32_SFLOAT,
-        false // 2D view
+        false, // 2D view
+        1   // default mip level
     );
 
     LUTImage result;

@@ -131,7 +131,7 @@ void main()
             mipLevel = clamp(mipLevel, 0.0, float(maxMip));
 
             vec3 sampledColor = textureLod(env_map, L, mipLevel).rgb;
-            sampledColor = min(sampledColor, vec3(100.0)); // Avoid extreme values from bright environment maps
+            // sampledColor = min(sampledColor, vec3(100.0)); // Avoid extreme values from bright environment maps
             prefilteredColor += sampledColor * NdotL;
             totalWeight      += NdotL;
         }

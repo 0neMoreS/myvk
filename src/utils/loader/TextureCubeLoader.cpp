@@ -133,7 +133,7 @@ std::unique_ptr<Texture> load_cubemap(
     helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, 6, false, mipmap_levels);
     
     texture->image_view = create_image_view(
-        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true
+        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true, mipmap_levels
     );
     texture->sampler = create_sampler(
         helpers.rtg.device,
@@ -184,7 +184,7 @@ std::unique_ptr<Texture> create_default_cubemap(
     helpers.transfer_to_image(mipmap_ptrs, mipmap_byte_sizes, texture->image, face_count, false, 1);
     
     texture->image_view = create_image_view(
-        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true
+        helpers.rtg.device, texture->image.handle, VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, true, 1
     );
     texture->sampler = create_sampler(
         helpers.rtg.device,

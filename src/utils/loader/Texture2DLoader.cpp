@@ -105,7 +105,7 @@ std::unique_ptr<Texture> create_rgb_texture(
     );
 
 	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1, false, 1);
-	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false);
+	texture->image_view = create_image_view(helpers.rtg.device, texture->image.handle, VK_FORMAT_R8G8B8A8_UNORM, false, 1);
 	texture->sampler = create_sampler(
 		helpers.rtg.device,
 		filter,

@@ -106,9 +106,10 @@ void TextureManager::create(
                 const auto &env = doc->environments[0];
                 const auto &radiance = env.radiance;
                 std::string texture_path = s72_dir + radiance.src;
+                std::string lambertion_path = s72_dir + radiance.src.substr(0, radiance.src.find_last_of('.')) + ".lambertian.png";
                 
                 raw_environment_cubemap_texture[0] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
-                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 1);
+                raw_environment_cubemap_texture[1] = TextureCubeLoader::load_cubemap(rtg.helpers, lambertion_path, VK_FILTER_LINEAR, 1);
                 raw_environment_cubemap_texture[2] = TextureCubeLoader::load_cubemap(rtg.helpers, texture_path, VK_FILTER_LINEAR, 5);
             } else {
                 raw_environment_cubemap_texture[0] = TextureCubeLoader::create_default_cubemap(rtg.helpers, VK_FILTER_LINEAR);

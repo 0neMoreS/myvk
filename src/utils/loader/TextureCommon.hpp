@@ -184,7 +184,7 @@ inline VkImageView create_image_view(
     VkImage image,
     VkFormat format,
     bool cube,
-    uint32_t mip_levels = 1
+    uint32_t mip_levels
 ) {
     VkImageViewCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

@@ -152,9 +152,14 @@ void CameraManager::update_user_camera(float dt, Camera &active_camera) {
 }
 
 float CameraManager::get_aspect_ratio(bool open_debug_camera, VkExtent2D swapchain_extent) {
-	if (open_debug_camera || active_camera_index == 0) {
-		return  static_cast<float>(swapchain_extent.width) / static_cast<float>(swapchain_extent.height);
-	} else {
+	if (open_debug_camera) {
+		debug_camera.aspect = static_cast<float>(swapchain_extent.width) / static_cast<float>(swapchain_extent.height);
+		return  debug_camera.aspect;
+	} else if (active_camera_index == 0) {
+		cameras[0].aspect = static_cast<float>(swapchain_extent.width) / static_cast<float>(swapchain_extent.height);
+		return cameras[0].aspect;
+	}
+	 else {
 		return cameras[active_camera_index].aspect;
 	}
 }

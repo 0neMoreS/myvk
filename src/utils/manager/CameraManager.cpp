@@ -133,10 +133,10 @@ void CameraManager::update_user_camera(float dt, Camera &active_camera) {
 		active_camera.camera_position += right * move_speed * dt;
 	}
 	if (keys_down[GLFW_KEY_Q]) {
-		active_camera.camera_position += active_camera.camera_up * move_speed * dt;
+		active_camera.camera_position -= active_camera.camera_up * move_speed * dt;
 	}
 	if (keys_down[GLFW_KEY_E]) {
-		active_camera.camera_position -= active_camera.camera_up * move_speed * dt;
+		active_camera.camera_position += active_camera.camera_up * move_speed * dt;
 	}
 
 	// Keyboard FOV adjustment

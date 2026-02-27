@@ -7,5 +7,5 @@ node .\Maekfile.js && ^
 --scene ./report/A2/materials.s72 ^
 --no-debug ^
 --exposure 0 ^
---tone-map aces
+--tone-map linear
 @REM --headless < ./report/A1/headless_input/sphereflake.txt

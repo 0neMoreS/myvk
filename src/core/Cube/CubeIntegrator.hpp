@@ -2,6 +2,7 @@
 
 #include "RTG.hpp"
 #include "Helpers.hpp"
+#include "QueryPoolManager.hpp"
 
 #include <string>
 #include <vector>
@@ -54,6 +55,7 @@ private:
     VkCommandPool  command_pool   = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
     VkFence         fence          = VK_NULL_HANDLE;
+    QueryPoolManager query_pool_manager;
 
     void create_pipelines();
     void destroy_pipelines();
@@ -99,6 +101,7 @@ private:
         VkDescriptorSet descriptor_set,
         uint32_t groups_x, uint32_t groups_y, uint32_t groups_z,
         const void *push_constants = nullptr,
-        uint32_t push_constants_size = 0
+        uint32_t push_constants_size = 0,
+        double *gpu_ms_out = nullptr
     );
 };

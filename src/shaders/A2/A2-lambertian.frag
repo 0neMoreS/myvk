@@ -44,7 +44,7 @@ void main() {
 	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
 
 	// input lighting data
-	vec3 N = normalize(normal);
+	vec3 N = getNormalFromMap();
 
 	// reflectance equation
 	vec3 Lo = vec3(0.0);
@@ -56,7 +56,7 @@ void main() {
 		float distance = length(LIGHT_POSITION.xyz - position);
 		float attenuation = 1.0 / (distance * distance);
 		vec3 radiance = LIGHT_ENERGY.xyz * attenuation;
-		Lo += radiance * albedo * NoL;
+		Lo += radiance * albedo * NoL / PI;
 	}
 
 	vec3 color = vec3(0.0);
@@ -64,7 +64,7 @@ void main() {
 		vec3 irradiance = texture(irradiance_map, N).xyz;
 		vec3 diffuse = irradiance * albedo;
 
-		color = diffuse + Lo;
+		color = Lo + diffuse;
 	}
 	
 	outColor = vec4(color, 1.0);

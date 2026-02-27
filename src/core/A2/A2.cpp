@@ -578,7 +578,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 void A2::update(float dt) {
-	time = std::fmod(time + dt, 60.0f);
+	time = std::fmod(time + dt, 8.0f);
 
 	SceneTree::update_animation(doc, time);
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);

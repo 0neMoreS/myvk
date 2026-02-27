@@ -56,12 +56,15 @@ CubeIntegrator::CubeIntegrator(RTG &rtg_) : rtg(rtg_) {
     };
     VK(vkCreateFence(rtg.device, &fence_info, nullptr, &fence));
 
+    query_pool_manager.create(rtg, 1);
+
     create_pipelines();
 }
 
 CubeIntegrator::~CubeIntegrator() {
     destroy_pipelines();
 
+    query_pool_manager.destroy(rtg);
     vkDestroyFence(rtg.device, fence, nullptr);
     vkFreeCommandBuffers(rtg.device, command_pool, 1, &command_buffer);
     vkDestroyCommandPool(rtg.device, command_pool, nullptr);
@@ -435,11 +438,15 @@ void CubeIntegrator::dispatch_and_wait(
     VkDescriptorSet descriptor_set,
     uint32_t groups_x, uint32_t groups_y, uint32_t groups_z,
     const void *push_constants,
-    uint32_t push_constants_size
+    uint32_t push_constants_size,
+    double *gpu_ms_out
 ) {
+    constexpr uint32_t workspace_index = 0;
+
     VkCommandBufferBeginInfo begin{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                     .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT };
     VK(vkBeginCommandBuffer(command_buffer, &begin));
+    query_pool_manager.begin_frame(command_buffer, workspace_index);
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
     vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                             layout, 0, 1, &descriptor_set, 0, nullptr);
@@ -448,12 +455,22 @@ void CubeIntegrator::dispatch_and_wait(
                            VK_SHADER_STAGE_COMPUTE_BIT, 0, push_constants_size, push_constants);
     }
     vkCmdDispatch(command_buffer, groups_x, groups_y, groups_z);
+    query_pool_manager.end_frame(command_buffer, workspace_index);
     VK(vkEndCommandBuffer(command_buffer));
 
     VkSubmitInfo submit{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                          .commandBufferCount = 1, .pCommandBuffers = &command_buffer };
     VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit, fence));
     VK(vkWaitForFences(rtg.device, 1, &fence, VK_TRUE, UINT64_MAX));
+
+    if (gpu_ms_out) {
+        *gpu_ms_out = 0.0;
+        double measured_ms = 0.0;
+        if (query_pool_manager.fetch_frame_ms(rtg, workspace_index, measured_ms)) {
+            *gpu_ms_out = measured_ms;
+        }
+    }
+
     VK(vkResetFences(rtg.device, 1, &fence));
     VK(vkResetCommandBuffer(command_buffer, 0));
 }
@@ -464,8 +481,10 @@ void CubeIntegrator::dispatch_and_wait(
 void CubeIntegrator::run_lambertian(const std::string &in_path, const std::string &out_path) {
     std::cout << "Lambertian integration: " << in_path << " -> " << out_path << "\n";
 
+    uint32_t resolution = 32u;
+
     auto input = load_input(in_path);
-    auto output = create_output(32u);
+    auto output = create_output(resolution);
 
     // Descriptor pool
     VkDescriptorPoolSize pool_sizes[2] = {
@@ -509,9 +528,10 @@ void CubeIntegrator::run_lambertian(const std::string &in_path, const std::strin
     vkUpdateDescriptorSets(rtg.device, 2, writes, 0, nullptr);
 
     // Dispatch: 8x8 local, 32x32 output, 6 faces
-    uint32_t gx = 32 / 8;
-    uint32_t gy = 32 / 8;
-    dispatch_and_wait(lambertian_pipeline, lambertian_pipeline_layout, ds, gx, gy, 6);
+    uint32_t gx = resolution / 8;
+    uint32_t gy = resolution / 8;
+    double gpu_ms = 0.0;
+    dispatch_and_wait(lambertian_pipeline, lambertian_pipeline_layout, ds, gx, gy, 6, nullptr, 0, &gpu_ms);
 
     readback_and_save(output, out_path);
 
@@ -520,6 +540,7 @@ void CubeIntegrator::run_lambertian(const std::string &in_path, const std::strin
 
     destroy_output(output);
     destroy_loaded_cubemap(input);
+    std::cout << "Lambertian GPU compute time: " << gpu_ms << " ms\n";
 }
 
 // -------------------------------------------------------------------------
@@ -533,6 +554,7 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
     // 5 mip levels: 512, 256, 128, 64, 32
     const uint32_t face_sizes[5] = { 512, 256, 128, 64, 32 };
     const float roughnesses[5]   = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    double total_gpu_ms = 0.0;
 
     for (int mip = 0; mip < 5; ++mip) {
         uint32_t fs = face_sizes[mip];
@@ -586,8 +608,11 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
 
         uint32_t gx = fs / 8;
         uint32_t gy = fs / 8;
+        double mip_gpu_ms = 0.0;
         dispatch_and_wait(ggx_pipeline, ggx_pipeline_layout, ds, gx, gy, 6,
-                          &roughness, sizeof(float));
+                  &roughness, sizeof(float), &mip_gpu_ms);
+        total_gpu_ms += mip_gpu_ms;
+        std::cout << "    GPU compute time: " << mip_gpu_ms << " ms\n";
 
         readback_and_save(output, out_path);
 
@@ -597,6 +622,7 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
     }
 
     destroy_loaded_cubemap(input);
+    std::cout << "GGX GPU compute time: " << total_gpu_ms << " ms\n";
 }
 
 // -------------------------------------------------------------------------

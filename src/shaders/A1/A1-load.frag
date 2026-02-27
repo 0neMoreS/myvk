@@ -22,7 +22,6 @@ layout(location=0) out vec4 outColor;
 
 void main() {
 	vec3 n = normalize(normal);
-	vec3 l = vec3(0.3, 0.4, 0.5);
 	vec3 albedo = texture(TEXTURE[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).rgb;
 
 	vec3 e = SKY_ENERGY * (0.5 * dot(n,SKY_DIRECTION) + 0.5)

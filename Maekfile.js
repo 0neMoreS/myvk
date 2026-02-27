@@ -81,7 +81,6 @@ const a2_tonemap_shaders = [
 ];
 
 const cube_lambertian_shader = [
-	maek.GLSLC('./src/shaders/Cube/lambertian_integrate.comp'),
 	maek.GLSLC('./src/shaders/Cube/lambertian_integrate_uniform.comp'),
 ];
 

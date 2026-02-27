@@ -22,25 +22,19 @@ layout(set=1, binding=0, std430) readonly buffer Transforms {
 };
 
 layout(location=0) out vec3 fragPos;
-layout(location=1) out vec3 normal;
-layout(location=2) out vec2 texCoord;
-layout(location=3) out vec3 tangentLightPos;
-layout(location=4) out vec3 tangentCameraPos;
-layout(location=5) out vec3 tangentFragPos;
+layout(location=1) out vec2 texCoord;
+layout(location=2) out mat3 TBN;
 
 void main() {
 	fragPos = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
-	normal = normalize(vec3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL * vec4(Normal, 0.0)));
+	vec3 normal = normalize(mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal);
 	
 	vec3 T = normalize(vec3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL * vec4(Tangent.xyz, 0.0)));
 	float tangentSign = Tangent.w;
 	vec3 N = normal;
 	vec3 B = cross(N, T) * tangentSign;
-	mat3 TBN = transpose(mat3(T, B, N));
+	TBN = mat3(T, B, N);
 
-	tangentLightPos = TBN * LIGHT_POSITION.xyz;
-	tangentCameraPos = TBN * CAMERA_POSITION.xyz;
-	tangentFragPos = TBN * fragPos;
 	texCoord = TexCoord;
 
 	gl_Position = PERSPECTIVE * VIEW * TRANSFORMS[gl_InstanceIndex].MODEL * vec4(Position, 1.0);

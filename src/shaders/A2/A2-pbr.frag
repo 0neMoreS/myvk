@@ -15,11 +15,8 @@ layout(push_constant) uniform Push {
 } push;
 
 layout(location=0) in vec3 fragPos;
-layout(location=1) in vec3 normal;
-layout(location=2) in vec2 texCoord;
-layout(location=3) in vec3 tangentLightPos;
-layout(location=4) in vec3 tangentCameraPos;
-layout(location=5) in vec3 tangentFragPos;
+layout(location=1) in vec2 texCoord;
+layout(location=2) in mat3 TBN;
 
 layout(location=0) out vec4 outColor;
 
@@ -70,17 +67,6 @@ vec2 ParallaxMapping(vec3 viewDir)
 vec3 getNormalFromMap(vec2 mappedTexCoord)
 {
     vec3 tangentNormal = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], mappedTexCoord).xyz * 2.0 - 1.0;
-
-    vec3 Q1  = dFdx(fragPos);
-    vec3 Q2  = dFdy(fragPos);
-    vec2 st1 = dFdx(mappedTexCoord);
-    vec2 st2 = dFdy(mappedTexCoord);
-
-    vec3 N   = normalize(normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
-
     return normalize(TBN * tangentNormal);
 }
 
@@ -131,7 +117,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main() {
 	// offset texture coordinates with Parallax Mapping
-	vec3 viewDir = normalize(tangentCameraPos - tangentFragPos);
+	vec3 viewDir = normalize(transpose(TBN) * (CAMERA_POSITION.xyz -  fragPos));
 	vec2 mappedTexCoord = ParallaxMapping(viewDir);       
 	// if(mappedTexCoord.x > 1.0 || mappedTexCoord.y > 1.0 || mappedTexCoord.x < 0.0 || mappedTexCoord.y < 0.0){
 	// 	discard; 

@@ -1,4 +1,4 @@
-#include "A2ToneMappingPipeline.hpp"
+#include "A3ToneMappingPipeline.hpp"
 
 #include "Helpers.hpp"
 #include "VK.hpp"
@@ -8,14 +8,14 @@
 #include <vector>
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/A2-tonemap.vert.inl"
+#include "../../shaders/spv/tonemap.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/A2-tonemap.frag.inl"
+#include "../../shaders/spv/tonemap.frag.inl"
 };
 
-void A2ToneMappingPipeline::create(
+void A3ToneMappingPipeline::create(
         RTG &rtg,
         VkRenderPass render_pass,
         uint32_t subpass,
@@ -199,10 +199,10 @@ void A2ToneMappingPipeline::create(
     vert_module = VK_NULL_HANDLE;
 
     // This pipeline doesn't use block descriptors managed by WorkspaceManager
-    // The HDR texture descriptor will be manually updated in A2.cpp
+    // The HDR texture descriptor will be manually updated in A3.cpp
 }
 
-void A2ToneMappingPipeline::destroy(RTG &rtg) {
+void A3ToneMappingPipeline::destroy(RTG &rtg) {
     if (layout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(rtg.device, layout, nullptr);
         layout = VK_NULL_HANDLE;
@@ -224,7 +224,7 @@ void A2ToneMappingPipeline::destroy(RTG &rtg) {
     }
 }
 
-A2ToneMappingPipeline::~A2ToneMappingPipeline() {
+A3ToneMappingPipeline::~A3ToneMappingPipeline() {
     // Ensure resources have been destroyed
     assert(layout == VK_NULL_HANDLE);
     assert(pipeline == VK_NULL_HANDLE);

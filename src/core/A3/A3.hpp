@@ -15,11 +15,14 @@
 #include "A3LambertianPipeline.hpp"
 #include "A3PBRPipeline.hpp"
 #include "A3ReflectionPipeline.hpp"
-#include "CommonData.hpp"
+#include "A3ToneMappingPipeline.hpp"
+#include "A3CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
 #include "VK.hpp"
+#include "SceneTree.hpp"
+#include "QueryPoolManager.hpp"
 
 #include "RTG.hpp"
 
@@ -46,6 +49,7 @@ struct A3 : RTG::Application {
 	A3LambertianPipeline lambertian_pipeline;
 	A3PBRPipeline pbr_pipeline;
 	A3ReflectionPipeline reflection_pipeline;
+	A3ToneMappingPipeline tonemapping_pipeline;
 
 	//-------------------------------------------------------------------
 	//static scene resources:
@@ -53,7 +57,7 @@ struct A3 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	A2CommonData::Light global_light;
+	A3CommonData::Light global_light;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -69,29 +73,38 @@ struct A3 : RTG::Application {
 
 	float time = 0.0f;
 
-	A2CommonData::PV pv_matrix;
-	A2CommonData::Light light;
+	A3CommonData::PV pv_matrix;
+	A3CommonData::Light light;
+
+	QueryPoolManager query_pool_manager;
+	uint64_t gpu_frame_counter = 0;
+	double last_gpu_frame_ms = 0.0;
 
 	struct ReflectionInstance {
-		SceneManager::ObjectRange object_ranges;
-		A2CommonData::Transform object_transform;
+		S72Loader::Mesh::ObjectRange object_ranges;
+		A3CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct LambertianInstance {
-		SceneManager::ObjectRange object_ranges;
-		A2CommonData::Transform object_transform;
+		S72Loader::Mesh::ObjectRange object_ranges;
+		A3CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< LambertianInstance > lambertian_object_instances;
 
 	struct PBRInstance {
-		SceneManager::ObjectRange object_ranges;
-		A2CommonData::Transform object_transform;
+		S72Loader::Mesh::ObjectRange object_ranges;
+		A3CommonData::Transform object_transform;
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;
+	
+	std::vector< SceneTree::MeshTreeData > mesh_tree_data;
+	std::vector< SceneTree::LightTreeData > light_tree_data;
+	std::vector< SceneTree::CameraTreeData > camera_tree_data;
+	std::vector< SceneTree::EnvironmentTreeData > environment_tree_data;
 
 	//--------------------------------------------------------------------
 	//Rendering function, uses all the resources above to queue work to draw a frame:

@@ -28,19 +28,33 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
-	framebuffer_manager{}
+	framebuffer_manager{},
+	mesh_tree_data{},
+	light_tree_data{},
+	camera_tree_data{},
+	environment_tree_data{}
 {
-	render_pass_manager.create(rtg);
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	texture_manager.create(rtg, doc, 4);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 
-	background_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
 
-	lambertian_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
-	pbr_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	texture_manager.create(rtg, doc, 5); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
-	reflection_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	// Scene pipelines render to HDR framebuffer
+	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+
+	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+
+	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+
+	reflection_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+
+	// Tone mapping pipeline renders to swapchain
+	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
@@ -51,24 +65,24 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "PV",
-			.size = sizeof(A2CommonData::PV),
+			.size = sizeof(A3CommonData::PV),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "Light",
-			.size = sizeof(A2CommonData::Light),
+			.size = sizeof(A3CommonData::Light),
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 	};
 
-	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), 2);
+	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), {}, 2);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3BackgroundPipeline"], 
 		background_pipeline.block_descriptor_set_name_to_index["PV"], 
 		background_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(A2CommonData::PV)
+		sizeof(A3CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -76,7 +90,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(A2CommonData::PV)
+		sizeof(A3CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -84,7 +98,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(A2CommonData::Light)
+		sizeof(A3CommonData::Light)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -92,7 +106,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(A2CommonData::PV)
+		sizeof(A3CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -100,7 +114,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(A2CommonData::Light)
+		sizeof(A3CommonData::Light)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -108,7 +122,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["PV"], 
 		"PV",
-		sizeof(A2CommonData::PV)
+		sizeof(A3CommonData::PV)
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -116,12 +130,10 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["Light"], 
 		"Light",
-		sizeof(A2CommonData::Light)
+		sizeof(A3CommonData::Light)
 	);
 
 	scene_manager.create(rtg, doc);
-
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height);
 }
 
 A3::~A3() {
@@ -145,15 +157,39 @@ A3::~A3() {
 
 	reflection_pipeline.destroy(rtg);
 
+	tonemapping_pipeline.destroy(rtg);
+
 	workspace_manager.destroy(rtg);
 
 	render_pass_manager.destroy(rtg);
+
+	query_pool_manager.destroy(rtg);
 }
 
 void A3::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
-	camera_manager.resize_scene_cameras(swapchain.extent.width, swapchain.extent.height);
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent);
+
+	{
+		// Update descriptor to bind new HDR color image (every swapchain resize)
+		VkDescriptorImageInfo image_info{
+			.sampler = framebuffer_manager.hdr_sampler,
+			.imageView = framebuffer_manager.hdr_color_image_view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+
+		VkWriteDescriptorSet write{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = tonemapping_pipeline.set0_HDRTexture_instance,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &image_info,
+		};
+
+		vkUpdateDescriptorSets(rtg_.device, 1, &write, 0, nullptr);
+	}
 }
 
 
@@ -172,13 +208,15 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	{ //begin recording:
 		workspace.begin_recording();
 
+		query_pool_manager.begin_frame(workspace.command_buffer, render_params.workspace_index);
+
 		{ //upload global data:
-			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A2CommonData::PV));
-			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A2CommonData::PV));
+			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A3CommonData::PV));
+			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A3CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 
-			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(A2CommonData::Light));
-			workspace.write_global_buffer(rtg, "Light", &light, sizeof(A2CommonData::Light));
+			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(A3CommonData::Light));
+			workspace.write_global_buffer(rtg, "Light", &light, sizeof(A3CommonData::Light));
 			assert(workspace.global_buffer_pairs["Light"]->host.size == workspace.global_buffer_pairs["Light"]->device.size);
 		}
 
@@ -186,7 +224,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto upload_transforms = [&](const char* pipeline_name, auto& instances, const auto& pipeline) {
 				if (instances.empty()) return;
 				
-				size_t needed_bytes = instances.size() * sizeof(A2CommonData::Transform);
+				size_t needed_bytes = instances.size() * sizeof(A3CommonData::Transform);
 				uint32_t pipeline_idx = pipeline_name_to_index[pipeline_name];
 				uint32_t set_idx = pipeline.block_descriptor_set_name_to_index.at("Transforms");
 				uint32_t binding_idx = pipeline.block_binding_name_to_index.at("Transforms");
@@ -202,7 +240,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				assert(buffer_pair->host.size >= needed_bytes);
 				assert(buffer_pair->host.allocation.mapped);
 
-				std::vector<A2CommonData::Transform> transform_data;
+				std::vector<A3CommonData::Transform> transform_data;
 				transform_data.reserve(instances.size());
 				for (const auto& inst : instances) {
 					transform_data.push_back(inst.object_transform);
@@ -233,12 +271,15 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			);
 		}
 
-		
-		{ //render pass
+
+		// =====================================================================
+		// First pass: Render scene to HDR framebuffer
+		// =====================================================================
+		{
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-				.renderPass = render_pass_manager.render_pass,
-				.framebuffer = framebuffer,
+				.renderPass = render_pass_manager.hdr_render_pass,
+				.framebuffer = framebuffer_manager.hdr_framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -251,10 +292,8 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-				}
-				{ //configure viewport transform:
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -409,6 +448,94 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			vkCmdEndRenderPass(workspace.command_buffer);
 		}
 
+		// =====================================================================
+		// Image barrier: HDR texture ready for sampling
+		// =====================================================================
+		{
+			VkImageMemoryBarrier image_barrier{
+				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+				.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.image = framebuffer_manager.hdr_color_image.handle,
+				.subresourceRange{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				},
+			};
+
+			vkCmdPipelineBarrier(
+				workspace.command_buffer,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // srcStageMask
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,        // dstStageMask
+				0,                                             // dependencyFlags
+				0, nullptr,                                    // memoryBarriers
+				0, nullptr,                                    // bufferMemoryBarriers
+				1, &image_barrier                              // imageMemoryBarriers
+			);
+		}
+
+		// =====================================================================
+		// Second pass: Tone mapping HDR texture to swapchain
+		// =====================================================================
+		{
+			VkRenderPassBeginInfo begin_info{
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				.renderPass = render_pass_manager.tonemap_render_pass,
+				.framebuffer = framebuffer,
+				.renderArea{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				},
+				.clearValueCount = uint32_t(render_pass_manager.tonemap_clears.size()),
+				.pClearValues = render_pass_manager.tonemap_clears.data(),
+			};
+
+			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				{
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
+				}		
+
+				// Bind tone mapping pipeline
+				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, tonemapping_pipeline.pipeline);
+
+				// Bind HDR texture descriptor
+				std::array< VkDescriptorSet, 1 > descriptor_sets{
+					tonemapping_pipeline.set0_HDRTexture_instance,
+				};
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					tonemapping_pipeline.layout,
+					0,
+					uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+					0, nullptr
+				);
+
+				A3ToneMappingPipeline::Push push{
+					.EXPOSURE = rtg.configuration.tone_exposure,
+					.METHOD = static_cast<uint32_t>(rtg.configuration.tone_map_method)
+				};
+				// Draw full-screen triangle (no vertex buffer)
+				vkCmdPushConstants(workspace.command_buffer, tonemapping_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
+			}
+
+			vkCmdEndRenderPass(workspace.command_buffer);
+		}
+
+		query_pool_manager.end_frame(workspace.command_buffer, render_params.workspace_index);
+
 		//end recording:
 		workspace.end_recording();
 	}
@@ -438,21 +565,34 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, render_params.workspace_available) );
 	}
+
+	if (rtg.configuration.headless &&  query_pool_manager.is_enabled()) {
+		double frame_ms = 0.0;
+        if (query_pool_manager.fetch_frame_ms(rtg, render_params.workspace_index, frame_ms)) {
+            ++gpu_frame_counter;
+            last_gpu_frame_ms = frame_ms;
+			std::cout << "GPU Headless frame time: " << last_gpu_frame_ms << " ms" << std::endl;
+        }
+	}
 }
 
 
 void A3::update(float dt) {
-	time = std::fmod(time + dt, 60.0f);
+	time = std::fmod(time + dt, 8.0f);
+
+	SceneTree::update_animation(doc, time);
+	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
-	camera_manager.update(dt);
+	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
+		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
+		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
+		pv_matrix.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
-		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * doc->lights[0].transforms[0][3]);
-
+		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 		if(doc->lights[0].sphere){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
 		} else if(doc->lights[0].spot){
@@ -460,8 +600,7 @@ void A3::update(float dt) {
 		} else if(doc->lights[0].sun){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sun->strength, 1.0f);
 		}
-		
-		light.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+		light.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 	}
 
 	{ // update object instances with frustum culling
@@ -471,84 +610,80 @@ void A3::update(float dt) {
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();
 
-		for(uint32_t i = 0; i < doc->meshes.size(); ++i) 
-		{
-			const auto& mesh = doc->meshes[i];
-			const auto& object_range = scene_manager.object_ranges[i];
-			std::optional<S72Loader::Material> material = mesh.material_index.has_value() ? std::optional<S72Loader::Material>{doc->materials[mesh.material_index.value()]} : std::nullopt;
+		for(auto &mtd : mesh_tree_data){
+			const size_t mesh_index = mtd.mesh_index;
+			const size_t material_index = mtd.material_index;
+			const glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * mtd.model_matrix;
+			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			const auto& object_range = doc->meshes[mesh_index].range;
+			std::optional<S72Loader::Material> material = doc->materials[material_index];
 
-			for(auto &transform : mesh.transforms){
-				glm::mat4 MODEL = BLENDER_TO_VULKAN_4 * transform;
+			// Transform local AABB to world AABB (8 corners method)
+			const glm::vec3& bmin = object_range.aabb_min;
+			const glm::vec3& bmax = object_range.aabb_max;
+			glm::vec3 corners[8] = {
+				{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
+				{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			};
+			glm::vec3 world_min(std::numeric_limits<float>::max());
+			glm::vec3 world_max(std::numeric_limits<float>::lowest());
+			for (int c = 0; c < 8; ++c) {
+				glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
+				world_min = glm::min(world_min, wp);
+				world_max = glm::max(world_max, wp);
+			}
 
-				// Transform local AABB to world AABB (8 corners method)
-				const glm::vec3& bmin = object_range.aabb_min;
-				const glm::vec3& bmax = object_range.aabb_max;
-				glm::vec3 corners[8] = {
-					{bmin.x, bmin.y, bmin.z}, {bmax.x, bmin.y, bmin.z}, {bmin.x, bmax.y, bmin.z}, {bmax.x, bmax.y, bmin.z},
-					{bmin.x, bmin.y, bmax.z}, {bmax.x, bmin.y, bmax.z}, {bmin.x, bmax.y, bmax.z}, {bmax.x, bmax.y, bmax.z}
+			// Frustum culling check with world-space AABB
+			if (!frustum.is_box_visible(world_min, world_max)) {
+				continue;
+			}
+
+			// reflective or environment material instance
+			if(material.has_value() && (material->mirror || material->environment)) {
+				ReflectionInstance reflection_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
 				};
-				glm::vec3 world_min(FLT_MAX);
-				glm::vec3 world_max(-FLT_MAX);
-				for (int c = 0; c < 8; ++c) {
-					glm::vec3 wp = glm::vec3(MODEL * glm::vec4(corners[c], 1.0f));
-					world_min = glm::min(world_min, wp);
-					world_max = glm::max(world_max, wp);
+
+				if (material->mirror) {
+					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
+				} else {
+					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
 				}
 
-				// Frustum culling check with world-space AABB
-				if (!frustum.is_box_visible(world_min, world_max)) {
-					continue;
-				}
+				reflection_object_instances.emplace_back(std::move(reflection_inst));
+			}
 
-				glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
+			// Lambertian material instance
+			if(material.has_value() && material->lambertian) {
+				LambertianInstance lambertian_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
 
-				// reflective or environment material instance
-				if(material.has_value() && (material->mirror || material->environment)) {
-					ReflectionInstance reflection_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
+				lambertian_object_instances.emplace_back(std::move(lambertian_inst));
+			}
 
-					if (material->mirror) {
-						reflection_inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
-					} else {
-						reflection_inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
-					}
+			// PBR material instance
+			if(material.has_value() && material->pbr) {
+				PBRInstance pbr_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
 
-					reflection_object_instances.emplace_back(std::move(reflection_inst));
-				}
-
-				// Lambertian material instance
-				if(material.has_value() && material->lambertian) {
-					LambertianInstance lambertian_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
-
-					lambertian_object_instances.emplace_back(std::move(lambertian_inst));
-				}
-
-				// PBR material instance
-				if(material.has_value() && material->pbr) {
-					PBRInstance pbr_inst{
-						.object_ranges = object_range,
-						.object_transform{
-							.MODEL = MODEL,
-							.MODEL_NORMAL = MODEL_NORMAL,
-						},
-						.material_index = mesh.material_index.value_or(0),
-					};
-
-					pbr_object_instances.emplace_back(std::move(pbr_inst));
-				}
+				pbr_object_instances.emplace_back(std::move(pbr_inst));
 			}
 		}
 	}
@@ -557,4 +692,17 @@ void A3::update(float dt) {
 
 void A3::on_input(InputEvent const &event) {
 	camera_manager.on_input(event);
+
+	if (event.type == InputEvent::KeyDown) {
+	// Change active camera with TAB
+		if (event.key.key == GLFW_KEY_TAB) {
+			camera_manager.change_active_camera();
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
+
+		if (event.key.key == GLFW_KEY_LEFT_ALT){
+			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+		}
+	}
 }

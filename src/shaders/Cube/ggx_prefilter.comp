@@ -114,30 +114,29 @@ void main()
         vec3 H  = ImportanceSampleGGX(Xi, N, roughness);
         vec3 L  = normalize(2.0 * dot(V, H) * H - V);
 
-        float NdotL = max(dot(N, L), 0.0);
+        float NdotL = dot(N, L);
         if (NdotL > 0.0)
         {
             // Sample from the environment's mip level based on roughness/pdf
             float D      = DistributionGGX(N, H, roughness);
-            float NdotH  = max(dot(N, H), 0.0);
-            float HdotV  = max(dot(H, V), 1e-4);
-            float pdf    = max(D * NdotH / (4.0 * HdotV), 1e-4);
+            float NdotH = max(dot(N, H), 0.0);
+            float HdotV = max(dot(H, V), 0.0);
+            float pdf = (D * NdotH) / (4.0 * HdotV + 0.0001);
 
             float resolution = float(textureSize(env_map, 0).x);
 
-            float mipLevel = 0.5 * (log2(3.0 * resolution * resolution) -  log2(float(NUM_SAMPLES) * pdf));
+            float mipLevel = 0.5 * (log2(3.0 * resolution * resolution) - log2(float(NUM_SAMPLES) * pdf));
             mipLevel = clamp(mipLevel, 0.0, float(maxMip));
 
-            mipLevel += 0.25;
+            // mipLevel += 0.25;
 
             vec3 sampledColor = textureLod(env_map, L, mipLevel).rgb;
-            // sampledColor = min(sampledColor, vec3(100.0)); // Avoid extreme values from bright environment maps
             prefilteredColor += sampledColor * NdotL;
             totalWeight      += NdotL;
         }
     }
 
-    prefilteredColor /= max(totalWeight, 1e-6);
+    prefilteredColor /= totalWeight;
 
     imageStore(out_specular, ivec3(gid.xy, face), vec4(prefilteredColor, 1.0));
 }

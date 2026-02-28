@@ -432,14 +432,13 @@ void CubeIntegrator::readback_and_save(const OutputImage &out, const std::string
 // -------------------------------------------------------------------------
 // Dispatch helper
 // -------------------------------------------------------------------------
-void CubeIntegrator::dispatch_and_wait(
+double CubeIntegrator::dispatch_and_wait(
     VkPipeline pipeline,
     VkPipelineLayout layout,
     VkDescriptorSet descriptor_set,
     uint32_t groups_x, uint32_t groups_y, uint32_t groups_z,
     const void *push_constants,
-    uint32_t push_constants_size,
-    double *gpu_ms_out
+    uint32_t push_constants_size
 ) {
     constexpr uint32_t workspace_index = 0;
 
@@ -463,16 +462,14 @@ void CubeIntegrator::dispatch_and_wait(
     VK(vkQueueSubmit(rtg.graphics_queue, 1, &submit, fence));
     VK(vkWaitForFences(rtg.device, 1, &fence, VK_TRUE, UINT64_MAX));
 
-    if (gpu_ms_out) {
-        *gpu_ms_out = 0.0;
-        double measured_ms = 0.0;
-        if (query_pool_manager.fetch_frame_ms(rtg, workspace_index, measured_ms)) {
-            *gpu_ms_out = measured_ms;
-        }
-    }
+     
+    double measured_ms = 0.0;
+    query_pool_manager.fetch_frame_ms(rtg, workspace_index, measured_ms);
 
     VK(vkResetFences(rtg.device, 1, &fence));
     VK(vkResetCommandBuffer(command_buffer, 0));
+
+    return measured_ms;
 }
 
 // -------------------------------------------------------------------------
@@ -530,8 +527,7 @@ void CubeIntegrator::run_lambertian(const std::string &in_path, const std::strin
     // Dispatch: 8x8 local, 32x32 output, 6 faces
     uint32_t gx = resolution / 8;
     uint32_t gy = resolution / 8;
-    double gpu_ms = 0.0;
-    dispatch_and_wait(lambertian_pipeline, lambertian_pipeline_layout, ds, gx, gy, 6, nullptr, 0, &gpu_ms);
+    double gpu_ms = dispatch_and_wait(lambertian_pipeline, lambertian_pipeline_layout, ds, gx, gy, 6, nullptr, 0);
 
     readback_and_save(output, out_path);
 
@@ -553,7 +549,7 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
 
     // 5 mip levels: 512, 256, 128, 64, 32
     const uint32_t face_sizes[5] = { 512, 256, 128, 64, 32 };
-    const float roughnesses[5]   = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    const float roughnesses[5]   = { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f };
     double total_gpu_ms = 0.0;
 
     for (int mip = 0; mip < 5; ++mip) {
@@ -609,8 +605,8 @@ void CubeIntegrator::run_ggx(const std::string &in_path, const std::string &out_
         uint32_t gx = fs / 8;
         uint32_t gy = fs / 8;
         double mip_gpu_ms = 0.0;
-        dispatch_and_wait(ggx_pipeline, ggx_pipeline_layout, ds, gx, gy, 6,
-                  &roughness, sizeof(float), &mip_gpu_ms);
+        mip_gpu_ms = dispatch_and_wait(ggx_pipeline, ggx_pipeline_layout, ds, gx, gy, 6,
+                  &roughness, sizeof(float));
         total_gpu_ms += mip_gpu_ms;
         std::cout << "    GPU compute time: " << mip_gpu_ms << " ms\n";
 
@@ -786,7 +782,7 @@ void CubeIntegrator::run_brdf_lut(const std::string &out_path) {
     // Dispatch: 8x8 local group, LUT_SIZE x LUT_SIZE output, 1 layer
     uint32_t gx = LUT_SIZE / 8;
     uint32_t gy = LUT_SIZE / 8;
-    dispatch_and_wait(lut_pipeline, lut_pipeline_layout, ds, gx, gy, 1);
+    double gpu_ms = dispatch_and_wait(lut_pipeline, lut_pipeline_layout, ds, gx, gy, 1, nullptr, 0);
 
     readback_and_save_lut(output, out_path);
 
@@ -794,4 +790,6 @@ void CubeIntegrator::run_brdf_lut(const std::string &out_path) {
     descriptor_pool = VK_NULL_HANDLE;
 
     destroy_lut_output(output);
+
+    std::cout << "BRDF LUT GPU compute time: " << gpu_ms << " ms\n";
 }

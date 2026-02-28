@@ -95,13 +95,12 @@ private:
     void readback_and_save_lut(const LUTImage &out, const std::string &path);
 
     // Submit a compute dispatch and wait for completion
-    void dispatch_and_wait(
+    double dispatch_and_wait(
         VkPipeline pipeline,
         VkPipelineLayout layout,
         VkDescriptorSet descriptor_set,
         uint32_t groups_x, uint32_t groups_y, uint32_t groups_z,
         const void *push_constants = nullptr,
-        uint32_t push_constants_size = 0,
-        double *gpu_ms_out = nullptr
+        uint32_t push_constants_size = 0
     );
 };

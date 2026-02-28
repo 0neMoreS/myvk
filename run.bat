@@ -4,8 +4,8 @@ node .\Maekfile.js && ^
 --physical-device "NVIDIA GeForce RTX 5080 Laptop GPU" ^
 --drawing-size 1920 1080 ^
 --camera "Camera" ^
---scene ./report/A2/materials.s72 ^
+--scene ./report/A2/A2-materials-test.s72 ^
 --no-debug ^
 --exposure 0 ^
---tone-map aces
-@REM --headless < ./report/A1/headless_input/sphereflake.txt
+--tone-map aces 
+@REM --headless < ./report/A2/headless_input/displacement_map.txt > ./drawer/headless_frame_time.txt

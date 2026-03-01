@@ -239,8 +239,7 @@ void WorkspaceManager::Workspace::update_global_descriptor(
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
     uint32_t descriptor_index, 
-    std::string buffer_name, 
-    VkDeviceSize size
+    std::string buffer_name
 ){
     auto& pipeline_descriptor_set_group = pipeline_descriptor_set_groups[pipeline_index][descriptor_set_index];
     auto& buffer_pair = global_buffer_pairs[buffer_name];
@@ -508,11 +507,10 @@ void WorkspaceManager::update_all_global_descriptors(
     uint32_t pipeline_index, 
     uint32_t descriptor_set_index, 
     uint32_t descriptor_index, 
-    std::string buffer_name, 
-    VkDeviceSize size
+    std::string buffer_name
 ) {
     for (auto& workspace : workspaces) {
-        workspace.update_global_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, buffer_name, size);
+        workspace.update_global_descriptor(rtg, pipeline_index, descriptor_set_index, descriptor_index, buffer_name);
     }
 }
 

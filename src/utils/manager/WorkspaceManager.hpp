@@ -79,8 +79,7 @@ class WorkspaceManager {
                 uint32_t pipeline_index, 
                 uint32_t descriptor_set_index, 
                 uint32_t descriptor_index, 
-                std::string buffer_name, 
-                VkDeviceSize size
+                std::string buffer_name
             );
             void update_data_buffer_pair(
                 RTG& rtg, 
@@ -142,8 +141,7 @@ class WorkspaceManager {
             uint32_t pipeline_index, 
             uint32_t descriptor_set_index, 
             uint32_t descriptor_index, 
-            std::string buffer_name, 
-            VkDeviceSize size
+            std::string buffer_name
         );
         
         std::vector<Workspace> workspaces;

@@ -81,56 +81,49 @@ A2::A2(RTG &rtg, const std::string &filename) :
 		pipeline_name_to_index["A2BackgroundPipeline"], 
 		background_pipeline.block_descriptor_set_name_to_index["PV"], 
 		background_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A2CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A2CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A2CommonData::Light)
+		"Light"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A2CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A2CommonData::Light)
+		"Light"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2ReflectionPipeline"], 
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A2CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A2ReflectionPipeline"], 
 		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
 		reflection_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A2CommonData::Light)
+		"Light"
 	);
 
 	scene_manager.create(rtg, doc);

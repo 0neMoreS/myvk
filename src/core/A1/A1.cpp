@@ -71,32 +71,28 @@ A1::A1(RTG &rtg, const std::string &filename) :
 		pipeline_name_to_index["A1LinesPipeline"], 
 		lines_pipeline.block_descriptor_set_name_to_index["PV"], 
 		lines_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A1CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A1LinesPipeline"], 
 		lines_pipeline.block_descriptor_set_name_to_index["PV"], 
 		lines_pipeline.block_binding_name_to_index["World"], 
-		"World",
-		sizeof(A1CommonData::World)
+		"World"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A1ObjectsPipeline"], 
 		objects_pipeline.block_descriptor_set_name_to_index["PV"], 
 		objects_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A1CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A1ObjectsPipeline"], 
 		objects_pipeline.block_descriptor_set_name_to_index["PV"], 
 		objects_pipeline.block_binding_name_to_index["World"], 
-		"World",
-		sizeof(A1CommonData::World)
+		"World"
 	);
 
 	scene_manager.create(rtg, doc);

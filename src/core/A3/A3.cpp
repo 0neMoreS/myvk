@@ -96,72 +96,63 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pipeline_name_to_index["A3BackgroundPipeline"], 
 		background_pipeline.block_descriptor_set_name_to_index["PV"], 
 		background_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A3CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A3CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["SunLights"], 
-		"SunLights",
-		sun_lights_buffer_capacity
+		"SunLights"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["SphereLights"], 
-		"SphereLights",
-		sphere_lights_buffer_capacity
+		"SphereLights"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
 		lambertian_pipeline.block_binding_name_to_index["SpotLights"], 
-		"SpotLights",
-		spot_lights_buffer_capacity
+		"SpotLights"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A3CommonData::PV)
+		"PV"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["SunLights"], 
-		"SunLights",
-		sun_lights_buffer_capacity
+		"SunLights"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["SphereLights"], 
-		"SphereLights",
-		sphere_lights_buffer_capacity
+		"SphereLights"
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["SpotLights"], 
-		"SpotLights",
-		spot_lights_buffer_capacity
+		"SpotLights"
 	);
 
 	scene_manager.create(rtg, doc);

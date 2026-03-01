@@ -59,10 +59,22 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 
-	const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
-	sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(max_light_instances);
-	sphere_lights_buffer_capacity = A3CommonData::sphere_lights_buffer_size(max_light_instances);
-	spot_lights_buffer_capacity = A3CommonData::spot_lights_buffer_size(max_light_instances);
+	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
+	uint32_t sun_light_count = 0;
+	uint32_t sphere_light_count = 0;
+	uint32_t spot_light_count = 0;
+	for(const auto& light_data : light_tree_data) {
+		if (doc->lights[light_data.light_index].sun.has_value()) {
+			sun_light_count++;
+		} else if (doc->lights[light_data.light_index].sphere.has_value()) {
+			sphere_light_count++;
+		} else if (doc->lights[light_data.light_index].spot.has_value()) {
+			spot_light_count++;
+		}
+	}
+	sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(sun_light_count);
+	sphere_lights_buffer_capacity = A3CommonData::sphere_lights_buffer_size(sphere_light_count);
+	spot_lights_buffer_capacity = A3CommonData::spot_lights_buffer_size(spot_light_count);
 	sun_lights_bytes.assign(static_cast<size_t>(sun_lights_buffer_capacity), 0);
 	sphere_lights_bytes.assign(static_cast<size_t>(sphere_lights_buffer_capacity), 0);
 	spot_lights_bytes.assign(static_cast<size_t>(spot_lights_buffer_capacity), 0);

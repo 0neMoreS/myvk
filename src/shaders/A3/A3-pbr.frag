@@ -1,7 +1,7 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "A3-lights-def.glsl"
+#include "A3-light-def.glsl"
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
 layout(set=2,binding=1) uniform sampler2D Textures[];

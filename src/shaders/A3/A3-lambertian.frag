@@ -1,7 +1,8 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "A3-lights-def.glsl"
+#include "A3-light-def.glsl"
+#include "A3-light-intensity.glsl"
 
 layout(set=2,binding=0) uniform samplerCube irradiance_map;
 layout(set=2,binding=1) uniform sampler2D Textures[];
@@ -28,15 +29,31 @@ void main() {
 	// reflectance equation
 	vec3 Lo = vec3(0.0);
 
-	// { // direct lighting
-	// 	// calculate per-light radiance
-	// 	vec3 L = normalize(LIGHT_POSITION.xyz - position);
-	// 	float NoL = max(dot(N, L), 0.0);
-	// 	float distance = length(LIGHT_POSITION.xyz - position);
-	// 	float attenuation = 1.0 / (distance * distance);
-	// 	vec3 radiance = LIGHT_ENERGY.xyz * attenuation;
-	// 	Lo += radiance * albedo * NoL / PI;
-	// }
+	{ // direct lighting (all lights)
+		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
+			LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i]);
+			float NoL = max(dot(N, ls.L), 0.0);
+			if (NoL > 0.0) {
+				Lo += ls.intensity * albedo * NoL / PI;
+			}
+		}
+
+		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
+			LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position);
+			float NoL = max(dot(N, ls.L), 0.0);
+			if (NoL > 0.0) {
+				Lo += ls.intensity * albedo * NoL / PI;
+			}
+		}
+
+		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
+			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position);
+			float NoL = max(dot(N, ls.L), 0.0);
+			if (NoL > 0.0) {
+				Lo += ls.intensity * albedo * NoL / PI;
+			}
+		}
+	}
 
 	vec3 color = vec3(0.0);
 	{ // indirect lighting

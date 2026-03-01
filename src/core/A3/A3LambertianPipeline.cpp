@@ -30,8 +30,8 @@ void A3LambertianPipeline::create(
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
-    { //the set0_Global layout holds a PV matrix in a uniform buffer used in the vertex shader:
-        std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
+    { //the set0_Global layout holds PV(UBO) + light buffers(SSBO):
+        std::array< VkDescriptorSetLayoutBinding, 4 > bindings{
             VkDescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -40,8 +40,20 @@ void A3LambertianPipeline::create(
             },
             VkDescriptorSetLayoutBinding{
                 .binding = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1, // Light
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 2,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 3,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
             },
         };
@@ -231,9 +243,15 @@ void A3LambertianPipeline::create(
 
     block_descriptor_configs.push_back(
         BlockDescriptorConfig{
-        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .binding_types = {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+        },
         .layout = set0_Global, 
-        .bindings_count = 2
+        .bindings_count = 4
     }); //Global
     block_descriptor_configs.push_back(
         BlockDescriptorConfig{
@@ -250,7 +268,9 @@ void A3LambertianPipeline::create(
     block_binding_name_to_index = {
         // Global
         {"PV", 0},
-        {"Light", 1},
+        {"SunLights", 1},
+        {"SphereLights", 2},
+        {"SpotLights", 3},
         // Transforms
         {"Transforms", 0},
     };

@@ -107,11 +107,6 @@ const a3_pbr_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-pbr.frag'),
 ];
 
-const a3_reflection_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-reflection.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-reflection.frag'),
-];
-
 const a3_tonemap_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-tonemap.vert'),
 	maek.GLSLC('./src/shaders/A3/A3-tonemap.frag'),
@@ -146,7 +141,6 @@ const common_objs = [
 	maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),
 	maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
 	maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
-	maek.CPP('./src/core/A3/A3ReflectionPipeline.cpp', undefined, { depends: [...a3_reflection_shaders] }),
 	maek.CPP('./src/core/A3/A3TonemappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
 	// Cube integrator
 	maek.CPP('./src/core/Cube/CubeIntegrator.cpp', undefined, { depends: [...cube_lambertian_shader, ...cube_ggx_shader, ...cube_brdf_lut_shader] }),

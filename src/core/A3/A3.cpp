@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <type_traits>
 
 A3::A3(RTG &rtg) : A3(rtg, "origin-check.s72") {
 }
@@ -24,7 +25,6 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	background_pipeline{},
 	lambertian_pipeline{},
 	pbr_pipeline{},
-	reflection_pipeline{},
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
@@ -51,8 +51,6 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
 
-	reflection_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
-
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager);
 
@@ -60,7 +58,14 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3ReflectionPipeline"]] = reflection_pipeline.block_descriptor_configs;
+
+	const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
+	sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(max_light_instances);
+	sphere_lights_buffer_capacity = A3CommonData::sphere_lights_buffer_size(max_light_instances);
+	spot_lights_buffer_capacity = A3CommonData::spot_lights_buffer_size(max_light_instances);
+	sun_lights_bytes.assign(static_cast<size_t>(sun_lights_buffer_capacity), 0);
+	sphere_lights_bytes.assign(static_cast<size_t>(sphere_lights_buffer_capacity), 0);
+	spot_lights_bytes.assign(static_cast<size_t>(spot_lights_buffer_capacity), 0);
 
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
@@ -69,9 +74,19 @@ A3::A3(RTG &rtg, const std::string &filename) :
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 		WorkspaceManager::GlobalBufferConfig{
-			.name = "Light",
-			.size = sizeof(A3CommonData::Light),
-			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+			.name = "SunLights",
+			.size = sun_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SphereLights",
+			.size = sphere_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SpotLights",
+			.size = spot_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
 	};
 
@@ -96,9 +111,25 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		rtg, 
 		pipeline_name_to_index["A3LambertianPipeline"], 
 		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
-		lambertian_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A3CommonData::Light)
+		lambertian_pipeline.block_binding_name_to_index["SunLights"], 
+		"SunLights",
+		sun_lights_buffer_capacity
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A3LambertianPipeline"], 
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
+		lambertian_pipeline.block_binding_name_to_index["SphereLights"], 
+		"SphereLights",
+		sphere_lights_buffer_capacity
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg, 
+		pipeline_name_to_index["A3LambertianPipeline"], 
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
+		lambertian_pipeline.block_binding_name_to_index["SpotLights"], 
+		"SpotLights",
+		spot_lights_buffer_capacity
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
@@ -112,25 +143,25 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
-		pbr_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A3CommonData::Light)
+		pbr_pipeline.block_binding_name_to_index["SunLights"], 
+		"SunLights",
+		sun_lights_buffer_capacity
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
-		pipeline_name_to_index["A3ReflectionPipeline"], 
-		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
-		reflection_pipeline.block_binding_name_to_index["PV"], 
-		"PV",
-		sizeof(A3CommonData::PV)
+		pipeline_name_to_index["A3PBRPipeline"], 
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
+		pbr_pipeline.block_binding_name_to_index["SphereLights"], 
+		"SphereLights",
+		sphere_lights_buffer_capacity
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
-		pipeline_name_to_index["A3ReflectionPipeline"], 
-		reflection_pipeline.block_descriptor_set_name_to_index["Global"], 
-		reflection_pipeline.block_binding_name_to_index["Light"], 
-		"Light",
-		sizeof(A3CommonData::Light)
+		pipeline_name_to_index["A3PBRPipeline"], 
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
+		pbr_pipeline.block_binding_name_to_index["SpotLights"], 
+		"SpotLights",
+		spot_lights_buffer_capacity
 	);
 
 	scene_manager.create(rtg, doc);
@@ -154,8 +185,6 @@ A3::~A3() {
 	lambertian_pipeline.destroy(rtg);
 
 	pbr_pipeline.destroy(rtg);
-
-	reflection_pipeline.destroy(rtg);
 
 	tonemapping_pipeline.destroy(rtg);
 
@@ -215,9 +244,17 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A3CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 
-			assert(workspace.global_buffer_pairs["Light"]->host.size == sizeof(A3CommonData::Light));
-			workspace.write_global_buffer(rtg, "Light", &light, sizeof(A3CommonData::Light));
-			assert(workspace.global_buffer_pairs["Light"]->host.size == workspace.global_buffer_pairs["Light"]->device.size);
+			assert(workspace.global_buffer_pairs["SunLights"]->host.size >= sun_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "SunLights", sun_lights_bytes.data(), sun_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["SunLights"]->host.size == workspace.global_buffer_pairs["SunLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["SphereLights"]->host.size >= sphere_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "SphereLights", sphere_lights_bytes.data(), sphere_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["SphereLights"]->host.size == workspace.global_buffer_pairs["SphereLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["SpotLights"]->host.size >= spot_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "SpotLights", spot_lights_bytes.data(), spot_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["SpotLights"]->host.size == workspace.global_buffer_pairs["SpotLights"]->device.size);
 		}
 
 		{ //upload transforms for all pipelines
@@ -251,7 +288,6 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 			upload_transforms("A3LambertianPipeline", lambertian_object_instances, lambertian_pipeline);
 			upload_transforms("A3PBRPipeline", pbr_object_instances, pbr_pipeline);
-			upload_transforms("A3ReflectionPipeline", reflection_object_instances, reflection_pipeline);
 		}
 
 		{ //memory barrier to make sure copies complete before rendering happens:
@@ -407,42 +443,6 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 					}
 				}
-
-				{ //draw with the reflection pipeline:
-					if (!reflection_object_instances.empty()) { //draw with the objects pipeline:
-						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, reflection_pipeline.pipeline);
-
-						{ //use object_vertices (offset 0) as vertex buffer binding 0:
-							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
-							std::array< VkDeviceSize, 1 > offsets{ 0 };
-							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
-						}
-
-						{ //bind Transforms descriptor_set set:
-							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
-							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3ReflectionPipeline"]][reflection_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
-							auto &textures_descriptor_set = reflection_pipeline.set2_CUBEMAP_instance;
-							std::array< VkDescriptorSet, 3 > descriptor_sets{
-								global_descriptor_set, //0: Global (PV)
-								transform_descriptor_set, //1: Transforms
-								textures_descriptor_set, //2: CUBEMAP
-							};
-							vkCmdBindDescriptorSets(
-								workspace.command_buffer, //command buffer
-								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								reflection_pipeline.layout, //pipeline layout
-								0, //first set
-								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
-								0, nullptr //dynamic offsets count, ptr
-							);
-						}
-
-						//draw all instances:
-						for (uint32_t i = 0; i < reflection_object_instances.size(); ++i) {
-							vkCmdDraw(workspace.command_buffer, reflection_object_instances[i].object_ranges.count, 1, reflection_object_instances[i].object_ranges.first, i);
-						}
-					}
-				}
 			}
 
 			vkCmdEndRenderPass(workspace.command_buffer);
@@ -589,22 +589,77 @@ void A3::update(float dt) {
 	{ // update global data
 		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
 		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
-		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 		pv_matrix.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
-		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
-		if(doc->lights[0].sphere){
-			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sphere->power, 1.0f);
-		} else if(doc->lights[0].spot){
-			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].spot->power, 1.0f);
-		} else if(doc->lights[0].sun){
-			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sun->strength, 1.0f);
+		sun_lights.clear();
+		sphere_lights.clear();
+		spot_lights.clear();
+		sun_lights.reserve(light_tree_data.size());
+		sphere_lights.reserve(light_tree_data.size());
+		spot_lights.reserve(light_tree_data.size());
+
+		for (const auto &ltd : light_tree_data) {
+			if (ltd.light_index >= doc->lights.size()) continue;
+
+			const auto &src_light = doc->lights[ltd.light_index];
+			const glm::mat4 model = BLENDER_TO_VULKAN_4 * ltd.model_matrix;
+			const glm::vec3 position = glm::vec3(model[3]);
+			const glm::vec3 direction = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
+
+			if (src_light.sun) {
+				A3CommonData::SunLight dst{};
+				for (int i = 0; i < 4; ++i) dst.cascadeSplits[i] = 0.0f;
+				for (int i = 0; i < 4; ++i) dst.orthographic[i] = glm::mat4(1.0f);
+				dst.direction = direction;
+				dst.angle = src_light.sun->angle;
+				dst.tint = src_light.tint * src_light.sun->strength;
+				dst.shadow = static_cast<int32_t>(src_light.shadow);
+				sun_lights.emplace_back(std::move(dst));
+			}
+
+			if (src_light.sphere) {
+				A3CommonData::SphereLight dst{};
+				dst.position = position;
+				dst.radius = src_light.sphere->radius;
+				dst.tint = src_light.tint * src_light.sphere->power;
+				dst.limit = src_light.sphere->limit.value_or(0.0f);
+				sphere_lights.emplace_back(std::move(dst));
+			}
+
+			if (src_light.spot) {
+				A3CommonData::SpotLight dst{};
+				dst.perspective = glm::mat4(1.0f);
+				dst.position = position;
+				dst.radius = src_light.spot->radius;
+				dst.direction = direction;
+				dst.fov = src_light.spot->fov;
+				dst.tint = src_light.tint * src_light.spot->power;
+				dst.blend = src_light.spot->blend;
+				dst.limit = src_light.spot->limit.value_or(0.0f);
+				dst.shadow = static_cast<int32_t>(src_light.shadow);
+				spot_lights.emplace_back(std::move(dst));
+			}
 		}
-		light.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+
+		auto pack_lights = [](auto const &lights, std::vector<uint8_t> &bytes) {
+			using LightT = typename std::decay_t<decltype(lights)>::value_type;
+			const size_t header_size = sizeof(A3CommonData::LightsHeader);
+			const size_t payload_size = sizeof(LightT) * lights.size();
+			bytes.resize(header_size + payload_size);
+			A3CommonData::LightsHeader header{};
+			header.count = static_cast<uint32_t>(lights.size());
+			std::memcpy(bytes.data(), &header, header_size);
+			if (!lights.empty()) {
+				std::memcpy(bytes.data() + header_size, lights.data(), payload_size);
+			}
+		};
+
+		pack_lights(sun_lights, sun_lights_bytes);
+		pack_lights(sphere_lights, sphere_lights_bytes);
+		pack_lights(spot_lights, spot_lights_bytes);
 	}
 
 	{ // update object instances with frustum culling
-		reflection_object_instances.clear();
 		pbr_object_instances.clear();
 		lambertian_object_instances.clear();
 		// Get frustum for culling
@@ -636,26 +691,6 @@ void A3::update(float dt) {
 			// Frustum culling check with world-space AABB
 			if (!frustum.is_box_visible(world_min, world_max)) {
 				continue;
-			}
-
-			// reflective or environment material instance
-			if(material.has_value() && (material->mirror || material->environment)) {
-				ReflectionInstance reflection_inst{
-					.object_ranges = object_range,
-					.object_transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					},
-					.material_index = material_index,
-				};
-
-				if (material->mirror) {
-					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 1.0f; // reflective
-				} else {
-					reflection_inst.object_transform.MODEL_NORMAL[3][3] = 0.0f; // non-reflective
-				}
-
-				reflection_object_instances.emplace_back(std::move(reflection_inst));
 			}
 
 			// Lambertian material instance

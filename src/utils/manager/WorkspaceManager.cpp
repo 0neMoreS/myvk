@@ -182,6 +182,7 @@ void WorkspaceManager::Workspace::update_descriptor(
     auto& pipeline_descriptor_set_group = pipeline_descriptor_set_groups[pipeline_index][descriptor_set_index];
     auto& buffer_pair = pipeline_descriptor_set_group.buffer_pairs[descriptor_index];
     auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_set_index];
+    const VkDescriptorType descriptor_type = config.binding_types.empty() ? config.type : config.binding_types[descriptor_index];
 
     if(buffer_pair->host.handle != VK_NULL_HANDLE) {
         rtg.helpers.destroy_buffer(std::move(buffer_pair->host));
@@ -199,7 +200,7 @@ void WorkspaceManager::Workspace::update_descriptor(
     );
     buffer_pair->device = rtg.helpers.create_buffer(
         size,
-        WorkspaceManager::descriptor_type_to_buffer_usage.at(config.type) | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        WorkspaceManager::descriptor_type_to_buffer_usage.at(descriptor_type) | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped
     );
@@ -218,7 +219,7 @@ void WorkspaceManager::Workspace::update_descriptor(
                 .dstBinding = descriptor_index,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = config.type,
+                .descriptorType = descriptor_type,
                 .pBufferInfo = &buffer_info,
             },
         };
@@ -244,6 +245,7 @@ void WorkspaceManager::Workspace::update_global_descriptor(
     auto& pipeline_descriptor_set_group = pipeline_descriptor_set_groups[pipeline_index][descriptor_set_index];
     auto& buffer_pair = global_buffer_pairs[buffer_name];
     auto& config = manager->block_descriptor_configs_by_pipeline[pipeline_index][descriptor_set_index];
+    const VkDescriptorType descriptor_type = config.binding_types.empty() ? config.type : config.binding_types[descriptor_index];
 
     pipeline_descriptor_set_group.buffer_pairs[descriptor_index] = buffer_pair;
 
@@ -261,7 +263,7 @@ void WorkspaceManager::Workspace::update_global_descriptor(
                 .dstBinding = descriptor_index,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = config.type,
+                .descriptorType = descriptor_type,
                 .pBufferInfo = &buffer_info,
             },
         };
@@ -402,7 +404,13 @@ void WorkspaceManager::create(
         // Count all descriptor types from all pipelines
         for (const auto& pipeline_configs : block_descriptor_configs_by_pipeline_) {
             for (const auto& config : pipeline_configs) {
-                descriptor_map[config.type]++;
+                if (!config.binding_types.empty()) {
+                    for (const auto type : config.binding_types) {
+                        descriptor_map[type]++;
+                    }
+                } else {
+                    descriptor_map[config.type] += config.bindings_count;
+                }
             }
         }
 

@@ -4,7 +4,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <cstdint>
 #include <cmath>
+#include <vector>
 
 #include "S72Loader.hpp"
 #include "Texture2DLoader.hpp"
@@ -14,7 +16,6 @@
 #include "A3BackgroundPipeline.hpp"
 #include "A3LambertianPipeline.hpp"
 #include "A3PBRPipeline.hpp"
-#include "A3ReflectionPipeline.hpp"
 #include "A3ToneMappingPipeline.hpp"
 #include "A3CommonData.hpp"
 #include "SceneManager.hpp"
@@ -48,7 +49,6 @@ struct A3 : RTG::Application {
 	A3BackgroundPipeline background_pipeline;
 	A3LambertianPipeline lambertian_pipeline;
 	A3PBRPipeline pbr_pipeline;
-	A3ReflectionPipeline reflection_pipeline;
 	A3ToneMappingPipeline tonemapping_pipeline;
 
 	//-------------------------------------------------------------------
@@ -57,7 +57,15 @@ struct A3 : RTG::Application {
 	SceneManager scene_manager;
 	TextureManager texture_manager;
 
-	A3CommonData::Light global_light;
+	std::vector<A3CommonData::SunLight> sun_lights;
+	std::vector<A3CommonData::SphereLight> sphere_lights;
+	std::vector<A3CommonData::SpotLight> spot_lights;
+	std::vector<uint8_t> sun_lights_bytes;
+	std::vector<uint8_t> sphere_lights_bytes;
+	std::vector<uint8_t> spot_lights_bytes;
+	VkDeviceSize sun_lights_buffer_capacity = 0;
+	VkDeviceSize sphere_lights_buffer_capacity = 0;
+	VkDeviceSize spot_lights_buffer_capacity = 0;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -74,18 +82,9 @@ struct A3 : RTG::Application {
 	float time = 0.0f;
 
 	A3CommonData::PV pv_matrix;
-	A3CommonData::Light light;
-
 	QueryPoolManager query_pool_manager;
 	uint64_t gpu_frame_counter = 0;
 	double last_gpu_frame_ms = 0.0;
-
-	struct ReflectionInstance {
-		S72Loader::Mesh::ObjectRange object_ranges;
-		A3CommonData::Transform object_transform;
-		size_t material_index;
-	};
-	std::vector< ReflectionInstance > reflection_object_instances;
 
 	struct LambertianInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

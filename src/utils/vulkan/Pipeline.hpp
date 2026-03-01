@@ -14,6 +14,8 @@ struct Pipeline
     struct BlockDescriptorConfig
     {
         VkDescriptorType type;
+		// Optional per-binding descriptor types. If non-empty, size should match bindings_count.
+		std::vector<VkDescriptorType> binding_types;
         VkDescriptorSetLayout layout;
 		uint32_t bindings_count; //names of bindings in this block
     };

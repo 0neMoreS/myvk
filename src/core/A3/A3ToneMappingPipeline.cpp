@@ -8,11 +8,11 @@
 #include <vector>
 
 static uint32_t vert_code[] = {
-#include "../../shaders/spv/tonemap.vert.inl"
+#include "../../shaders/spv/A3-tonemap.vert.inl"
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/tonemap.frag.inl"
+#include "../../shaders/spv/A3-tonemap.frag.inl"
 };
 
 void A3ToneMappingPipeline::create(

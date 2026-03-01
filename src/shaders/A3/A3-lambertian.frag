@@ -31,26 +31,23 @@ void main() {
 
 	{ // direct lighting (all lights)
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
-			LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i]);
-			float NoL = max(dot(N, ls.L), 0.0);
-			if (NoL > 0.0) {
-				Lo += ls.intensity * albedo * NoL / PI;
+			LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
+			if (ls.NoL > 0.0) {
+				Lo += ls.intensity * albedo * ls.NoL / PI;
 			}
 		}
 
 		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
-			LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position);
-			float NoL = max(dot(N, ls.L), 0.0);
-			if (NoL > 0.0) {
-				Lo += ls.intensity * albedo * NoL / PI;
+			LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position, N);
+			if (ls.NoL > 0.0) {
+				Lo += ls.intensity * albedo * ls.NoL / PI;
 			}
 		}
 
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
-			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position);
-			float NoL = max(dot(N, ls.L), 0.0);
-			if (NoL > 0.0) {
-				Lo += ls.intensity * albedo * NoL / PI;
+			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
+			if (ls.NoL > 0.0) {
+				Lo += ls.intensity * albedo * ls.NoL / PI;
 			}
 		}
 	}

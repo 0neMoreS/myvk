@@ -79,7 +79,7 @@ public:
 	Camera& get_debug_camera() { return debug_camera; }
 	const Camera& get_debug_camera() const { return debug_camera; }
 
-	void change_active_camera() { active_camera_index = (active_camera_index + 1) % cameras.size();	}
+	void change_active_camera() { active_camera_index = 0;	}
 
 private:
 	// Cameras loaded from scene

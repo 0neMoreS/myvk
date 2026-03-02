@@ -625,7 +625,7 @@ void A3::update(float dt) {
 				dst.position = position;
 				dst.radius = src_light.sphere->radius;
 				dst.tint = src_light.tint * src_light.sphere->power;
-				dst.limit = src_light.sphere->limit.value_or(0.0f);
+				dst.limit = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * M_PI) * 256.0f));
 				sphere_lights.emplace_back(std::move(dst));
 			}
 
@@ -638,8 +638,8 @@ void A3::update(float dt) {
 				dst.fov = src_light.spot->fov;
 				dst.tint = src_light.tint * src_light.spot->power;
 				dst.blend = src_light.spot->blend;
-				dst.limit = src_light.spot->limit.value_or(0.0f);
-				dst.shadow = static_cast<int32_t>(src_light.shadow);
+				dst.limit = src_light.spot->limit.value_or(2.0f * std::sqrt(src_light.spot->power / (4.0f * M_PI) * 256.0f));
+				dst.shadow = static_cast<uint32_t>(src_light.shadow);
 				spot_lights.emplace_back(std::move(dst));
 			}
 		}

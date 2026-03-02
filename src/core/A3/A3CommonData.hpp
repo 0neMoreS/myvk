@@ -21,7 +21,7 @@ namespace A3CommonData
         glm::vec3 direction;
         float angle;
         glm::vec3 tint;
-        int32_t shadow;
+        uint32_t shadow;
     };
     static_assert(sizeof(SunLight) == 304, "SunLight must match std430 layout.");
 
@@ -42,7 +42,7 @@ namespace A3CommonData
         glm::vec3 tint;
         float blend;
         float limit;
-        int32_t shadow;
+        uint32_t shadow;
         uint32_t _pad_[2];
     };
     static_assert(sizeof(SpotLight) == 128, "SpotLight must match std430 layout.");

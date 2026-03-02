@@ -42,7 +42,28 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
-	texture_manager.create(rtg, doc, 5); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
+	uint32_t sun_light_count = 0;
+	uint32_t sphere_light_count = 0;
+	uint32_t spot_light_count = 0;
+	uint32_t shadow_sun_light_count = 0;
+	uint32_t shadow_sphere_light_count = 0;
+	uint32_t shadow_spot_light_count = 0;
+	for(const auto& light_data : light_tree_data) {
+		const auto &light = doc->lights[light_data.light_index];
+		const bool has_shadow = (light.shadow != 0);
+		if (light.sun.has_value()) {
+			if (has_shadow) shadow_sun_light_count++;
+			else sun_light_count++;
+		} else if (light.sphere.has_value()) {
+			if (has_shadow) shadow_sphere_light_count++;
+			else sphere_light_count++;
+		} else if (light.spot.has_value()) {
+			if (has_shadow) shadow_spot_light_count++;
+			else spot_light_count++;
+		}
+	}
+
+	texture_manager.create(rtg, doc, 5, shadow_sun_light_count, shadow_sphere_light_count, shadow_spot_light_count); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
 	// Scene pipelines render to HDR framebuffer
 	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
@@ -60,24 +81,18 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 
 	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
-	uint32_t sun_light_count = 0;
-	uint32_t sphere_light_count = 0;
-	uint32_t spot_light_count = 0;
-	for(const auto& light_data : light_tree_data) {
-		if (doc->lights[light_data.light_index].sun.has_value()) {
-			sun_light_count++;
-		} else if (doc->lights[light_data.light_index].sphere.has_value()) {
-			sphere_light_count++;
-		} else if (doc->lights[light_data.light_index].spot.has_value()) {
-			spot_light_count++;
-		}
-	}
 	sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(sun_light_count);
 	sphere_lights_buffer_capacity = A3CommonData::sphere_lights_buffer_size(sphere_light_count);
 	spot_lights_buffer_capacity = A3CommonData::spot_lights_buffer_size(spot_light_count);
+	shadow_sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(shadow_sun_light_count);
+	shadow_sphere_lights_buffer_capacity = A3CommonData::sphere_lights_buffer_size(shadow_sphere_light_count);
+	shadow_spot_lights_buffer_capacity = A3CommonData::spot_lights_buffer_size(shadow_spot_light_count);
 	sun_lights_bytes.assign(static_cast<size_t>(sun_lights_buffer_capacity), 0);
 	sphere_lights_bytes.assign(static_cast<size_t>(sphere_lights_buffer_capacity), 0);
 	spot_lights_bytes.assign(static_cast<size_t>(spot_lights_buffer_capacity), 0);
+	shadow_sun_lights_bytes.assign(static_cast<size_t>(shadow_sun_lights_buffer_capacity), 0);
+	shadow_sphere_lights_bytes.assign(static_cast<size_t>(shadow_sphere_lights_buffer_capacity), 0);
+	shadow_spot_lights_bytes.assign(static_cast<size_t>(shadow_spot_lights_buffer_capacity), 0);
 
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
@@ -98,6 +113,21 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "SpotLights",
 			.size = spot_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSunLights",
+			.size = shadow_sun_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSphereLights",
+			.size = shadow_sphere_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSpotLights",
+			.size = shadow_spot_lights_buffer_capacity,
 			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
 	};
@@ -139,6 +169,27 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		"SpotLights"
 	);
 	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSunLights"],
+		"ShadowSunLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSphereLights"],
+		"ShadowSphereLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSpotLights"],
+		"ShadowSpotLights"
+	);
+	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
@@ -165,6 +216,27 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
 		pbr_pipeline.block_binding_name_to_index["SpotLights"], 
 		"SpotLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSunLights"],
+		"ShadowSunLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSphereLights"],
+		"ShadowSphereLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSpotLights"],
+		"ShadowSpotLights"
 	);
 
 	scene_manager.create(rtg, doc);
@@ -258,6 +330,18 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["SpotLights"]->host.size >= spot_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "SpotLights", spot_lights_bytes.data(), spot_lights_bytes.size());
 			assert(workspace.global_buffer_pairs["SpotLights"]->host.size == workspace.global_buffer_pairs["SpotLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSunLights"]->host.size >= shadow_sun_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSunLights", shadow_sun_lights_bytes.data(), shadow_sun_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSunLights"]->host.size == workspace.global_buffer_pairs["ShadowSunLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSphereLights"]->host.size >= shadow_sphere_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSphereLights", shadow_sphere_lights_bytes.data(), shadow_sphere_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSphereLights"]->host.size == workspace.global_buffer_pairs["ShadowSphereLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size >= shadow_spot_lights_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSpotLights", shadow_spot_lights_bytes.data(), shadow_spot_lights_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size == workspace.global_buffer_pairs["ShadowSpotLights"]->device.size);
 		}
 
 		{ //upload transforms for all pipelines
@@ -597,14 +681,21 @@ void A3::update(float dt) {
 		sun_lights.clear();
 		sphere_lights.clear();
 		spot_lights.clear();
+		shadow_sun_lights.clear();
+		shadow_sphere_lights.clear();
+		shadow_spot_lights.clear();
 		sun_lights.reserve(light_tree_data.size());
 		sphere_lights.reserve(light_tree_data.size());
 		spot_lights.reserve(light_tree_data.size());
+		shadow_sun_lights.reserve(light_tree_data.size());
+		shadow_sphere_lights.reserve(light_tree_data.size());
+		shadow_spot_lights.reserve(light_tree_data.size());
 
 		for (const auto &ltd : light_tree_data) {
 			if (ltd.light_index >= doc->lights.size()) continue;
 
 			const auto &src_light = doc->lights[ltd.light_index];
+			const bool has_shadow = (src_light.shadow != 0);
 			const glm::mat4 model = BLENDER_TO_VULKAN_4 * ltd.model_matrix;
 			const glm::vec3 position = glm::vec3(model[3]);
 			const glm::vec3 direction = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
@@ -617,7 +708,8 @@ void A3::update(float dt) {
 				dst.angle = src_light.sun->angle;
 				dst.tint = src_light.tint * src_light.sun->strength;
 				dst.shadow = static_cast<int32_t>(src_light.shadow);
-				sun_lights.emplace_back(std::move(dst));
+				if (has_shadow) shadow_sun_lights.emplace_back(std::move(dst));
+				else sun_lights.emplace_back(std::move(dst));
 			}
 
 			if (src_light.sphere) {
@@ -626,7 +718,8 @@ void A3::update(float dt) {
 				dst.radius = src_light.sphere->radius;
 				dst.tint = src_light.tint * src_light.sphere->power;
 				dst.limit = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * M_PI) * 256.0f));
-				sphere_lights.emplace_back(std::move(dst));
+				if (has_shadow) shadow_sphere_lights.emplace_back(std::move(dst));
+				else sphere_lights.emplace_back(std::move(dst));
 			}
 
 			if (src_light.spot) {
@@ -639,8 +732,9 @@ void A3::update(float dt) {
 				dst.tint = src_light.tint * src_light.spot->power;
 				dst.blend = src_light.spot->blend;
 				dst.limit = src_light.spot->limit.value_or(2.0f * std::sqrt(src_light.spot->power / (4.0f * M_PI) * 256.0f));
-				dst.shadow = static_cast<uint32_t>(src_light.shadow);
-				spot_lights.emplace_back(std::move(dst));
+				dst.shadow = static_cast<int32_t>(src_light.shadow);
+				if (has_shadow) shadow_spot_lights.emplace_back(std::move(dst));
+				else spot_lights.emplace_back(std::move(dst));
 			}
 		}
 
@@ -660,6 +754,9 @@ void A3::update(float dt) {
 		pack_lights(sun_lights, sun_lights_bytes);
 		pack_lights(sphere_lights, sphere_lights_bytes);
 		pack_lights(spot_lights, spot_lights_bytes);
+		pack_lights(shadow_sun_lights, shadow_sun_lights_bytes);
+		pack_lights(shadow_sphere_lights, shadow_sphere_lights_bytes);
+		pack_lights(shadow_spot_lights, shadow_spot_lights_bytes);
 	}
 
 	{ // update object instances with frustum culling

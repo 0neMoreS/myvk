@@ -19,6 +19,7 @@ A3PBRPipeline::~A3PBRPipeline(){
     assert(set1_Transforms == VK_NULL_HANDLE);
     assert(set2_Textures == VK_NULL_HANDLE);
     assert(set2_Textures_instance == VK_NULL_HANDLE);
+    assert(sun_shadow_array_view == VK_NULL_HANDLE);
 }
 
 void A3PBRPipeline::create(
@@ -31,7 +32,7 @@ void A3PBRPipeline::create(
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
     { //the set0_Global layout holds PV(UBO) + light buffers(SSBO):
-        std::array< VkDescriptorSetLayoutBinding, 4 > bindings{
+        std::array< VkDescriptorSetLayoutBinding, 7 > bindings{
             VkDescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -52,6 +53,24 @@ void A3PBRPipeline::create(
             },
             VkDescriptorSetLayoutBinding{
                 .binding = 3,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 4,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 5,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 6,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
@@ -89,6 +108,9 @@ void A3PBRPipeline::create(
     { // bind texture descriptors: cubemaps and 2D textures
         uint32_t total_2d_descriptors = 1; // BRDF LUT
         uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
+        const uint32_t sun_shadow_count = texture_manager.sun_shadow_descriptor_count;
+        const uint32_t sphere_shadow_count = texture_manager.sphere_shadow_descriptor_count;
+        const uint32_t spot_shadow_count = texture_manager.spot_shadow_descriptor_count;
         assert(texture_manager.raw_environment_cubemap_texture.size() > 1);
 
         for (const auto &material_slots : texture_manager.raw_2d_textures_by_material) {
@@ -100,7 +122,7 @@ void A3PBRPipeline::create(
         }
 
         { // the set2_Textures
-            std::array< VkDescriptorSetLayoutBinding, 2 > bindings{
+            std::array< VkDescriptorSetLayoutBinding, 5 > bindings{
                 VkDescriptorSetLayoutBinding{
                     .binding = 0,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -112,17 +134,38 @@ void A3PBRPipeline::create(
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     .descriptorCount = total_2d_descriptors, // runtime-defined number of 2D textures
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 2,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = sun_shadow_count, // SunShadowMap (sampler2DArray)
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 3,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = sphere_shadow_count, // SphereShadowMap (samplerCube)
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 4,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = spot_shadow_count, // SpotShadowMap (sampler2D)
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                 }
             };
 
-            std::array<VkDescriptorBindingFlags, 2> binding_flags{
+            std::array<VkDescriptorBindingFlags, 5> binding_flags{
                 0,  // binding 0: fixed size
-                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT  // binding 1: variable size
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,  // binding 1: variable size
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
 			};
 
             VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = 2,
+                .bindingCount = uint32_t(binding_flags.size()),
                 .pBindingFlags = binding_flags.data(),
             };
             
@@ -222,6 +265,95 @@ void A3PBRPipeline::create(
 
                 vkUpdateDescriptorSets(rtg.device, 1, &write_2d, 0, nullptr); 
             }
+
+            { // update shadow map descriptors (SunShadowMap, SphereShadowMap, SpotShadowMap)
+                {
+                    VkImageViewCreateInfo sun_shadow_array_view_create_info{
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                        .image = texture_manager.raw_brdf_LUT_texture->image.handle,
+                        .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                        .format = texture_manager.raw_brdf_LUT_texture->image.format,
+                        .components = {
+                            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        },
+                        .subresourceRange = {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .baseMipLevel = 0,
+                            .levelCount = 1,
+                            .baseArrayLayer = 0,
+                            .layerCount = 1,
+                        },
+                    };
+                    VK(vkCreateImageView(rtg.device, &sun_shadow_array_view_create_info, nullptr, &sun_shadow_array_view));
+                }
+
+                std::vector<VkDescriptorImageInfo> sun_shadow_infos(sun_shadow_count);
+                for (auto &info : sun_shadow_infos) {
+                    info = VkDescriptorImageInfo{
+                        .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
+                        .imageView = sun_shadow_array_view,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    };
+                }
+
+                std::vector<VkDescriptorImageInfo> sphere_shadow_infos(sphere_shadow_count);
+                for (auto &info : sphere_shadow_infos) {
+                    info = VkDescriptorImageInfo{
+                        .sampler = texture_manager.raw_environment_cubemap_texture[0]->sampler,
+                        .imageView = texture_manager.raw_environment_cubemap_texture[0]->image_view,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    };
+                }
+
+                std::vector<VkDescriptorImageInfo> spot_shadow_infos(spot_shadow_count);
+                for (auto &info : spot_shadow_infos) {
+                    info = VkDescriptorImageInfo{
+                        .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
+                        .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    };
+                }
+
+                VkWriteDescriptorSet write_sun_shadow{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_Textures_instance,
+                    .dstBinding = 2,
+                    .dstArrayElement = 0,
+                    .descriptorCount = sun_shadow_count,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = sun_shadow_infos.data(),
+                };
+
+                VkWriteDescriptorSet write_sphere_shadow{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_Textures_instance,
+                    .dstBinding = 3,
+                    .dstArrayElement = 0,
+                    .descriptorCount = sphere_shadow_count,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = sphere_shadow_infos.data(),
+                };
+
+                VkWriteDescriptorSet write_spot_shadow{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = set2_Textures_instance,
+                    .dstBinding = 4,
+                    .dstArrayElement = 0,
+                    .descriptorCount = spot_shadow_count,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = spot_shadow_infos.data(),
+                };
+
+                std::array<VkWriteDescriptorSet, 3> writes{
+                    write_sun_shadow,
+                    write_sphere_shadow,
+                    write_spot_shadow,
+                };
+                vkUpdateDescriptorSets(rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr);
+            }
         }
     }
 
@@ -263,10 +395,13 @@ void A3PBRPipeline::create(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
         },
         .layout = set0_Global, 
-        .bindings_count = 4
+        .bindings_count = 7
     }); //Global
     block_descriptor_configs.push_back(
         BlockDescriptorConfig{
@@ -286,6 +421,9 @@ void A3PBRPipeline::create(
         {"SunLights", 1},
         {"SphereLights", 2},
         {"SpotLights", 3},
+        {"ShadowSunLights", 4},
+        {"ShadowSphereLights", 5},
+        {"ShadowSpotLights", 6},
         // Transforms
         {"Transforms", 0},
     };
@@ -321,5 +459,10 @@ void A3PBRPipeline::destroy(RTG &rtg) {
 
     if(set2_Textures_instance != VK_NULL_HANDLE) {
         set2_Textures_instance = VK_NULL_HANDLE;
+    }
+
+    if(sun_shadow_array_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(rtg.device, sun_shadow_array_view, nullptr);
+        sun_shadow_array_view = VK_NULL_HANDLE;
     }
 }

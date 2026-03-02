@@ -40,3 +40,22 @@ layout(set=0, binding=3, std430) readonly buffer SpotLightsBuf {
     uint count;
     SpotLight lights[];
 } spotLightsBuf;
+
+layout(set=0, binding=4, std430) readonly buffer ShadowSunLightsBuf {
+    uint count;
+    SunLight shadowLights[];
+} shadowSunLightsBuf;
+
+layout(set=0, binding=5, std430) readonly buffer ShadowSphereLightsBuf {
+    uint count;
+    SphereLight shadowLights[];
+} shadowSphereLightsBuf;
+
+layout(set=0, binding=6, std430) readonly buffer ShadowSpotLightsBuf {
+    uint count;
+    SpotLight shadowLights[];
+} shadowSpotLightsBuf;
+
+layout(set=2,binding=2) uniform sampler2DArray suntShadowMap[];
+layout(set=2,binding=3) uniform samplerCube sphereShadowMap[];
+layout(set=2,binding=4) uniform sampler2D spotShadowMap[];

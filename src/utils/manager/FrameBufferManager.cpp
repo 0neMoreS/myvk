@@ -104,23 +104,22 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 	// Create swapchain framebuffers for tone mapping pass (no depth)
 	swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
 	for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
-		std::array< VkImageView, 2 > attachments{
-			swapchain.image_views[i],
-			depth_image_view
-		};
+        std::array< VkImageView, 1 > attachments{
+            swapchain.image_views[i]
+        };
 
-		VkFramebufferCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = render_pass_manager.render_pass,
-			.attachmentCount = uint32_t(attachments.size()),
-			.pAttachments = attachments.data(),
-			.width = swapchain.extent.width,
-			.height = swapchain.extent.height,
-			.layers = 1,
-		};
+        VkFramebufferCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass = render_pass_manager.tonemap_render_pass,
+            .attachmentCount = uint32_t(attachments.size()),
+            .pAttachments = attachments.data(),
+            .width = swapchain.extent.width,
+            .height = swapchain.extent.height,
+            .layers = 1,
+        };
 
-		VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
-	}
+        VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
+    }
 }
 
 void  FrameBufferManager::destroy(RTG &rtg){

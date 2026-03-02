@@ -31,10 +31,21 @@ void TextureManager::destroy(RTG &rtg) {
 void TextureManager::create(
     RTG &rtg,
     std::shared_ptr<S72Loader::Document> &doc,
-    uint32_t pipeline_count
+    uint32_t pipeline_count,
+    uint32_t shadow_sun_count,
+    uint32_t shadow_sphere_count,
+    uint32_t shadow_spot_count
 ) {
     // Clean previous data
     destroy(rtg);
+
+    shadow_sun_light_count = shadow_sun_count;
+    shadow_sphere_light_count = shadow_sphere_count;
+    shadow_spot_light_count = shadow_spot_count;
+
+    sun_shadow_descriptor_count = (shadow_sun_light_count > 0) ? shadow_sun_light_count : 1u;
+    sphere_shadow_descriptor_count = (shadow_sphere_light_count > 0) ? shadow_sphere_light_count : 1u;
+    spot_shadow_descriptor_count = (shadow_spot_light_count > 0) ? shadow_spot_light_count : 1u;
 
     { // Load raw textures from document
         raw_2d_textures_by_material.resize(doc->materials.size());
@@ -127,6 +138,8 @@ void TextureManager::create(
         { // the descriptor pool for texture descriptors
             uint32_t total_2d_descriptors = 2; // BRDF LUT + Tone mapping target (swapchain image)
             uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
+            uint32_t shadow_descriptors_per_pipeline = sun_shadow_descriptor_count + sphere_shadow_descriptor_count + spot_shadow_descriptor_count;
+            uint32_t total_shadow_descriptors = 2 * shadow_descriptors_per_pipeline; // Lambertian + PBR
 
             for (const auto &material_slots : raw_2d_textures_by_material) {
                 for (const auto &texture_opt : material_slots) {
@@ -139,7 +152,7 @@ void TextureManager::create(
             std::array<VkDescriptorPoolSize, 1> pool_sizes{
                 VkDescriptorPoolSize{
                     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_2d_descriptors + total_cubemap_descriptors,
+                    .descriptorCount = total_2d_descriptors + total_cubemap_descriptors + total_shadow_descriptors,
                 },
             };
 

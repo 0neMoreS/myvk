@@ -11,15 +11,16 @@
 #include <iostream>
 
 struct A3PBRPipeline : Pipeline {
-    // Global PV matrix, light, update per-frame
+    // Global PV matrix, light, update once, write per frame
     VkDescriptorSetLayout set0_Global = VK_NULL_HANDLE;
 
-    // Per-instance transforms matrix, update per-draw
+    // Per-instance transforms matrix, update and write per frame
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
 
-    // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, no update
+    // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, update once, shadow map will be wrote per frame
     VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
+    VkImageView sun_shadow_array_view = VK_NULL_HANDLE;
     /*
         IrradianceMap
         PrefilterMap
@@ -31,6 +32,9 @@ struct A3PBRPipeline : Pipeline {
             RoughnessTexture
             MetalnessTexture
         }
+        SunShadowMap
+        SphereShadowMap 
+        SpotShadowMap
     */
 
     struct Push{

@@ -20,6 +20,7 @@ struct A3LambertianPipeline : Pipeline {
     // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, no update
     VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
+    VkImageView sun_shadow_array_view = VK_NULL_HANDLE;
     /*
         IrradianceMap
         PrefilterMap
@@ -31,6 +32,9 @@ struct A3LambertianPipeline : Pipeline {
             RoughnessTexture
             MetalnessTexture
         }
+        SunShadowMap
+        SphereShadowMap 
+        SpotShadowMap
     */
 
     struct Push{

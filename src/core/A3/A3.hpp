@@ -60,12 +60,21 @@ struct A3 : RTG::Application {
 	std::vector<A3CommonData::SunLight> sun_lights;
 	std::vector<A3CommonData::SphereLight> sphere_lights;
 	std::vector<A3CommonData::SpotLight> spot_lights;
+	std::vector<A3CommonData::SunLight> shadow_sun_lights;
+	std::vector<A3CommonData::SphereLight> shadow_sphere_lights;
+	std::vector<A3CommonData::SpotLight> shadow_spot_lights;
 	std::vector<uint8_t> sun_lights_bytes;
 	std::vector<uint8_t> sphere_lights_bytes;
 	std::vector<uint8_t> spot_lights_bytes;
+	std::vector<uint8_t> shadow_sun_lights_bytes;
+	std::vector<uint8_t> shadow_sphere_lights_bytes;
+	std::vector<uint8_t> shadow_spot_lights_bytes;
 	VkDeviceSize sun_lights_buffer_capacity = 0;
 	VkDeviceSize sphere_lights_buffer_capacity = 0;
 	VkDeviceSize spot_lights_buffer_capacity = 0;
+	VkDeviceSize shadow_sun_lights_buffer_capacity = 0;
+	VkDeviceSize shadow_sphere_lights_buffer_capacity = 0;
+	VkDeviceSize shadow_spot_lights_buffer_capacity = 0;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:

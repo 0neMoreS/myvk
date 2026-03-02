@@ -33,21 +33,21 @@ void main() {
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
 			LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
 			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL / PI;
+				Lo += ls.intensity * albedo * ls.NoL;
 			}
 		}
 
 		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
 			LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position, N);
 			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL / PI;
+				Lo += ls.intensity * albedo * ls.NoL;
 			}
 		}
 
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
 			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
 			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL / PI;
+				Lo += ls.intensity * albedo * ls.NoL;
 			}
 		}
 	}
@@ -57,7 +57,7 @@ void main() {
 		vec3 irradiance = texture(irradiance_map, N).xyz;
 		vec3 diffuse = irradiance * albedo;
 
-		color = Lo + diffuse;
+		color = Lo / PI + diffuse;
 	}
 	
 	outColor = vec4(color, 1.0);

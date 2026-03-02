@@ -607,7 +607,7 @@ void A3::update(float dt) {
 			const auto &src_light = doc->lights[ltd.light_index];
 			const glm::mat4 model = BLENDER_TO_VULKAN_4 * ltd.model_matrix;
 			const glm::vec3 position = glm::vec3(model[3]);
-			const glm::vec3 direction = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
+			const glm::vec3 direction = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
 
 			if (src_light.sun) {
 				A3CommonData::SunLight dst{};

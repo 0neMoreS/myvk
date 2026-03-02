@@ -157,10 +157,10 @@ void A3PBRPipeline::create(
 
             std::array<VkDescriptorBindingFlags, 5> binding_flags{
                 0,  // binding 0: fixed size
-				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,  // binding 1: variable size
-				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
+				0,  // binding 1: fixed size
+				0,
+				0,
+				0,
 			};
 
             VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{

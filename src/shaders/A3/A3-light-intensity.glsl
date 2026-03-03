@@ -110,3 +110,39 @@ float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D s
 
 	return sum / 9.0;
 }
+
+float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFragPosition, sampler2DArray shadowMapTexture) {
+	if (sunLight.shadow <= 0) {
+		return 1.0;
+	}
+
+	int cascadeIndex = 3;
+	for (int i = 0; i < 4; ++i) {
+		if (viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
+			cascadeIndex = i;
+			break;
+		}
+	}
+
+	vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+	if (lightSpace.w <= 0.0) {
+		return 1.0;
+	}
+
+	vec3 projected = lightSpace.xyz / lightSpace.w;
+	vec2 uv = projected.xy * 0.5 + vec2(0.5);
+	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || projected.z < 0.0 || projected.z > 1.0) {
+		return 1.0;
+	}
+
+	float texelSize = 1.05 / float(sunLight.shadow);
+	float sum = 0.0;
+	for (int x = -2; x <= 2; ++x) {
+		for (int y = -2; y <= 2; ++y) {
+			float closestDepth = texture(shadowMapTexture, vec3(uv + vec2(x, y) * texelSize, cascadeIndex)).r;
+			sum += (projected.z <= closestDepth) ? 1.0 : 0.0;
+		}
+	}
+
+	return sum / 25.0;
+}

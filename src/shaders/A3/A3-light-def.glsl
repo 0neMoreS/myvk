@@ -56,6 +56,6 @@ layout(set=0, binding=6, std430) readonly buffer ShadowSpotLightsBuf {
     SpotLight shadowLights[];
 } shadowSpotLightsBuf;
 
-layout(set=2,binding=2) uniform sampler2DArray suntShadowMap[];
+layout(set=2,binding=2) uniform sampler2DArray sunShadowMap[];
 layout(set=2,binding=3) uniform samplerCube sphereShadowMap[];
 layout(set=2,binding=4) uniform sampler2D spotShadowMap[];

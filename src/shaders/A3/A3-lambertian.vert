@@ -22,11 +22,13 @@ layout(set=1, binding=0, std430) readonly buffer Transforms {
 layout(location=0) out vec3 position;
 layout(location=1) out vec3 normal;
 layout(location=2) out vec2 texCoord;
+layout(location=3) out vec3 viewPosition;
 
 void main() {
 	position = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
 	normal = mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal;
 	texCoord = TexCoord;
+	viewPosition = vec3(VIEW * vec4(position, 1.0));
 
 	gl_Position = PERSPECTIVE * VIEW * vec4(position, 1.0);
 }

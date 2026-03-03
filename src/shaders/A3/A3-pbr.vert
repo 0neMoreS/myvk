@@ -23,11 +23,13 @@ layout(set=1, binding=0, std430) readonly buffer Transforms {
 layout(location=0) out vec3 fragPos;
 layout(location=1) out vec2 texCoord;
 layout(location=2) out vec3 cameraPos;
-layout(location=3) out mat3 TBN;
+layout(location=3) out vec3 viewFragPos;
+layout(location=4) out mat3 TBN;
 
 void main() {
 	fragPos = mat4x3(TRANSFORMS[gl_InstanceIndex].MODEL) * vec4(Position, 1.0);
 	vec3 normal = normalize(mat3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL) * Normal);
+	viewFragPos = vec3(VIEW * vec4(fragPos, 1.0));
 	
 	cameraPos = CAMERA_POSITION.xyz;
 	vec3 T = normalize(vec3(TRANSFORMS[gl_InstanceIndex].MODEL_NORMAL * vec4(Tangent.xyz, 0.0)));

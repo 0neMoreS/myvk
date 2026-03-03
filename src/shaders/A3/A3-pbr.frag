@@ -14,7 +14,8 @@ layout(push_constant) uniform Push {
 layout(location=0) in vec3 fragPos;
 layout(location=1) in vec2 texCoord;
 layout(location=2) flat in vec3 cameraPos;
-layout(location=3) in mat3 TBN;
+layout(location=3) in vec3 viewFragPos;
+layout(location=4) in mat3 TBN;
 
 layout(location=0) out vec4 outColor;
 
@@ -248,6 +249,47 @@ void main() {
 				}
 
 				Lo += (diffuseTerm + specularTerm) * ls.intensity;
+			}
+		}
+
+		// --- 1.1 SHADOW SUN LIGHTS ---
+		for (uint i = 0u; i < shadowSunLightsBuf.count; ++i) {
+			SunLight light = shadowSunLightsBuf.shadowLights[i];
+			LightSample ls = sampleSunLightIntensity(light, N);
+
+			vec3 L_center = normalize(light.direction);
+
+			vec3 centerToRay = dot(L_center, R) * R - L_center;
+			float sunRadius = sin(light.angle * 0.5);
+			vec3 closestPoint = L_center + centerToRay * clamp(sunRadius / max(length(centerToRay), 1e-5), 0.0, 1.0);
+			vec3 L_spec = normalize(closestPoint);
+
+			float NoL_spec = max(dot(N, L_spec), 0.0);
+
+			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
+				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+
+				vec3 specularTerm = vec3(0.0);
+				if (NoL_spec > 0.0) {
+					vec3 H = normalize(V + L_spec);
+					float NDF = DistributionGGX(N, H, roughness);
+					float G = GeometrySmith(N, V, L_spec, roughness);
+					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+					vec3 nominator = NDF * G * F_spec;
+					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+					vec3 specular = nominator / denominator;
+
+					float alphaPrime = clamp(alpha + light.angle * 0.25, 0.0, 1.0);
+					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+
+					specularTerm = specular * normalization * NoL_spec;
+				}
+
+				float shadow = computeSunLightShadow(light, fragPos, viewFragPos, sunShadowMap[i]);
+				Lo += shadow * (diffuseTerm + specularTerm) * ls.intensity;
 			}
 		}
 

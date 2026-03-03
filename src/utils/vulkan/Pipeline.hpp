@@ -42,7 +42,7 @@ struct Pipeline
 	) = 0;
     virtual void destroy(RTG &) = 0;
     
-    void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false) {
+	void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false, uint32_t color_attachment_count = 1) {
         //shader code for vertex and fragment pipeline stages:
 		std::array< VkPipelineShaderStageCreateInfo, 2 > stages{
 			VkPipelineShaderStageCreateInfo{
@@ -116,17 +116,15 @@ struct Pipeline
 		};
 
 		//there will be one color attachment with blending disabled:
-		std::array< VkPipelineColorBlendAttachmentState, 1 > attachment_states{
-			VkPipelineColorBlendAttachmentState{
-				.blendEnable = VK_FALSE,
-				.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-			},
+		VkPipelineColorBlendAttachmentState attachment_state{
+			.blendEnable = VK_FALSE,
+			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 		};
 		VkPipelineColorBlendStateCreateInfo color_blend_state{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 			.logicOpEnable = VK_FALSE,
-			.attachmentCount = uint32_t(attachment_states.size()),
-			.pAttachments = attachment_states.data(),
+			.attachmentCount = color_attachment_count,
+			.pAttachments = color_attachment_count > 0 ? &attachment_state : nullptr,
 			.blendConstants{0.0f, 0.0f, 0.0f, 0.0f},
 		};
 

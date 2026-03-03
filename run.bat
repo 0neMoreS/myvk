@@ -4,6 +4,6 @@ node .\Maekfile.js && ^
 --physical-device "NVIDIA GeForce RTX 5080 Laptop GPU" ^
 --drawing-size 1920 1080 ^
 --camera "Camera" ^
---scene ./external/s72/examples/lights-Parameters.s72 ^
+--scene ./external/s72/examples/lights-Spot-Shadows.s72 ^
 --exposure 0
 @REM --headless < ./report/A2/headless_input/displacement_map.txt > ./drawer/headless_frame_time.txt

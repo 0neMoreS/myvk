@@ -16,6 +16,7 @@
 #include "A3BackgroundPipeline.hpp"
 #include "A3LambertianPipeline.hpp"
 #include "A3PBRPipeline.hpp"
+#include "A3SpotShadowPipeline.hpp"
 #include "A3ToneMappingPipeline.hpp"
 #include "A3CommonData.hpp"
 #include "SceneManager.hpp"
@@ -50,6 +51,7 @@ struct A3 : RTG::Application {
 	A3BackgroundPipeline background_pipeline;
 	A3LambertianPipeline lambertian_pipeline;
 	A3PBRPipeline pbr_pipeline;
+	A3SpotShadowPipeline spot_shadow_pipeline;
 	A3ToneMappingPipeline tonemapping_pipeline;
 
 	//-------------------------------------------------------------------
@@ -104,6 +106,12 @@ struct A3 : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;
+
+	struct ShadowInstance {
+		S72Loader::Mesh::ObjectRange object_ranges;
+		A3CommonData::Transform object_transform;
+	};
+	std::vector< ShadowInstance > shadow_object_instances;
 	
 	std::vector< SceneTree::MeshTreeData > mesh_tree_data;
 	std::vector< SceneTree::LightTreeData > light_tree_data;

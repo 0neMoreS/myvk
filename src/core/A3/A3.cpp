@@ -26,6 +26,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	background_pipeline{},
 	lambertian_pipeline{},
 	pbr_pipeline{},
+	spot_shadow_pipeline{},
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
@@ -108,6 +109,8 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, &shadow_map_manager);
 
+	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, texture_manager, nullptr);
+
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager, nullptr);
 
@@ -115,6 +118,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
 
 	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
 	VkDeviceSize sun_lights_buffer_capacity = A3CommonData::sun_lights_buffer_size(static_cast<uint32_t>(sun_lights.size()));
@@ -297,6 +301,13 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_binding_name_to_index["ShadowSpotLights"],
 		"ShadowSpotLights"
 	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3SpotShadowPipeline"],
+		spot_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
+		spot_shadow_pipeline.block_binding_name_to_index["ShadowSpotLights"],
+		"ShadowSpotLights"
+	);
 
 	scene_manager.create(rtg, doc);
 }
@@ -320,6 +331,8 @@ A3::~A3() {
 	lambertian_pipeline.destroy(rtg);
 
 	pbr_pipeline.destroy(rtg);
+
+	spot_shadow_pipeline.destroy(rtg);
 
 	tonemapping_pipeline.destroy(rtg);
 
@@ -435,6 +448,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 			upload_transforms("A3LambertianPipeline", lambertian_object_instances, lambertian_pipeline);
 			upload_transforms("A3PBRPipeline", pbr_object_instances, pbr_pipeline);
+			upload_transforms("A3SpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
 		}
 
 		{ //memory barrier to make sure copies complete before rendering happens:
@@ -462,7 +476,13 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.depthStencil{ .depth = 1.0f, .stencil = 0 },
 			};
 
-			for (auto const &shadow_target : shadow_map_manager.spot_shadow_targets) {
+			const uint32_t shadow_count = std::min(
+				static_cast<uint32_t>(shadow_map_manager.spot_shadow_targets.size()),
+				static_cast<uint32_t>(shadow_spot_lights.size())
+			);
+
+			for (uint32_t light_index = 0; light_index < shadow_count; ++light_index) {
+				auto const &shadow_target = shadow_map_manager.spot_shadow_targets[light_index];
 				if (shadow_target.framebuffer == VK_NULL_HANDLE || shadow_target.resolution == 0) {
 					continue;
 				}
@@ -501,6 +521,40 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 					vkCmdSetScissor(workspace.command_buffer, 0, 1, &shadow_scissor);
 					vkCmdSetViewport(workspace.command_buffer, 0, 1, &shadow_viewport);
+
+					if (!shadow_object_instances.empty()) {
+						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spot_shadow_pipeline.pipeline);
+
+						std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
+						std::array< VkDeviceSize, 1 > offsets{ 0 };
+						vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+
+						auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SpotShadowPipeline"]][spot_shadow_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+						auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SpotShadowPipeline"]][spot_shadow_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+
+						std::array< VkDescriptorSet, 2 > descriptor_sets{
+							global_descriptor_set,
+							transform_descriptor_set,
+						};
+
+						vkCmdBindDescriptorSets(
+							workspace.command_buffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							spot_shadow_pipeline.layout,
+							0,
+							uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+							0, nullptr
+						);
+
+						A3SpotShadowPipeline::Push push{
+							.LIGHT_INDEX = light_index,
+						};
+						vkCmdPushConstants(workspace.command_buffer, spot_shadow_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+
+						for (uint32_t i = 0; i < shadow_object_instances.size(); ++i) {
+							vkCmdDraw(workspace.command_buffer, shadow_object_instances[i].object_ranges.count, 1, shadow_object_instances[i].object_ranges.first, i);
+						}
+					}
 				}
 				vkCmdEndRenderPass(workspace.command_buffer);
 			}
@@ -851,6 +905,7 @@ void A3::update(float dt) {
 	{ // update object instances with frustum culling
 		pbr_object_instances.clear();
 		lambertian_object_instances.clear();
+		shadow_object_instances.clear();
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();
 
@@ -861,6 +916,15 @@ void A3::update(float dt) {
 			const glm::mat4 MODEL_NORMAL = glm::transpose(glm::inverse(MODEL));
 			const auto& object_range = doc->meshes[mesh_index].range;
 			std::optional<S72Loader::Material> material = doc->materials[material_index];
+
+			ShadowInstance shadow_inst{
+				.object_ranges = object_range,
+				.object_transform{
+					.MODEL = MODEL,
+					.MODEL_NORMAL = MODEL_NORMAL,
+				},
+			};
+			shadow_object_instances.emplace_back(std::move(shadow_inst));
 
 			// Transform local AABB to world AABB (8 corners method)
 			const glm::vec3& bmin = object_range.aabb_min;

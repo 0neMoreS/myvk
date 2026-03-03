@@ -114,7 +114,6 @@ const a3_tonemap_shaders = [
 
 const a3_spot_shadow_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-spot-shadow.vert'),
-	maek.GLSLC('./src/shaders/A3/A3-spot-shadow.frag'),
 ];
 
 //maek.CPP(...) builds a c++ file:
@@ -164,6 +163,7 @@ const common_objs = [
 	maek.CPP('./src/utils/loader/TextureCubeLoader.cpp'),
 	maek.CPP('./src/utils/manager/CameraManager.cpp'),
 	maek.CPP('./src/utils/manager/FrameBufferManager.cpp'),
+	maek.CPP('./src/utils/manager/LightsManager.cpp'),
 	maek.CPP('./src/utils/manager/QueryPoolManager.cpp'),
 	maek.CPP('./src/utils/manager/RenderPassManager.cpp'),
 	maek.CPP('./src/utils/manager/SceneManager.cpp'),

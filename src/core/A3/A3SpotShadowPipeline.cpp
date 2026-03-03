@@ -4,10 +4,6 @@ static uint32_t vert_code[] = {
 #include "../../shaders/spv/A3-spot-shadow.vert.inl"
 };
 
-static uint32_t frag_code[] = {
-#include "../../shaders/spv/A3-spot-shadow.frag.inl"
-};
-
 A3SpotShadowPipeline::~A3SpotShadowPipeline() {
     assert(layout == VK_NULL_HANDLE);
     assert(pipeline == VK_NULL_HANDLE);
@@ -28,7 +24,7 @@ void A3SpotShadowPipeline::create(
     (void)shadow_map_manager;
 
     vert_module = rtg.helpers.create_shader_module(vert_code);
-    frag_module = rtg.helpers.create_shader_module(frag_code);
+    frag_module = VK_NULL_HANDLE;
 
     {
         std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
@@ -91,11 +87,9 @@ void A3SpotShadowPipeline::create(
         VK(vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout));
     }
 
-    create_pipeline(rtg, render_pass, subpass, true, false, false, 0);
+    create_pipeline(rtg, render_pass, subpass, true, false, false, 0, false);
 
-    vkDestroyShaderModule(rtg.device, frag_module, nullptr);
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);
-    frag_module = VK_NULL_HANDLE;
     vert_module = VK_NULL_HANDLE;
 
     block_descriptor_configs.push_back(

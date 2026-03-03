@@ -42,22 +42,24 @@ struct Pipeline
 	) = 0;
     virtual void destroy(RTG &) = 0;
     
-	void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false, uint32_t color_attachment_count = 1) {
+	void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false, uint32_t color_attachment_count = 1, bool enable_fragment_stage = true) {
         //shader code for vertex and fragment pipeline stages:
-		std::array< VkPipelineShaderStageCreateInfo, 2 > stages{
-			VkPipelineShaderStageCreateInfo{
-				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.stage = VK_SHADER_STAGE_VERTEX_BIT,
-				.module = vert_module,
-				.pName = "main"
-			},
-			VkPipelineShaderStageCreateInfo{
+		std::vector< VkPipelineShaderStageCreateInfo > stages;
+		stages.emplace_back(VkPipelineShaderStageCreateInfo{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.stage = VK_SHADER_STAGE_VERTEX_BIT,
+			.module = vert_module,
+			.pName = "main"
+		});
+
+		if (enable_fragment_stage) {
+			stages.emplace_back(VkPipelineShaderStageCreateInfo{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 				.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 				.module = frag_module,
 				.pName = "main"
-			},
-		};
+			});
+		}
 
 		//the viewport and scissor state will be set at runtime for the pipeline:
 		std::vector< VkDynamicState > dynamic_states{

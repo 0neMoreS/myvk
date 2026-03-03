@@ -14,7 +14,7 @@ LightSample makeNoLightSample() {
 
 LightSample sampleSunLightIntensity(SunLight sunLight, vec3 N) {
 	LightSample ls = makeNoLightSample();
-	vec3 L = normalize(sunLight.direction);
+	vec3 L = normalize(-sunLight.direction);
 	ls.intensity = sunLight.tint;
 	float theta = acos(clamp(dot(L, N), -1.0, 1.0)) - sunLight.angle * 0.5;
 	if (theta >= LIGHT_PI * 0.5) {
@@ -61,7 +61,7 @@ LightSample sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec
 	if (ls.NoL <= 0.0) {
 		return ls;
 	}
-	float phi = acos(clamp(dot(L, normalize(spotLight.direction)), -1.0, 1.0));
+	float phi = acos(clamp(dot(L, normalize(-spotLight.direction)), -1.0, 1.0));
 	if (phi >= spotLight.fov * 0.5) {
 		return ls;
 	}

@@ -17,6 +17,8 @@ public:
     void destroy(RTG& rtg);
 
     void update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent, float aspect);
+    VkRect2D get_shadow_scissor(uint32_t shadow_resolution) const;
+    VkViewport get_shadow_viewport(uint32_t shadow_resolution) const;
 
     VkRenderPass render_pass = VK_NULL_HANDLE;
 

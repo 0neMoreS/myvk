@@ -23,6 +23,7 @@
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
 #include "ShadowMapManager.hpp"
+#include "LightsManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
 #include "QueryPoolManager.hpp"
@@ -59,19 +60,7 @@ struct A3 : RTG::Application {
 
 	SceneManager scene_manager;
 	TextureManager texture_manager;
-
-	std::vector<A3CommonData::SunLight> sun_lights;
-	std::vector<A3CommonData::SphereLight> sphere_lights;
-	std::vector<A3CommonData::SpotLight> spot_lights;
-	std::vector<A3CommonData::SunLight> shadow_sun_lights;
-	std::vector<A3CommonData::SphereLight> shadow_sphere_lights;
-	std::vector<A3CommonData::SpotLight> shadow_spot_lights;
-	std::vector<uint8_t> sun_lights_bytes;
-	std::vector<uint8_t> sphere_lights_bytes;
-	std::vector<uint8_t> spot_lights_bytes;
-	std::vector<uint8_t> shadow_sun_lights_bytes;
-	std::vector<uint8_t> shadow_sphere_lights_bytes;
-	std::vector<uint8_t> shadow_spot_lights_bytes;
+	LightsManager lights_manager;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:

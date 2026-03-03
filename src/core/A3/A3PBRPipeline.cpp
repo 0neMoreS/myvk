@@ -1,4 +1,5 @@
 #include "A3PBRPipeline.hpp"
+#include "ShadowMapManager.hpp"
 
 static uint32_t vert_code[] = {
 #include "../../shaders/spv/A3-pbr.vert.inl"
@@ -26,7 +27,8 @@ void A3PBRPipeline::create(
     RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
-    const TextureManager& texture_manager
+    const TextureManager& texture_manager,
+    const ShadowMapManager* shadow_map_manager
 ){
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
@@ -309,12 +311,24 @@ void A3PBRPipeline::create(
                 }
 
                 std::vector<VkDescriptorImageInfo> spot_shadow_infos(spot_shadow_count);
-                for (auto &info : spot_shadow_infos) {
-                    info = VkDescriptorImageInfo{
-                        .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                        .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    };
+                if (shadow_map_manager && !shadow_map_manager->spot_shadow_targets.empty()) {
+                    const size_t available = shadow_map_manager->spot_shadow_targets.size();
+                    for (uint32_t i = 0; i < spot_shadow_count; ++i) {
+                        const auto &target = shadow_map_manager->spot_shadow_targets[i % available];
+                        spot_shadow_infos[i] = VkDescriptorImageInfo{
+                            .sampler = shadow_map_manager->spot_shadow_sampler,
+                            .imageView = target.depth_image_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        };
+                    }
+                } else {
+                    for (auto &info : spot_shadow_infos) {
+                        info = VkDescriptorImageInfo{
+                            .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
+                            .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        };
+                    }
                 }
 
                 VkWriteDescriptorSet write_sun_shadow{

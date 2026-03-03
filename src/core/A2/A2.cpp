@@ -45,16 +45,16 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	texture_manager.create(rtg, doc, 5); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
 	// Scene pipelines render to HDR framebuffer
-	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, nullptr);
 
-	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, nullptr);
 
-	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, nullptr);
 
-	reflection_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager);
+	reflection_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, nullptr);
 
 	// Tone mapping pipeline renders to swapchain
-	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager);
+	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager, nullptr);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A2BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;

@@ -21,6 +21,7 @@
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
 #include "FrameBufferManager.hpp"
+#include "ShadowMapManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
 #include "QueryPoolManager.hpp"
@@ -69,12 +70,6 @@ struct A3 : RTG::Application {
 	std::vector<uint8_t> shadow_sun_lights_bytes;
 	std::vector<uint8_t> shadow_sphere_lights_bytes;
 	std::vector<uint8_t> shadow_spot_lights_bytes;
-	VkDeviceSize sun_lights_buffer_capacity = 0;
-	VkDeviceSize sphere_lights_buffer_capacity = 0;
-	VkDeviceSize spot_lights_buffer_capacity = 0;
-	VkDeviceSize shadow_sun_lights_buffer_capacity = 0;
-	VkDeviceSize shadow_sphere_lights_buffer_capacity = 0;
-	VkDeviceSize shadow_spot_lights_buffer_capacity = 0;
 
 	//--------------------------------------------------------------------
 	//Resources that change when the swapchain is resized:
@@ -82,6 +77,7 @@ struct A3 : RTG::Application {
 	virtual void on_swapchain(RTG &, RTG::SwapchainEvent const &) override;
 	
 	FrameBufferManager framebuffer_manager;
+	ShadowMapManager shadow_map_manager;
 	//--------------------------------------------------------------------
 	//Resources that change when time passes or the user interacts:
 

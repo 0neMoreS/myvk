@@ -42,8 +42,8 @@ A1::A1(RTG &rtg, const std::string &filename) :
 
 	texture_manager.create(rtg, doc, 1);
 
-	lines_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
-	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager);
+	lines_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager, nullptr);
+	objects_pipeline.create(rtg, render_pass_manager.render_pass, 0, texture_manager, nullptr);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline;
 	block_descriptor_configs_by_pipeline.push_back(lines_pipeline.block_descriptor_configs);

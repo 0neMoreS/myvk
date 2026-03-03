@@ -1,8 +1,40 @@
 #include "FrameBufferManager.hpp"
 
 void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager){
-    // Clean up existing framebuffers
-    destroy(rtg);
+	// Clean up swapchain/HDR resources only (spot shadow targets are persistent)
+	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
+		if (framebuffer != VK_NULL_HANDLE) {
+			vkDestroyFramebuffer(rtg.device, framebuffer, nullptr);
+			framebuffer = VK_NULL_HANDLE;
+		}
+	}
+	swapchain_framebuffers.clear();
+
+	if (hdr_framebuffer != VK_NULL_HANDLE) {
+		vkDestroyFramebuffer(rtg.device, hdr_framebuffer, nullptr);
+		hdr_framebuffer = VK_NULL_HANDLE;
+	}
+
+	if (hdr_color_image_view != VK_NULL_HANDLE) {
+		vkDestroyImageView(rtg.device, hdr_color_image_view, nullptr);
+		hdr_color_image_view = VK_NULL_HANDLE;
+	}
+	if (hdr_color_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(hdr_color_image));
+	}
+
+	if (depth_image_view != VK_NULL_HANDLE) {
+		vkDestroyImageView(rtg.device, depth_image_view, nullptr);
+		depth_image_view = VK_NULL_HANDLE;
+	}
+	if (depth_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(depth_image));
+	}
+
+	if (hdr_sampler != VK_NULL_HANDLE) {
+		vkDestroySampler(rtg.device, hdr_sampler, nullptr);
+		hdr_sampler = VK_NULL_HANDLE;
+	}
 
 	// Create HDR color image
 	hdr_color_image = rtg.helpers.create_image(
@@ -123,10 +155,6 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 }
 
 void  FrameBufferManager::destroy(RTG &rtg){
-    if(hdr_color_image.handle == VK_NULL_HANDLE){
-        return;
-    }
-
 	// Destroy swapchain framebuffers
 	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
 		assert(framebuffer != VK_NULL_HANDLE);
@@ -146,14 +174,18 @@ void  FrameBufferManager::destroy(RTG &rtg){
 		vkDestroyImageView(rtg.device, hdr_color_image_view, nullptr);
 		hdr_color_image_view = VK_NULL_HANDLE;
 	}
-	rtg.helpers.destroy_image(std::move(hdr_color_image));
+	if (hdr_color_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(hdr_color_image));
+	}
 
 	// Destroy HDR depth image and view
 	if (depth_image_view != VK_NULL_HANDLE) {
 		vkDestroyImageView(rtg.device, depth_image_view, nullptr);
 		depth_image_view = VK_NULL_HANDLE;
 	}
-	rtg.helpers.destroy_image(std::move(depth_image));
+	if (depth_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(depth_image));
+	}
 
 	// Destroy HDR sampler
 	if (hdr_sampler != VK_NULL_HANDLE) {
@@ -161,7 +193,6 @@ void  FrameBufferManager::destroy(RTG &rtg){
 		hdr_sampler = VK_NULL_HANDLE;
 	}
 }
-
 FrameBufferManager::~FrameBufferManager(){
     for(VkFramebuffer &framebuffer : swapchain_framebuffers){
         if(framebuffer != VK_NULL_HANDLE){

@@ -9,6 +9,8 @@
 #include "Vertex.hpp"
 #include "RTG.hpp"
 
+class ShadowMapManager;
+
 struct Pipeline
 {
     struct BlockDescriptorConfig
@@ -35,7 +37,8 @@ struct Pipeline
 		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
-		const TextureManager& texture_manager
+		const TextureManager& texture_manager,
+		const ShadowMapManager* shadow_map_manager
 	) = 0;
     virtual void destroy(RTG &) = 0;
     

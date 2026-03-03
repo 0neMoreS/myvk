@@ -42,7 +42,8 @@ struct A2LambertianPipeline : Pipeline {
 		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
-		const TextureManager& texture_manager
+        const TextureManager& texture_manager,
+        const ShadowMapManager* shadow_map_manager
 	) override;
     void destroy(RTG &rtg) override;
 

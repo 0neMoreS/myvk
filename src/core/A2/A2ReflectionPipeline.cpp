@@ -22,8 +22,10 @@ void A2ReflectionPipeline::create(
     RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
-    const TextureManager& texture_manager
+    const TextureManager& texture_manager,
+    const ShadowMapManager* shadow_map_manager
 ) {
+    (void)shadow_map_manager;
 	vert_module = rtg.helpers.create_shader_module(vert_code);
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 

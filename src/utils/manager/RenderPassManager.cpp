@@ -223,6 +223,66 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		VK( vkCreateRenderPass(rtg.device, &tonemap_create_info, nullptr, &tonemap_render_pass) );
 	}
 
+	{ // Create spot shadow render pass (depth only)
+		std::array< VkAttachmentDescription, 1 > shadow_attachments{
+			VkAttachmentDescription{ // 0 - depth attachment
+				.format = depth_format,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+			},
+		};
+
+		VkAttachmentReference shadow_depth_ref{
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		};
+
+		VkSubpassDescription shadow_subpass{
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount = 0,
+			.pInputAttachments = nullptr,
+			.colorAttachmentCount = 0,
+			.pColorAttachments = nullptr,
+			.pDepthStencilAttachment = &shadow_depth_ref,
+		};
+
+		std::array< VkSubpassDependency, 2 > shadow_dependencies{
+			VkSubpassDependency{
+				.srcSubpass = VK_SUBPASS_EXTERNAL,
+				.dstSubpass = 0,
+				.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+				.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+				.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			},
+			VkSubpassDependency{
+				.srcSubpass = 0,
+				.dstSubpass = VK_SUBPASS_EXTERNAL,
+				.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+				.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+				.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+			},
+		};
+
+		VkRenderPassCreateInfo shadow_create_info{
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.attachmentCount = uint32_t(shadow_attachments.size()),
+			.pAttachments = shadow_attachments.data(),
+			.subpassCount = 1,
+			.pSubpasses = &shadow_subpass,
+			.dependencyCount = uint32_t(shadow_dependencies.size()),
+			.pDependencies = shadow_dependencies.data(),
+		};
+
+		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &spot_shadow_render_pass) );
+	}
+
 	{ // clears
 		clears = {
 			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
@@ -265,6 +325,11 @@ void RenderPassManager::destroy(RTG& rtg) {
     if (tonemap_render_pass != VK_NULL_HANDLE) {
 		vkDestroyRenderPass(rtg.device, tonemap_render_pass, nullptr);
 		tonemap_render_pass = VK_NULL_HANDLE;
+	}
+
+	if (spot_shadow_render_pass != VK_NULL_HANDLE) {
+		vkDestroyRenderPass(rtg.device, spot_shadow_render_pass, nullptr);
+		spot_shadow_render_pass = VK_NULL_HANDLE;
 	}
 }
 
@@ -328,4 +393,7 @@ RenderPassManager::~RenderPassManager() {
     if(tonemap_render_pass != VK_NULL_HANDLE) {
         std::cerr << "[RenderPassManager] tonemap_render_pass not properly destroyed" << std::endl;
     }
+	if(spot_shadow_render_pass != VK_NULL_HANDLE) {
+		std::cerr << "[RenderPassManager] spot_shadow_render_pass not properly destroyed" << std::endl;
+	}
 }

@@ -161,6 +161,7 @@ const common_objs = [
 	maek.CPP('./src/utils/manager/QueryPoolManager.cpp'),
 	maek.CPP('./src/utils/manager/RenderPassManager.cpp'),
 	maek.CPP('./src/utils/manager/SceneManager.cpp'),
+	maek.CPP('./src/utils/manager/ShadowMapManager.cpp'),
 	maek.CPP('./src/utils/manager/TextureManager.cpp'),
 	maek.CPP('./src/utils/manager/WorkspaceManager.cpp'),
 	maek.CPP('./src/utils/vulkan/RTG.cpp'),

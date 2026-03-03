@@ -50,6 +50,15 @@ void main() {
 				Lo += ls.intensity * albedo * ls.NoL;
 			}
 		}
+
+		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
+			SpotLight light = shadowSpotLightsBuf.shadowLights[i];
+			LightSample ls = sampleSpotLightIntensity(light, position, N);
+			if (ls.NoL > 0.0) {
+				float shadow = computeSpotLightShadow(light, position, spotShadowMap[i]);
+				Lo += shadow * ls.intensity * albedo * ls.NoL;
+			}
+		}
 	}
 
 	vec3 color = vec3(0.0);

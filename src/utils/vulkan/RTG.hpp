@@ -88,8 +88,8 @@ struct RTG {
 		};
 		//requested (priority-ranked) presentation modes for output surface: (will use first available)
 		std::vector< VkPresentModeKHR > present_modes{
-			VK_PRESENT_MODE_FIFO_KHR
-			// VK_PRESENT_MODE_IMMEDIATE_KHR
+			// VK_PRESENT_MODE_FIFO_KHR
+			VK_PRESENT_MODE_IMMEDIATE_KHR
 		};
 
 		//requested size of the output surface:

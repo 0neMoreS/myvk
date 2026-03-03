@@ -856,9 +856,12 @@ void A3::update(float dt) {
 
 			const auto &src_light = doc->lights[ltd.light_index];
 			const bool has_shadow = (src_light.shadow != 0);
-			const glm::mat4 model = BLENDER_TO_VULKAN_4 * ltd.model_matrix;
-			const glm::vec3 position = glm::vec3(model[3]);
-			const glm::vec3 direction = glm::normalize(glm::vec3(model * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+			const glm::mat4 transform = ltd.model_matrix;
+			const glm::mat3 blender_rotation = glm::mat3(transform);
+			const glm::vec3 blender_forward = blender_rotation * glm::vec3{0.0f, 0.0f, 1.0f};
+			const glm::vec3 position = BLENDER_TO_VULKAN_3 * glm::vec3{transform[3][0], transform[3][1], transform[3][2]};
+			const glm::vec3 direction = glm::normalize(BLENDER_TO_VULKAN_3 * blender_forward);
+			const glm::vec3 up = BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 1.0f, 0.0f};
 
 			if (src_light.sun) {
 				auto &dst = has_shadow ? shadow_sun_lights.at(shadow_sun_idx++) : sun_lights.at(sun_idx++);
@@ -874,11 +877,11 @@ void A3::update(float dt) {
 				auto &dst = has_shadow ? shadow_spot_lights.at(shadow_spot_idx++) : spot_lights.at(spot_idx++);
 				dst.position = position;
 				dst.direction = direction;
-				const float near_plane = 0.05f;
-				const float far_plane = std::max(dst.limit, near_plane + 1e-3f);
-				glm::vec3 up = (std::abs(direction.y) > 0.99f) ? glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
-				glm::mat4 view = glm::lookAt(position, position + direction, up);
-				glm::mat4 proj = glm::perspective(dst.fov, 1.0f, near_plane, far_plane);
+				const float near_plane = 0.1f;
+				const float far_plane = 1000.0f;
+				const glm::vec3 view_direct = glm::normalize(BLENDER_TO_VULKAN_3 * blender_rotation * glm::vec3{0.0f, 0.0f, -1.0f});
+				glm::mat4 view = glm::lookAtRH(position, position + view_direct, up);
+				glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, near_plane, far_plane);
 				proj[1][1] *= -1.0f;
 				dst.perspective = proj * view;
 			}

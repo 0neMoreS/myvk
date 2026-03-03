@@ -50,17 +50,22 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	texture_manager.create(rtg, doc, 5, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
+	Pipeline::ManagerContext pipeline_context{
+		.texture_manager = &texture_manager,
+		.shadow_map_manager = &shadow_map_manager,
+	};
+
 	// Scene pipelines render to HDR framebuffer
-	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, nullptr);
+	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, &shadow_map_manager);
+	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, texture_manager, &shadow_map_manager);
+	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, texture_manager, nullptr);
+	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
 	// Tone mapping pipeline renders to swapchain
-	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, texture_manager, nullptr);
+	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;

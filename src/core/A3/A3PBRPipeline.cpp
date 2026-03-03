@@ -27,9 +27,10 @@ void A3PBRPipeline::create(
     RTG &rtg, 
     VkRenderPass render_pass, 
     uint32_t subpass,
-    const TextureManager& texture_manager,
-    const ShadowMapManager* shadow_map_manager
+    const ManagerContext& context
 ){
+    auto const &texture_manager = *context.texture_manager;
+    auto const *shadow_map_manager = context.shadow_map_manager;
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 

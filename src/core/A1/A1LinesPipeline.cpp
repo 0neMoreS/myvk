@@ -17,8 +17,8 @@ A1LinesPipeline::~A1LinesPipeline(){
 	assert(set0_PV == VK_NULL_HANDLE);
 }
 
-void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass, const TextureManager& texture_manager, const ShadowMapManager* shadow_map_manager) {
-	(void)shadow_map_manager;
+void A1LinesPipeline::create(RTG &rtg, VkRenderPass render_pass, uint32_t subpass, const ManagerContext& context) {
+	(void)context;
     vert_module = rtg.helpers.create_shader_module(vert_code);
 	frag_module = rtg.helpers.create_shader_module(frag_code);
 

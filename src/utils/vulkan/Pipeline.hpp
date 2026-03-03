@@ -22,6 +22,11 @@ struct Pipeline
 		uint32_t bindings_count; //names of bindings in this block
     };
 
+	struct ManagerContext {
+		const TextureManager* texture_manager;
+		const ShadowMapManager* shadow_map_manager;
+	};
+
     VkPipelineLayout layout = VK_NULL_HANDLE;	
     VkPipeline pipeline = VK_NULL_HANDLE;
 
@@ -37,8 +42,7 @@ struct Pipeline
 		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
-		const TextureManager& texture_manager,
-		const ShadowMapManager* shadow_map_manager
+		const ManagerContext& context
 	) = 0;
     virtual void destroy(RTG &) = 0;
     

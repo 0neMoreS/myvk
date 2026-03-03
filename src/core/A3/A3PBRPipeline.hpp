@@ -46,8 +46,7 @@ struct A3PBRPipeline : Pipeline {
 		RTG &, 
 		VkRenderPass render_pass, 
 		uint32_t subpass,
-        const TextureManager& texture_manager,
-        const ShadowMapManager* shadow_map_manager
+        const ManagerContext& context
 	) override;
     void destroy(RTG &rtg) override;
 

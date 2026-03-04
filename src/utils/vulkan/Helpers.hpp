@@ -68,7 +68,8 @@ struct Helpers {
 		VkMemoryPropertyFlags properties, 
 		MapFlag map = Unmapped, 
 		bool is_cube = false,
-		uint32_t mipmap_levels = 1
+		uint32_t mipmap_levels = 1,
+		uint32_t array_layers = 1
 	);
 	void destroy_image(AllocatedImage &&allocated_image);
 	

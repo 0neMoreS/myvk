@@ -270,7 +270,18 @@ void A3PBRPipeline::create(
             }
 
             { // update shadow map descriptors (SunShadowMap, SphereShadowMap, SpotShadowMap)
-                {
+                std::vector<VkDescriptorImageInfo> sun_shadow_infos(sun_shadow_count);
+                if (shadow_map_manager && !shadow_map_manager->sun_shadow_targets.empty()) {
+                    const size_t available = shadow_map_manager->sun_shadow_targets.size();
+                    for (uint32_t i = 0; i < sun_shadow_count; ++i) {
+                        const auto &target = shadow_map_manager->sun_shadow_targets[i % available];
+                        sun_shadow_infos[i] = VkDescriptorImageInfo{
+                            .sampler = shadow_map_manager->sun_shadow_sampler,
+                            .imageView = target.depth_array_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        };
+                    }
+                } else {
                     VkImageViewCreateInfo sun_shadow_array_view_create_info{
                         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                         .image = texture_manager.raw_brdf_LUT_texture->image.handle,
@@ -291,15 +302,14 @@ void A3PBRPipeline::create(
                         },
                     };
                     VK(vkCreateImageView(rtg.device, &sun_shadow_array_view_create_info, nullptr, &sun_shadow_array_view));
-                }
 
-                std::vector<VkDescriptorImageInfo> sun_shadow_infos(sun_shadow_count);
-                for (auto &info : sun_shadow_infos) {
-                    info = VkDescriptorImageInfo{
-                        .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                        .imageView = sun_shadow_array_view,
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    };
+                    for (auto &info : sun_shadow_infos) {
+                        info = VkDescriptorImageInfo{
+                            .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
+                            .imageView = sun_shadow_array_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        };
+                    }
                 }
 
                 std::vector<VkDescriptorImageInfo> sphere_shadow_infos(sphere_shadow_count);

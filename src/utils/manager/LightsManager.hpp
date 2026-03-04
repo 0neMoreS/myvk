@@ -3,6 +3,7 @@
 #include "S72Loader.hpp"
 #include "SceneTree.hpp"
 #include "A3CommonData.hpp"
+#include "CameraManager.hpp"
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -21,7 +22,8 @@ public:
 
 	void update(
 		const std::shared_ptr<S72Loader::Document>& doc,
-		const std::vector<SceneTree::LightTreeData>& light_tree_data
+		const std::vector<SceneTree::LightTreeData>& light_tree_data,
+		const CameraManager::Camera& camera
 	);
 
 	const std::vector<A3CommonData::SunLight>& get_sun_lights() const { return sun_lights; }

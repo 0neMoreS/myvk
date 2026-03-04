@@ -139,11 +139,14 @@ Helpers::AllocatedImage Helpers::create_image(
 		VkMemoryPropertyFlags properties, 
 		MapFlag map, 
 		bool is_cube,
-		uint32_t mipmap_levels
+		uint32_t mipmap_levels,
+		uint32_t array_layers
 ) {
 	AllocatedImage image;
 	image.extent = extent;
 	image.format = format;
+
+	const uint32_t effective_array_layers = is_cube ? 6u : std::max(1u, array_layers);
 
 	VkImageCreateInfo create_info{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -156,7 +159,7 @@ Helpers::AllocatedImage Helpers::create_image(
 			.depth = 1u
 		},
 		.mipLevels = mipmap_levels,
-		.arrayLayers = is_cube ? 6u : 1u,
+		.arrayLayers = effective_array_layers,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.tiling = tiling,
 		.usage = usage,

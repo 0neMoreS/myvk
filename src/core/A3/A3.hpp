@@ -16,6 +16,7 @@
 #include "A3BackgroundPipeline.hpp"
 #include "A3LambertianPipeline.hpp"
 #include "A3PBRPipeline.hpp"
+#include "A3SunShadowPipeline.hpp"
 #include "A3SpotShadowPipeline.hpp"
 #include "A3ToneMappingPipeline.hpp"
 #include "A3CommonData.hpp"
@@ -52,6 +53,7 @@ struct A3 : RTG::Application {
 	A3BackgroundPipeline background_pipeline;
 	A3LambertianPipeline lambertian_pipeline;
 	A3PBRPipeline pbr_pipeline;
+	A3SunShadowPipeline sun_shadow_pipeline;
 	A3SpotShadowPipeline spot_shadow_pipeline;
 	A3ToneMappingPipeline tonemapping_pipeline;
 

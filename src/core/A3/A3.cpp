@@ -26,6 +26,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	background_pipeline{},
 	lambertian_pipeline{},
 	pbr_pipeline{},
+	sun_shadow_pipeline{},
 	spot_shadow_pipeline{},
 	workspace_manager{}, 
 	scene_manager{},
@@ -46,7 +47,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	lights_manager.create(doc, light_tree_data);
 
-	shadow_map_manager.create(rtg, render_pass_manager, lights_manager.get_shadow_spot_lights());
+	shadow_map_manager.create(rtg, render_pass_manager, lights_manager.get_shadow_sun_lights(), lights_manager.get_shadow_spot_lights());
 
 	texture_manager.create(rtg, doc, 5, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
@@ -62,15 +63,18 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
+	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
+
 	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{4};
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{5};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
 
 	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
@@ -227,6 +231,13 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	);
 	workspace_manager.update_all_global_descriptors(
 		rtg,
+		pipeline_name_to_index["A3SunShadowPipeline"],
+		sun_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
+		sun_shadow_pipeline.block_binding_name_to_index["ShadowSunLights"],
+		"ShadowSunLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
 		pipeline_name_to_index["A3SpotShadowPipeline"],
 		spot_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
 		spot_shadow_pipeline.block_binding_name_to_index["ShadowSpotLights"],
@@ -255,6 +266,8 @@ A3::~A3() {
 	lambertian_pipeline.destroy(rtg);
 
 	pbr_pipeline.destroy(rtg);
+
+	sun_shadow_pipeline.destroy(rtg);
 
 	spot_shadow_pipeline.destroy(rtg);
 
@@ -379,6 +392,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 			upload_transforms("A3LambertianPipeline", lambertian_object_instances, lambertian_pipeline);
 			upload_transforms("A3PBRPipeline", pbr_object_instances, pbr_pipeline);
+			upload_transforms("A3SunShadowPipeline", shadow_object_instances, sun_shadow_pipeline);
 			upload_transforms("A3SpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
 		}
 
@@ -397,6 +411,87 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				0, nullptr, //bufferMemoryBarriers (count, data)
 				0, nullptr //imageMemoryBarriers (count, data)
 			);
+		}
+
+		// =====================================================================
+		// Sun cascade shadow pass: render depth per shadow sun light and cascade
+		// =====================================================================
+		{
+			VkClearValue shadow_clear_value{
+				.depthStencil{ .depth = 1.0f, .stencil = 0 },
+			};
+
+			const uint32_t sun_shadow_count = std::min(
+				static_cast<uint32_t>(shadow_map_manager.sun_shadow_targets.size()),
+				static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size())
+			);
+
+			for (uint32_t light_index = 0; light_index < sun_shadow_count; ++light_index) {
+				auto const &shadow_target = shadow_map_manager.sun_shadow_targets[light_index];
+
+				VkExtent2D shadow_extent{
+					.width = shadow_target.resolution,
+					.height = shadow_target.resolution,
+				};
+
+				for (uint32_t cascade_index = 0; cascade_index < ShadowMapManager::SunCascadeCount; ++cascade_index) {
+					VkRenderPassBeginInfo begin_info{
+						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+						.renderPass = render_pass_manager.spot_shadow_render_pass,
+						.framebuffer = shadow_target.cascade_framebuffers[cascade_index],
+						.renderArea{
+							.offset = {.x = 0, .y = 0},
+							.extent = shadow_extent,
+						},
+						.clearValueCount = 1,
+						.pClearValues = &shadow_clear_value,
+					};
+
+					vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+					{
+						const VkRect2D shadow_scissor = render_pass_manager.get_shadow_scissor(shadow_target.resolution);
+						const VkViewport shadow_viewport = render_pass_manager.get_shadow_viewport(shadow_target.resolution);
+						vkCmdSetScissor(workspace.command_buffer, 0, 1, &shadow_scissor);
+						vkCmdSetViewport(workspace.command_buffer, 0, 1, &shadow_viewport);
+
+						if (!shadow_object_instances.empty()) {
+							vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sun_shadow_pipeline.pipeline);
+
+							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
+							std::array< VkDeviceSize, 1 > offsets{ 0 };
+							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SunShadowPipeline"]][sun_shadow_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SunShadowPipeline"]][sun_shadow_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+
+							std::array< VkDescriptorSet, 2 > descriptor_sets{
+								global_descriptor_set,
+								transform_descriptor_set,
+							};
+
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer,
+								VK_PIPELINE_BIND_POINT_GRAPHICS,
+								sun_shadow_pipeline.layout,
+								0,
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+								0, nullptr
+							);
+
+							A3SunShadowPipeline::Push push{
+								.LIGHT_INDEX = light_index,
+								.CASCADE_INDEX = cascade_index,
+							};
+							vkCmdPushConstants(workspace.command_buffer, sun_shadow_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+
+							for (uint32_t i = 0; i < shadow_object_instances.size(); ++i) {
+								vkCmdDraw(workspace.command_buffer, shadow_object_instances[i].object_ranges.count, 1, shadow_object_instances[i].object_ranges.first, i);
+							}
+						}
+					}
+					vkCmdEndRenderPass(workspace.command_buffer);
+				}
+			}
 		}
 
 		// =====================================================================
@@ -757,10 +852,18 @@ void A3::update(float dt) {
 	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
-		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
-		pv_matrix.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
-		lights_manager.update(doc, light_tree_data);
+		const bool use_debug_camera = rtg.configuration.open_debug_camera;
+		auto const &active_camera = use_debug_camera ? camera_manager.get_debug_camera() : camera_manager.get_active_camera();
+
+		pv_matrix.PERSPECTIVE = use_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
+		pv_matrix.VIEW = use_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
+		pv_matrix.CAMERA_POSITION = glm::vec4(active_camera.camera_position, 1.0f);
+
+		lights_manager.update(
+			doc,
+			light_tree_data,
+			active_camera
+		);
 	}
 
 	{ // update object instances with frustum culling

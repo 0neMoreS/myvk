@@ -6,13 +6,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <numbers>
 #include <type_traits>
 
 namespace {
+	constexpr uint32_t SunCascadeCount = 4;
+	constexpr float SunCascadeLambda = 0.75f;
+
 	template< typename LightsT >
 	void init_lights_bytes(const LightsT& lights, std::vector<uint8_t>& bytes) {
 		using LightT = typename std::decay_t<LightsT>::value_type;
@@ -37,6 +42,97 @@ namespace {
 		if (!lights.empty()) {
 			std::memcpy(bytes.data() + header_size, lights.data(), payload_size);
 		}
+	}
+
+	std::array<float, SunCascadeCount> compute_sun_cascade_splits(float near_plane, float far_plane) {
+		std::array<float, SunCascadeCount> splits{};
+		const float n = std::max(0.01f, near_plane);
+		const float f = std::max(n + 0.01f, far_plane);
+		for (uint32_t i = 0; i < SunCascadeCount; ++i) {
+			const float p = float(i + 1) / float(SunCascadeCount);
+			const float log_split = n * std::pow(f / n, p);
+			const float uni_split = n + (f - n) * p;
+			const float split = SunCascadeLambda * log_split + (1.0f - SunCascadeLambda) * uni_split;
+			splits[i] = split;
+		}
+		return splits;
+	}
+
+	void compute_cascade_world_corners(
+		const glm::vec3& camera_position,
+		const glm::vec3& camera_forward,
+		const glm::vec3& camera_up,
+		float camera_fov,
+		float camera_aspect,
+		float cascade_near,
+		float cascade_far,
+		std::array<glm::vec3, 8>& out_corners
+	) {
+		const glm::vec3 forward = glm::normalize(camera_forward);
+		const glm::vec3 right = glm::normalize(glm::cross(forward, camera_up));
+		const glm::vec3 up = glm::normalize(glm::cross(right, forward));
+
+		const float tan_half_fov = std::tan(0.5f * camera_fov);
+		const float near_h = tan_half_fov * cascade_near;
+		const float near_w = near_h * camera_aspect;
+		const float far_h = tan_half_fov * cascade_far;
+		const float far_w = far_h * camera_aspect;
+
+		const glm::vec3 near_center = camera_position + forward * cascade_near;
+		const glm::vec3 far_center = camera_position + forward * cascade_far;
+
+		out_corners[0] = near_center + up * near_h - right * near_w;
+		out_corners[1] = near_center + up * near_h + right * near_w;
+		out_corners[2] = near_center - up * near_h - right * near_w;
+		out_corners[3] = near_center - up * near_h + right * near_w;
+		out_corners[4] = far_center + up * far_h - right * far_w;
+		out_corners[5] = far_center + up * far_h + right * far_w;
+		out_corners[6] = far_center - up * far_h - right * far_w;
+		out_corners[7] = far_center - up * far_h + right * far_w;
+	}
+
+	glm::mat4 compute_sun_cascade_matrix(
+		const glm::vec3& light_direction,
+		const std::array<glm::vec3, 8>& corners
+	) {
+		glm::vec3 centroid(0.0f);
+		for (const auto& c : corners) centroid += c;
+		centroid /= float(corners.size());
+
+		const glm::vec3 light_dir = glm::normalize(light_direction);
+		const glm::vec3 world_up = (std::abs(glm::dot(light_dir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f)
+			? glm::vec3(1.0f, 0.0f, 0.0f)
+			: glm::vec3(0.0f, 1.0f, 0.0f);
+
+		float radius = 0.0f;
+		for (const auto& c : corners) {
+			radius = std::max(radius, glm::length(c - centroid));
+		}
+
+		const glm::vec3 light_pos = centroid - light_dir * (radius + 50.0f);
+		const glm::mat4 light_view = glm::lookAtRH(light_pos, centroid, world_up);
+
+		glm::vec3 min_v(std::numeric_limits<float>::max());
+		glm::vec3 max_v(std::numeric_limits<float>::lowest());
+		for (const auto& c : corners) {
+			glm::vec3 ls = glm::vec3(light_view * glm::vec4(c, 1.0f));
+			min_v = glm::min(min_v, ls);
+			max_v = glm::max(max_v, ls);
+		}
+
+		const float z_pad = 100.0f;
+		const glm::mat4 light_proj = glm::orthoRH_ZO(
+			min_v.x,
+			max_v.x,
+			min_v.y,
+			max_v.y,
+			std::max(0.01f, -max_v.z - z_pad),
+			std::max(0.02f, -min_v.z + z_pad)
+		);
+
+		glm::mat4 result = light_proj * light_view;
+		result[1][1] *= -1.0f;
+		return result;
 	}
 }
 
@@ -124,8 +220,11 @@ void LightsManager::create(
 
 void LightsManager::update(
 	const std::shared_ptr<S72Loader::Document>& doc,
-	const std::vector<SceneTree::LightTreeData>& light_tree_data
+	const std::vector<SceneTree::LightTreeData>& light_tree_data,
+	const CameraManager::Camera& camera
 ) {
+	const std::array<float, SunCascadeCount> splits = compute_sun_cascade_splits(camera.camera_near, camera.camera_far);
+
 	size_t sun_idx = 0;
 	size_t sphere_idx = 0;
 	size_t spot_idx = 0;
@@ -148,6 +247,31 @@ void LightsManager::update(
 		if (src_light.sun) {
 			auto& dst = has_shadow ? shadow_sun_lights.at(shadow_sun_idx++) : sun_lights.at(sun_idx++);
 			dst.direction = direction;
+			if (has_shadow) {
+				for (uint32_t i = 0; i < SunCascadeCount; ++i) {
+					dst.cascadeSplits[i] = -splits[SunCascadeCount - 1 - i];
+				}
+
+				float cascade_near = std::max(0.01f, camera.camera_near);
+				for (uint32_t cascade = 0; cascade < SunCascadeCount; ++cascade) {
+					const float cascade_far = splits[cascade];
+					std::array<glm::vec3, 8> frustum_corners{};
+					compute_cascade_world_corners(
+						camera.camera_position,
+						camera.camera_forward,
+						camera.camera_up,
+						camera.camera_fov,
+						camera.aspect,
+						cascade_near,
+						cascade_far,
+						frustum_corners
+					);
+
+					const uint32_t shader_cascade_index = SunCascadeCount - 1 - cascade;
+					dst.orthographic[shader_cascade_index] = compute_sun_cascade_matrix(direction, frustum_corners);
+					cascade_near = cascade_far;
+				}
+			}
 		}
 
 		if (src_light.sphere) {

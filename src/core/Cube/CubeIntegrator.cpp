@@ -247,7 +247,9 @@ CubeIntegrator::LoadedCubemap CubeIntegrator::load_input(const std::string &path
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        true, mip_levels
+        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+        mip_levels,
+        6
     );
 
     // transfer_to_image handles: staging buffer, memcpy, UNDEFINED->TRANSFER_DST->SHADER_READ_ONLY,
@@ -319,7 +321,9 @@ CubeIntegrator::OutputImage CubeIntegrator::create_output(uint32_t face_size) {
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        true, 1
+        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+        1,
+        6
     );
 
     // Transition to GENERAL for storage image use in compute shader.
@@ -633,7 +637,8 @@ CubeIntegrator::LUTImage CubeIntegrator::create_lut_output(uint32_t size) {
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        false, // not a cubemap
+        0,
+        1,
         1
     );
 

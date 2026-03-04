@@ -50,8 +50,9 @@ std::unique_ptr<Texture> load_image(
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		Helpers::Unmapped,
-		false,
-		mip_levels
+		0,
+		mip_levels,
+		1
 	);
 
 	helpers.transfer_to_image({pixel_data}, {static_cast<uint32_t>(width * height * 4)}, texture->image, 1, generate_mipmaps, mip_levels);
@@ -100,8 +101,9 @@ std::unique_ptr<Texture> create_rgb_texture(
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        false,
-        1
+        0,
+        1,
+		1
     );
 
 	helpers.transfer_to_image({pixel_data}, {1 * 1 * 4}, texture->image, 1, false, 1);

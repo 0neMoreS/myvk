@@ -117,8 +117,9 @@ std::unique_ptr<Texture> load_cubemap(
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        true,  // is_cube = true
-        mipmap_levels
+        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+		mipmap_levels,
+		6
     );
     
     // Transfer each mipmap level to GPU
@@ -170,8 +171,9 @@ std::unique_ptr<Texture> create_default_cubemap(
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         Helpers::Unmapped,
-        true,  // is_cube = true
-        1      // mipmap_levels = 1
+        VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+        1,
+        6
     );
     
     // 2. Transfer data

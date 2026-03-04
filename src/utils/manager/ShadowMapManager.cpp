@@ -54,7 +54,7 @@ void ShadowMapManager::create(
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             Helpers::Unmapped,
-            false,
+            0,
             1,
             SunCascadeCount
         );
@@ -149,7 +149,10 @@ void ShadowMapManager::create(
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            Helpers::Unmapped
+            Helpers::Unmapped,
+            0,
+            1,
+            1
         );
 
         VkImageViewCreateInfo depth_view_create_info{

@@ -410,7 +410,10 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, //will sample and upload
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //should be device-local
-				Helpers::Unmapped
+				Helpers::Unmapped,
+				0,
+				1,
+				1
 			));
 
 			//transfer data:
@@ -440,7 +443,10 @@ Tutorial::Tutorial(RTG &rtg_) : rtg(rtg_) {
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, //will sample and upload
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, //should be device-local
-				Helpers::Unmapped
+				Helpers::Unmapped,
+				0,
+				1,
+				1
 			));
 
 			//transfer data:
@@ -671,7 +677,10 @@ void Tutorial::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		Helpers::Unmapped
+		Helpers::Unmapped,
+		0,
+		1,
+		1
 	);
 
 	{ //create depth image view:

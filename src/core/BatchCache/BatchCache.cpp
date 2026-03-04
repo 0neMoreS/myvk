@@ -227,7 +227,10 @@ void BatchCache::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		Helpers::Unmapped
+		Helpers::Unmapped,
+		0,
+		1,
+		1
 	);
 
 	{ //create depth image view:

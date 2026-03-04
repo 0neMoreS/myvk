@@ -592,7 +592,11 @@ void RTG::recreate_swapchain() {
 				surface_format.format,
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				Helpers::Unmapped,
+				0,
+				1,
+				1
 			);
 
 			//allocate buffer data: (on-CPU, will be copied to)

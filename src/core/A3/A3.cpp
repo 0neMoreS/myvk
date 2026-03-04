@@ -859,7 +859,7 @@ void A3::update(float dt) {
 		lights_manager.update(
 			doc,
 			light_tree_data,
-			camera_manager.get_active_camera()
+			camera_manager
 		);
 	}
 

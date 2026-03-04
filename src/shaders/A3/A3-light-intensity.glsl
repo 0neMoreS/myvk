@@ -96,7 +96,6 @@ float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D s
 		return 1.0;
 	}
 
-	float current_depth = projected.z;
 	float bias = 0.001;
 	float texel_size = 1.05 / float(spotLight.shadow);
 	float sum = 0.0;
@@ -104,7 +103,7 @@ float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D s
 	for (int x = -1; x <= 1; ++x) {
 		for (int y = -1; y <= 1; ++y) {
 			float closest_depth = texture(shadowMapTexture, uv + vec2(x, y) * texel_size).r;
-			sum += (current_depth - bias <= closest_depth) ? 1.0 : 0.0;
+			sum += (projected.z - bias <= closest_depth) ? 1.0 : 0.0;
 		}
 	}
 
@@ -135,12 +134,13 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
 		return 1.0;
 	}
 
+	float bias = 0.001;
 	float texelSize = 1.05 / float(sunLight.shadow);
 	float sum = 0.0;
 	for (int x = -2; x <= 2; ++x) {
 		for (int y = -2; y <= 2; ++y) {
 			float closestDepth = texture(shadowMapTexture, vec3(uv + vec2(x, y) * texelSize, cascadeIndex)).r;
-			sum += (projected.z <= closestDepth) ? 1.0 : 0.0;
+			sum += (projected.z - bias <= closestDepth) ? 1.0 : 0.0;
 		}
 	}
 

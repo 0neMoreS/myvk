@@ -23,7 +23,7 @@ public:
 	void update(
 		const std::shared_ptr<S72Loader::Document>& doc,
 		const std::vector<SceneTree::LightTreeData>& light_tree_data,
-		const CameraManager::Camera& camera
+		const CameraManager& camera_manager
 	);
 
 	const std::vector<A3CommonData::SunLight>& get_sun_lights() const { return sun_lights; }

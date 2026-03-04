@@ -4,6 +4,8 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 #include <algorithm>
 #include <array>
@@ -128,6 +130,95 @@ namespace {
 		result[1][1] *= -1.0f;
 		return result;
 	}
+
+	// glm::mat4 CalculateDirectionalLightSpaceMatrix(const CameraManager& camera_manager, const glm::vec3& light_dir) {
+		
+	// 	// ------------------------------------------------------------------
+	// 	// 1. 获取主相机在世界空间下的 8 个视锥体顶点
+	// 	// ------------------------------------------------------------------
+	// 	// 注意：这里需要主相机的 Projection 和 View 矩阵。
+	// 	// 为了准确，这里按照 Vulkan 的标准生成主相机的投影矩阵 (Zero-to-One 深度)
+	// 	glm::mat4 camProj = camera_manager.get_perspective();
+	// 	glm::mat4 camView = camera_manager.get_view();
+
+	// 	// 视锥体从 NDC 转换回世界空间的逆矩阵
+	// 	glm::mat4 invCamVP = glm::inverse(camProj * camView);
+
+	// 	// Vulkan NDC 空间的 8 个顶点 (X/Y: -1 到 1, Z: 0 到 1)
+	// 	std::vector<glm::vec4> ndcCorners = {
+	// 		{-1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 0.0f, 1.0f}, {-1.0f, 1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f}, // Near plane
+	// 		{-1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}  // Far plane
+	// 	};
+
+	// 	std::vector<glm::vec3> cornersWorld(8);
+	// 	glm::vec3 frustumCenter(0.0f);
+
+	// 	for (int i = 0; i < 8; ++i) {
+	// 		glm::vec4 pt = invCamVP * ndcCorners[i];
+	// 		cornersWorld[i] = glm::vec3(pt) / pt.w; // 透视除法
+	// 		frustumCenter += cornersWorld[i];
+	// 	}
+	// 	frustumCenter /= 8.0f; // 得到主相机视锥体的中心点
+
+	// 	// ------------------------------------------------------------------
+	// 	// 2. 计算光源的 View 矩阵
+	// 	// ------------------------------------------------------------------
+	// 	// 光源位置：从视锥体中心沿着光线反方向倒退。
+	// 	// (这里的距离设置并不影响最终矩阵，因为我们后续会精确计算正交投影的近/远平面)
+	// 	glm::vec3 lightPos = frustumCenter - light_dir; 
+		
+	// 	// 防止光线方向正好垂直向下或向上，导致 cross 运算失败
+	// 	glm::vec3 up = cam.world_up;
+	// 	if (std::abs(glm::dot(light_dir, up)) > 0.999f) {
+	// 		up = glm::vec3(0.0f, 0.0f, 1.0f); // 如果光线平行于 Y 轴，就用 Z 轴作为 Up
+	// 	}
+
+	// 	glm::mat4 lightView = glm::lookAt(lightPos, frustumCenter, up);
+
+	// 	// ------------------------------------------------------------------
+	// 	// 3. 将视锥体顶点转换到光源空间，计算 AABB 边界
+	// 	// ------------------------------------------------------------------
+	// 	float minX = std::numeric_limits<float>::max();
+	// 	float maxX = std::numeric_limits<float>::lowest();
+	// 	float minY = std::numeric_limits<float>::max();
+	// 	float maxY = std::numeric_limits<float>::lowest();
+	// 	float minZ = std::numeric_limits<float>::max();
+	// 	float maxZ = std::numeric_limits<float>::lowest();
+
+	// 	for (const auto& corner : cornersWorld) {
+	// 		glm::vec4 trf = lightView * glm::vec4(corner, 1.0f);
+	// 		minX = std::min(minX, trf.x);
+	// 		maxX = std::max(maxX, trf.x);
+	// 		minY = std::min(minY, trf.y);
+	// 		maxY = std::max(maxY, trf.y);
+	// 		minZ = std::min(minZ, trf.z);
+	// 		maxZ = std::max(maxZ, trf.z);
+	// 	}
+
+	// 	// ------------------------------------------------------------------
+	// 	// 4. 计算 Vulkan 的正交投影矩阵
+	// 	// ------------------------------------------------------------------
+	// 	// GLM 是右手系，View 空间下摄像机看向 -Z 轴。
+	// 	// 因此在 View 空间中，越在前面的点 Z 值越小（越负）。
+	// 	// maxZ 是离光源相机最近的面，minZ 是离光源相机最远的面。
+	// 	// GLM 的 ortho 函数接收的是相对于相机的“正向距离”。
+	// 	float zNearDistance = -maxZ;
+	// 	float zFarDistance = -minZ;
+
+	// 	// 关键修正：为了捕捉主相机背后、但影子能投射到相机视野内的遮挡物
+	// 	// 我们必须将光源的近平面大幅度向后拉！
+	// 	float zExtension = 150.0f; // 这个值取决于你的场景大小
+	// 	zNearDistance -= zExtension;
+
+	// 	// 使用 glm::orthoZO 生成适配 Vulkan (Z: 0 到 1) 的投影矩阵
+	// 	glm::mat4 lightProj = glm::orthoZO(minX, maxX, minY, maxY, zNearDistance, zFarDistance);
+
+	// 	// 适配 Vulkan 的 Y 轴翻转 (NDC 的 Y 轴向下)
+	// 	lightProj[1][1] *= -1.0f;
+
+	// 	// 返回组合后的 Light Space Matrix
+	// 	return lightProj * lightView;
+	// }
 }
 
 void LightsManager::create(
@@ -250,10 +341,15 @@ void LightsManager::update(
 
 				for (uint32_t cascade = 0; cascade < SunCascadeCount; ++cascade) {
 					const float cascade_far = splits[cascade];
+					// std::array<glm::vec3, 8> frustum_corners = compute_cascade_world_corners(
+					// 	camera,
+					// 	cascade_near,
+					// 	cascade_far
+					// );
 					std::array<glm::vec3, 8> frustum_corners = compute_cascade_world_corners(
 						camera,
-						cascade_near,
-						cascade_far
+						0.1f,
+						1000.0f
 					);
 
 					const uint32_t shader_cascade_index = SunCascadeCount - 1 - cascade;

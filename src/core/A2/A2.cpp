@@ -38,7 +38,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 
-	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
@@ -165,7 +165,7 @@ A2::~A2() {
 }
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 
 	{
@@ -582,13 +582,13 @@ void A2::update(float dt) {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
-	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
+	camera_manager.update(dt, camera_tree_data);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = rtg.configuration.open_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
-		pv_matrix.VIEW = rtg.configuration.open_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
+		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
+		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
-		pv_matrix.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
 		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 		if(doc->lights[0].sphere){
@@ -598,7 +598,7 @@ void A2::update(float dt) {
 		} else if(doc->lights[0].sun){
 			light.LIGHT_ENERGY = glm::vec4(doc->lights[0].tint * doc->lights[0].sun->strength, 1.0f);
 		}
-		light.CAMERA_POSITION = rtg.configuration.open_debug_camera ? glm::vec4(camera_manager.get_debug_camera().camera_position, 1.0f) : glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+		light.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 	}
 
 	{ // update object instances with frustum culling
@@ -695,12 +695,12 @@ void A2::on_input(InputEvent const &event) {
 	// Change active camera with TAB
 		if (event.key.key == GLFW_KEY_TAB) {
 			camera_manager.change_active_camera();
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 
 		if (event.key.key == GLFW_KEY_LEFT_ALT){
 			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 	}
 }

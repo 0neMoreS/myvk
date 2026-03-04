@@ -50,41 +50,33 @@ public:
 			);
 
 	// Update camera state (called every frame)
-	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera);
+	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
 
 	// Handle input events
 	void on_input(const InputEvent& event);
 
-	float get_aspect_ratio(bool open_debug_camera, VkExtent2D swapchain_extent);
+	float get_aspect_ratio(VkExtent2D swapchain_extent, bool rtg_open_debug_camera);
 
 	// Get current camera matrices
 	glm::mat4 get_perspective() const;
 	glm::mat4 get_view() const;
-	glm::mat4 get_debug_perspective() const;
-	glm::mat4 get_debug_view() const;
 	
 	// Get current frustum for culling
 	Frustum get_frustum() const;
-
-	// Camera access
-	size_t get_active_camera_index() const { return active_camera_index; }
-	void set_active_camera_index(size_t index) { if (index < cameras.size()) active_camera_index = index; }
 	
-	Camera& get_active_camera() { return cameras[active_camera_index]; }
-	const Camera& get_active_camera() const { return cameras[active_camera_index]; }
+	Camera& get_active_camera() { return open_debug_camera ? debug_camera : cameras[active_camera_index]; }
+	const Camera& get_active_camera() const { return open_debug_camera ? debug_camera : cameras[active_camera_index]; }
 
 	const std::vector<Camera>& get_all_cameras() const { return cameras; }
 	size_t get_camera_count() const { return cameras.size(); }
 
-	Camera& get_debug_camera() { return debug_camera; }
-	const Camera& get_debug_camera() const { return debug_camera; }
-
-	void change_active_camera() { active_camera_index = 0;	}
+	void change_active_camera() { active_camera_index = (active_camera_index + 1) % cameras.size();	}
 
 private:
 	// Cameras loaded from scene
 	std::vector<Camera> cameras; // 0 is for user camera
 	size_t active_camera_index = 0;
+	bool open_debug_camera = false;
 	Camera debug_camera;
 
 	void update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd);

@@ -59,7 +59,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
     }
 }
 
-void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, bool open_debug_camera) {
+void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
 	for(size_t i = 1; i < cameras.size(); ++i){
 		update_scene_camera(i, camera_tree_data[i - 1]);
 	}
@@ -151,7 +151,8 @@ void CameraManager::update_user_camera(float dt, Camera &active_camera) {
 	active_camera.camera_fov = glm::clamp(active_camera.camera_fov, 0.0f, glm::radians(120.0f));
 }
 
-float CameraManager::get_aspect_ratio(bool open_debug_camera, VkExtent2D swapchain_extent) {
+float CameraManager::get_aspect_ratio(VkExtent2D swapchain_extent, bool rtg_open_debug_camera) {
+	open_debug_camera = rtg_open_debug_camera;
 	if (open_debug_camera) {
 		debug_camera.aspect = static_cast<float>(swapchain_extent.width) / static_cast<float>(swapchain_extent.height);
 		return  debug_camera.aspect;
@@ -166,25 +167,15 @@ float CameraManager::get_aspect_ratio(bool open_debug_camera, VkExtent2D swapcha
 
 
 glm::mat4 CameraManager::get_perspective() const{
-    const Camera& active_camera = cameras[active_camera_index];
+    const Camera& active_camera = open_debug_camera ? debug_camera : cameras[active_camera_index];
     glm::mat4 perspective = glm::perspectiveRH_ZO(active_camera.camera_fov, active_camera.aspect, active_camera.camera_near, active_camera.camera_far);
     perspective[1][1] *= -1.0f;
 	return perspective;
 }
 
 glm::mat4 CameraManager::get_view() const{
-    const Camera& active_camera = cameras[active_camera_index];
+    const Camera& active_camera = open_debug_camera ? debug_camera : cameras[active_camera_index];
     return glm::lookAtRH(active_camera.camera_position, active_camera.camera_position +  active_camera.camera_forward, active_camera.camera_up);
-}
-
-glm::mat4 CameraManager::get_debug_perspective() const{
-	glm::mat4 perspective = glm::perspectiveRH_ZO(debug_camera.camera_fov, debug_camera.aspect, debug_camera.camera_near, debug_camera.camera_far);
-	perspective[1][1] *= -1.0f;
-	return perspective;
-}
-
-glm::mat4 CameraManager::get_debug_view() const{
-	return glm::lookAtRH(debug_camera.camera_position, debug_camera.camera_position +  debug_camera.camera_forward, debug_camera.camera_up);
 }
 
 CameraManager::Frustum CameraManager::get_frustum() const {

@@ -41,7 +41,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
 
-	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
@@ -281,7 +281,7 @@ A3::~A3() {
 }
 
 void A3::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, swapchain.extent));
+	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
 
 	{
@@ -849,20 +849,17 @@ void A3::update(float dt) {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
-	camera_manager.update(dt, camera_tree_data, rtg.configuration.open_debug_camera);
+	camera_manager.update(dt, camera_tree_data);
 
 	{ // update global data
-		const bool use_debug_camera = rtg.configuration.open_debug_camera;
-		auto const &active_camera = use_debug_camera ? camera_manager.get_debug_camera() : camera_manager.get_active_camera();
-
-		pv_matrix.PERSPECTIVE = use_debug_camera ? camera_manager.get_debug_perspective() : camera_manager.get_perspective();
-		pv_matrix.VIEW = use_debug_camera ? camera_manager.get_debug_view() : camera_manager.get_view();
-		pv_matrix.CAMERA_POSITION = glm::vec4(active_camera.camera_position, 1.0f);
+		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
+		pv_matrix.VIEW = camera_manager.get_view();
+		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 
 		lights_manager.update(
 			doc,
 			light_tree_data,
-			active_camera
+			camera_manager.get_active_camera()
 		);
 	}
 
@@ -949,12 +946,12 @@ void A3::on_input(InputEvent const &event) {
 	// Change active camera with TAB
 		if (event.key.key == GLFW_KEY_TAB) {
 			camera_manager.change_active_camera();
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 
 		if (event.key.key == GLFW_KEY_LEFT_ALT){
 			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.configuration.open_debug_camera, rtg.swapchain_extent));
+			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 	}
 }

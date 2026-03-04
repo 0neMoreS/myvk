@@ -59,7 +59,7 @@ struct Helpers {
 
 		//NOTE: could define default constructor, move constructor, move assignment, destructor for a bit more paranoia
 	};
-	// is_cube: if true, creates a cubemap-compatible image (6 array layers, cube flag set); if false, creates 2D image (1 layer)
+	
 	AllocatedImage create_image(
 		VkExtent2D const &extent, 
 		VkFormat format, 

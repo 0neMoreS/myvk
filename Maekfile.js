@@ -121,7 +121,8 @@ const a3_sun_shadow_shaders = [
 ];
 
 const a3_cascade_debug_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-cascade-debug.frag'),
+	maek.GLSLC('./src/shaders/A3/A3-cascade-debug-lambertian.frag'),
+	maek.GLSLC('./src/shaders/A3/A3-cascade-debug-pbr.frag')
 ];
 
 //maek.CPP(...) builds a c++ file:

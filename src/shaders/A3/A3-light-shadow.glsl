@@ -61,4 +61,23 @@ vec3 debugSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFra
 		default:
 			return vec3(0.0);
 	}
+
+	// int cascadeIndex = 3;
+	// for (int i = 0; i < 4; ++i) {
+	// 	// viewSpaceFragPosition.z is negative in front of the camera
+	// 	if (-viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
+	// 		cascadeIndex = i;
+	// 		break;
+	// 	}
+	// }
+
+	// vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+
+	// vec3 projected = lightSpace.xyz / lightSpace.w;
+	// vec2 uv = projected.xy * 0.5 + vec2(0.5);
+
+	// float bias = 0.001;
+
+    // float closestDepth = texture(shadowMapTexture, vec3(uv, cascadeIndex)).r;
+    // return (projected.z - bias <= closestDepth) ? vec3(1.0) : vec3(0.0);
 }

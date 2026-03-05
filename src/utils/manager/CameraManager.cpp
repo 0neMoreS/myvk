@@ -18,7 +18,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.camera_fov = glm::radians(60.0f),
 		.camera_near = 0.1f,
-		.camera_far = 1000.0f,
+		.camera_far = 200.0f,
 		.aspect = 1.0f,
 	});
 
@@ -30,7 +30,7 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		.world_up = glm::vec3{0.0f, -1.0f, 0.0f},
 		.camera_fov = glm::radians(60.0f),
 		.camera_near = 0.1f,
-		.camera_far = 1000.0f,
+		.camera_far = 200.0f,
 		.aspect = 1.0f,
 	};
 

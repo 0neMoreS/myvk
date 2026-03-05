@@ -113,7 +113,14 @@ namespace {
 		}
 
 		// 4. Create the orthographic projection matrix for the light
-		maxZ += (maxZ - minZ) * 10.0f;
+		float range = maxZ - minZ;
+		maxZ += range * 10.0f;
+		minZ -= range * 10.0f;
+
+		// minY += range * 0.5f;
+		// maxY -= range * 0.5f;
+		// minX += range * 0.5f;
+		// maxX -= range * 0.5f;
 
 		glm::mat4 lightProj = glm::orthoRH_ZO(minX, maxX, minY, maxY, minZ, maxZ);
 		lightProj[1][1] *= -1.0f;

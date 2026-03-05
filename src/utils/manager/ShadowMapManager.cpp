@@ -6,8 +6,8 @@
 void ShadowMapManager::create(
     RTG &rtg,
     RenderPassManager &render_pass_manager,
-    std::vector<A3CommonData::SunLight> const &shadow_sun_lights,
-    std::vector<A3CommonData::SpotLight> const &shadow_spot_lights
+    std::vector<LightsManager::SunLight> const &shadow_sun_lights,
+    std::vector<LightsManager::SpotLight> const &shadow_spot_lights
 ) {
     destroy(rtg);
 
@@ -194,7 +194,7 @@ void ShadowMapManager::create(
 void ShadowMapManager::create(
     RTG &rtg,
     RenderPassManager &render_pass_manager,
-    std::vector<A3CommonData::SpotLight> const &shadow_spot_lights
+    std::vector<LightsManager::SpotLight> const &shadow_spot_lights
 ) {
     create(rtg, render_pass_manager, {}, shadow_spot_lights);
 }

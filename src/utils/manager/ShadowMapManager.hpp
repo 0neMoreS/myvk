@@ -3,7 +3,7 @@
 #include "RTG.hpp"
 #include "VK.hpp"
 #include "RenderPassManager.hpp"
-#include "A3CommonData.hpp"
+#include "LightsManager.hpp"
 
 #include <array>
 
@@ -35,14 +35,14 @@ public:
     void create(
         RTG &rtg,
         RenderPassManager &render_pass_manager,
-        std::vector<A3CommonData::SunLight> const &shadow_sun_lights,
-        std::vector<A3CommonData::SpotLight> const &shadow_spot_lights
+        std::vector<LightsManager::SunLight> const &shadow_sun_lights,
+        std::vector<LightsManager::SpotLight> const &shadow_spot_lights
     );
 
     void create(
         RTG &rtg,
         RenderPassManager &render_pass_manager,
-        std::vector<A3CommonData::SpotLight> const &shadow_spot_lights
+        std::vector<LightsManager::SpotLight> const &shadow_spot_lights
     );
 
     void destroy(RTG &rtg);

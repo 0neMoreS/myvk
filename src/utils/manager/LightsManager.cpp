@@ -23,11 +23,11 @@ namespace {
 	template< typename LightsT >
 	void init_lights_bytes(const LightsT& lights, std::vector<uint8_t>& bytes) {
 		using LightT = typename std::decay_t<LightsT>::value_type;
-		const size_t header_size = sizeof(A3CommonData::LightsHeader);
+		const size_t header_size = sizeof(LightsManager::LightsHeader);
 		const size_t payload_size = sizeof(LightT) * lights.size();
 		assert(bytes.size() == header_size + payload_size);
 
-		A3CommonData::LightsHeader header{};
+		LightsManager::LightsHeader header{};
 		header.count = static_cast<uint32_t>(lights.size());
 		std::memcpy(bytes.data(), &header, header_size);
 		if (!lights.empty()) {
@@ -38,7 +38,7 @@ namespace {
 	template< typename LightsT >
 	void overwrite_lights_payload(const LightsT& lights, std::vector<uint8_t>& bytes) {
 		using LightT = typename std::decay_t<LightsT>::value_type;
-		const size_t header_size = sizeof(A3CommonData::LightsHeader);
+		const size_t header_size = sizeof(LightsManager::LightsHeader);
 		const size_t payload_size = sizeof(LightT) * lights.size();
 		assert(bytes.size() == header_size + payload_size);
 		if (!lights.empty()) {
@@ -251,7 +251,7 @@ void LightsManager::create(
 		const glm::vec3 direction = glm::normalize(BLENDER_TO_VULKAN_3 * blender_forward);
 
 		if (src_light.sun) {
-			A3CommonData::SunLight dst{};
+			SunLight dst{};
 			for (int i = 0; i < 4; ++i) dst.cascadeSplits[i] = 0.0f;
 			for (int i = 0; i < 4; ++i) dst.orthographic[i] = glm::mat4(1.0f);
 			dst.direction = direction;
@@ -263,7 +263,7 @@ void LightsManager::create(
 		}
 
 		if (src_light.sphere) {
-			A3CommonData::SphereLight dst{};
+			SphereLight dst{};
 			dst.position = position;
 			dst.radius = src_light.sphere->radius;
 			dst.tint = src_light.tint * src_light.sphere->power;
@@ -273,7 +273,7 @@ void LightsManager::create(
 		}
 
 		if (src_light.spot) {
-			A3CommonData::SpotLight dst{};
+			SpotLight dst{};
 			dst.perspective = glm::mat4(1.0f);
 			dst.position = position;
 			dst.radius = src_light.spot->radius;
@@ -288,12 +288,12 @@ void LightsManager::create(
 		}
 	}
 
-	sun_lights_bytes.assign(static_cast<size_t>(A3CommonData::sun_lights_buffer_size(static_cast<uint32_t>(sun_lights.size()))), 0);
-	sphere_lights_bytes.assign(static_cast<size_t>(A3CommonData::sphere_lights_buffer_size(static_cast<uint32_t>(sphere_lights.size()))), 0);
-	spot_lights_bytes.assign(static_cast<size_t>(A3CommonData::spot_lights_buffer_size(static_cast<uint32_t>(spot_lights.size()))), 0);
-	shadow_sun_lights_bytes.assign(static_cast<size_t>(A3CommonData::sun_lights_buffer_size(static_cast<uint32_t>(shadow_sun_lights.size()))), 0);
-	shadow_sphere_lights_bytes.assign(static_cast<size_t>(A3CommonData::sphere_lights_buffer_size(static_cast<uint32_t>(shadow_sphere_lights.size()))), 0);
-	shadow_spot_lights_bytes.assign(static_cast<size_t>(A3CommonData::spot_lights_buffer_size(static_cast<uint32_t>(shadow_spot_lights.size()))), 0);
+	sun_lights_bytes.assign(static_cast<size_t>(sun_lights_buffer_size(static_cast<uint32_t>(sun_lights.size()))), 0);
+	sphere_lights_bytes.assign(static_cast<size_t>(sphere_lights_buffer_size(static_cast<uint32_t>(sphere_lights.size()))), 0);
+	spot_lights_bytes.assign(static_cast<size_t>(spot_lights_buffer_size(static_cast<uint32_t>(spot_lights.size()))), 0);
+	shadow_sun_lights_bytes.assign(static_cast<size_t>(sun_lights_buffer_size(static_cast<uint32_t>(shadow_sun_lights.size()))), 0);
+	shadow_sphere_lights_bytes.assign(static_cast<size_t>(sphere_lights_buffer_size(static_cast<uint32_t>(shadow_sphere_lights.size()))), 0);
+	shadow_spot_lights_bytes.assign(static_cast<size_t>(spot_lights_buffer_size(static_cast<uint32_t>(shadow_spot_lights.size()))), 0);
 
 	init_lights_bytes(sun_lights, sun_lights_bytes);
 	init_lights_bytes(sphere_lights, sphere_lights_bytes);

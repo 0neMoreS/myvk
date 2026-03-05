@@ -90,8 +90,6 @@ namespace {
 
 		// 2. Light view matrix
 		glm::vec3 lightPos = frustumCenter - light_dir; 
-		
-		// avoiding singularity when light direction is parallel to camera's world up vector
 		glm::vec3 up = camera_manager.get_active_camera().world_up;
 
 		glm::mat4 lightView = glm::lookAtRH(lightPos, frustumCenter, up);

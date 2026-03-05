@@ -286,7 +286,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	{ // clears
 		clears = {
 			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
-			VkClearValue{ .depthStencil{ .depth = 1.0f, .stencil = 0 } },
+			VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
 		};
 
 		tonemap_clears = {

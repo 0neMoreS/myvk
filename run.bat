@@ -5,5 +5,6 @@ node .\Maekfile.js && ^
 --drawing-size 1920 1080 ^
 --camera "Camera" ^
 --scene ./report/A3/A3-lights-test.s72 ^
---exposure 0
+--exposure 0 ^
+--reverse-z
 @REM --headless < ./report/A2/headless_input/displacement_map.txt > ./drawer/headless_frame_time.txt

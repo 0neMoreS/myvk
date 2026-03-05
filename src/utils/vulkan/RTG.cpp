@@ -86,6 +86,9 @@ void RTG::Configuration::parse(int argc, char **argv) {
 				throw std::runtime_error("--tone-map method should be 'linear' or 'aces', got '" + tone_map_method_str + "'.");
 			}
 		}
+		else if (arg == "--reverse-z") {
+			reverse_z = true;
+		}
 		else {
 			throw std::runtime_error("Unrecognized argument '" + arg + "'.");
 		}
@@ -95,13 +98,14 @@ void RTG::Configuration::parse(int argc, char **argv) {
 void RTG::Configuration::usage(std::function< void(const char *, const char *) > const &callback) {
 	callback("--debug, --no-debug", "Turn on/off debug and validation layers.");
 	callback("--physical-device <name>", "Run on the named physical device (guesses, otherwise).");
-	callback("--drawing-size <w> <headless_image>", "Set the size of the surface to draw to.");
+	callback("--drawing-size <w> <h>", "Set the size of the surface to draw to.");
 	callback("--headless", "Don't create a window; read events from stdin.");
 	callback("--index <index>", "Set the index count.");
 	callback("--open-debug-camera", "Open the debug camera.");
 	callback("--scene <filename>", "Set the scene filename.");
 	callback("--exposure <float>", "Set the background exposure (A2).");
 	callback("--tone-map <method>", "Set the tone mapping method (A2). Method should be 'linear' or 'aces'.");
+	callback("--reverse-z", "Use reversed Z (A3).");
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(

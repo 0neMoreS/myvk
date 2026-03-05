@@ -339,6 +339,13 @@ void LightsManager::update(
 					dst.cascadeSplits[cascade] = splits[cascade];
 					const float cascade_far = splits[cascade];
 					dst.orthographic[cascade] = lightspace_PV(camera_manager, cascade_near, cascade_far, direction, src_light.shadow);
+					
+					// revers-z
+					dst.orthographic[cascade][0][2] = dst.orthographic[cascade][0][3] - dst.orthographic[cascade][0][2];
+					dst.orthographic[cascade][1][2] = dst.orthographic[cascade][1][3] - dst.orthographic[cascade][1][2];
+					dst.orthographic[cascade][2][2] = dst.orthographic[cascade][2][3] - dst.orthographic[cascade][2][2];
+					dst.orthographic[cascade][3][2] = dst.orthographic[cascade][3][3] - dst.orthographic[cascade][3][2];
+
 					cascade_near = cascade_far;
 				}
 			}
@@ -358,6 +365,13 @@ void LightsManager::update(
 			glm::mat4 view = glm::lookAtRH(position, position + direction, up);
 			glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, near_plane, far_plane);
 			proj[1][1] *= -1.0f;
+
+			// revers-z
+			proj[0][2] = proj[0][3] - proj[0][2];
+			proj[1][2] = proj[1][3] - proj[1][2];
+			proj[2][2] = proj[2][3] - proj[2][2];
+			proj[3][2] = proj[3][3] - proj[3][2];
+			
 			dst.perspective = proj * view;
 		}
 	}

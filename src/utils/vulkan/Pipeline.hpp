@@ -116,7 +116,7 @@ struct Pipeline
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 			.depthTestEnable = enable_depth ? VK_TRUE : VK_FALSE,
 			.depthWriteEnable = enable_depth ? VK_TRUE : VK_FALSE,
-			.depthCompareOp = enable_depth ? VK_COMPARE_OP_LESS : VK_COMPARE_OP_ALWAYS,
+			.depthCompareOp = enable_depth ? (rtg.configuration.reverse_z ? VK_COMPARE_OP_GREATER : VK_COMPARE_OP_LESS) : VK_COMPARE_OP_ALWAYS,
 			.depthBoundsTestEnable = VK_FALSE,
 			.stencilTestEnable = VK_FALSE,
 		};

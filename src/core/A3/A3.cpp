@@ -418,7 +418,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// =====================================================================
 		{
 			VkClearValue shadow_clear_value{
-				.depthStencil{ .depth = 1.0f, .stencil = 0 },
+				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
 			};
 
 			const uint32_t sun_shadow_count = std::min(
@@ -499,7 +499,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// =====================================================================
 		{
 			VkClearValue shadow_clear_value{
-				.depthStencil{ .depth = 1.0f, .stencil = 0 },
+				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
 			};
 
 			const uint32_t shadow_count = std::min(
@@ -853,6 +853,13 @@ void A3::update(float dt) {
 
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
+
+		// revers-z
+		pv_matrix.PERSPECTIVE[0][2] = pv_matrix.PERSPECTIVE[0][3] - pv_matrix.PERSPECTIVE[0][2];
+		pv_matrix.PERSPECTIVE[1][2] = pv_matrix.PERSPECTIVE[1][3] - pv_matrix.PERSPECTIVE[1][2];
+		pv_matrix.PERSPECTIVE[2][2] = pv_matrix.PERSPECTIVE[2][3] - pv_matrix.PERSPECTIVE[2][2];
+		pv_matrix.PERSPECTIVE[3][2] = pv_matrix.PERSPECTIVE[3][3] - pv_matrix.PERSPECTIVE[3][2];
+
 		pv_matrix.VIEW = camera_manager.get_view();
 		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
 

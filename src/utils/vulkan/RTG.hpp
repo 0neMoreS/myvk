@@ -82,6 +82,9 @@ struct RTG {
 		float tone_exposure = 0.0f;
 		ToneMapMethod tone_map_method = ToneMapMethod::Linear; // "linear", "aces"
 
+		// A3 Parameters
+		bool reverse_z = false;
+
 		//requested (priority-ranked) formats for output surface: (will use first available)
 		std::vector< VkSurfaceFormatKHR > surface_formats{
 			VkSurfaceFormatKHR{ .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},

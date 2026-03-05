@@ -72,7 +72,7 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
     vec3 projected = lightSpace.xyz / lightSpace.w;
     
     // dynamic bias based on cascade level to reduce shadow acne
-    float baseBias = 0.0005 * (float(cascadeIndex) + 1.0);
+    float baseBias = 0.00005 * (float(cascadeIndex) + 1.0);
     
     float shadow = sampleShadowPCF(shadowMapTexture, cascadeIndex, projected, texelSize, baseBias);
 
@@ -90,7 +90,7 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
             int nextCascadeIndex = cascadeIndex + 1;
             vec4 nextLightSpace = sunLight.orthographic[nextCascadeIndex] * vec4(fragPosition, 1.0);
             vec3 nextProjected = nextLightSpace.xyz / nextLightSpace.w;
-            float nextBias = 0.0005 * (float(nextCascadeIndex) + 1.0);
+            float nextBias = 0.00005 * (float(nextCascadeIndex) + 1.0);
 
             float nextShadow = sampleShadowPCF(shadowMapTexture, nextCascadeIndex, nextProjected, texelSize, nextBias);
 
@@ -103,29 +103,6 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
 }
 
 vec3 debugSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFragPosition, sampler2DArray shadowMapTexture) {
-	int cascadeIndex = 3;
-	for (int i = 0; i < 4; ++i) {
-		// viewSpaceFragPosition.z is negative in front of the camera
-		if (-viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
-			cascadeIndex = i;
-			break;
-		}
-	}
-
-	vec3 debugColor;
-	switch (cascadeIndex) {
-		case 0:
-			return vec3(1.0, 0.0, 0.0); // red
-		case 1:
-			return vec3(0.0, 1.0, 0.0); // green
-		case 2:
-			return vec3(0.0, 0.0, 1.0); // blue
-		case 3:
-			return vec3(1.0, 1.0, 0.0); // yellow
-		default:
-			return vec3(0.0);
-	}
-
 	// int cascadeIndex = 3;
 	// for (int i = 0; i < 4; ++i) {
 	// 	// viewSpaceFragPosition.z is negative in front of the camera
@@ -135,9 +112,34 @@ vec3 debugSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFra
 	// 	}
 	// }
 
-	// vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+	// vec3 debugColor;
+	// switch (cascadeIndex) {
+	// 	case 0:
+	// 		return vec3(1.0, 0.0, 0.0); // red
+	// 	case 1:
+	// 		return vec3(0.0, 1.0, 0.0); // green
+	// 	case 2:
+	// 		return vec3(0.0, 0.0, 1.0); // blue
+	// 	case 3:
+	// 		return vec3(1.0, 1.0, 0.0); // yellow
+	// 	default:
+	// 		return vec3(0.0);
+	// }
 
-	// vec3 projected = lightSpace.xyz / lightSpace.w;
+	int cascadeIndex = 3;
+	for (int i = 0; i < 4; ++i) {
+		// viewSpaceFragPosition.z is negative in front of the camera
+		if (-viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
+			cascadeIndex = i;
+			break;
+		}
+	}
+
+	vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+
+	vec3 projected = lightSpace.xyz / lightSpace.w;
+
+	return vec3(projected.z);
 	// vec2 uv = projected.xy * 0.5 + vec2(0.5);
 
 	// float bias = 0.001;

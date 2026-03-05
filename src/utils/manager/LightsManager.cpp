@@ -58,24 +58,91 @@ namespace {
 		return splits;
 	}
 
-	glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
+	// glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
 		
+	// 	// ------------------------------------------------------------------
+	// 	// 1. Get the world-space corners of the camera's view frustum
+	// 	// ------------------------------------------------------------------
+	// 	// glm::mat4 camProj = camera_manager.get_perspective();
+	// 	CameraManager::Camera active_camera = camera_manager.get_active_camera();
+	// 	glm::mat4 camProj = glm::perspectiveRH_ZO(active_camera.camera_fov, active_camera.aspect, near_plane, far_plane);
+    // 	camProj[1][1] *= -1.0f;
+	// 	glm::mat4 camView = camera_manager.get_view();
+
+	// 	// inverse of (Projection * View) transforms from NDC space back to world space
+	// 	glm::mat4 invCamVP = glm::inverse(camProj * camView);
+
+	// 	// Vulkan NDC space has X: [-1, 1], Y: [1, -1], Z: [0, 1]
+	// 	std::vector<glm::vec4> ndcCorners = {
+	// 		{-1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 0.0f, 1.0f}, {-1.0f, 1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f}, // Near plane
+	// 		{-1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}  // Far plane
+	// 	};
+
+	// 	std::vector<glm::vec3> cornersWorld(8);
+	// 	glm::vec3 frustumCenter(0.0f);
+
+	// 	for (int i = 0; i < 8; ++i) {
+	// 		glm::vec4 pt = invCamVP * ndcCorners[i];
+	// 		cornersWorld[i] = glm::vec3(pt) / pt.w; // projective divide
+	// 		frustumCenter += cornersWorld[i];
+	// 	}
+	// 	frustumCenter /= 8.0f;
+
+	// 	// 2. Light view matrix
+	// 	glm::vec3 lightPos = frustumCenter - light_dir; 
+	// 	glm::vec3 up = camera_manager.get_active_camera().world_up;
+
+	// 	glm::mat4 lightView = glm::lookAtRH(lightPos, frustumCenter, up);
+
+	// 	// 3. Compute the axis-aligned bounding box (AABB) of the frustum in light space
+	// 	float minX = std::numeric_limits<float>::max();
+	// 	float maxX = std::numeric_limits<float>::lowest();
+	// 	float minY = std::numeric_limits<float>::max();
+	// 	float maxY = std::numeric_limits<float>::lowest();
+	// 	float minZ = std::numeric_limits<float>::max();
+	// 	float maxZ = std::numeric_limits<float>::lowest();
+
+	// 	for (const auto& corner : cornersWorld) {
+	// 		glm::vec4 trf = lightView * glm::vec4(corner, 1.0f);
+	// 		minX = std::min(minX, trf.x);
+	// 		maxX = std::max(maxX, trf.x);
+	// 		minY = std::min(minY, trf.y);
+	// 		maxY = std::max(maxY, trf.y);
+	// 		minZ = std::min(minZ, trf.z);
+	// 		maxZ = std::max(maxZ, trf.z);
+	// 	}
+
+	// 	// 4. Create the orthographic projection matrix for the light
+	// 	float range = maxZ - minZ;
+	// 	maxZ += range * 2.0f;
+	// 	minZ -= range * 2.0f;
+
+	// 	// minY += range * 0.5f;
+	// 	// maxY -= range * 0.5f;
+	// 	// minX += range * 0.5f;
+	// 	// maxX -= range * 0.5f;
+
+	// 	glm::mat4 lightProj = glm::orthoRH_ZO(minX, maxX, minY, maxY, minZ, maxZ);
+	// 	lightProj[1][1] *= -1.0f;
+
+	// 	return lightProj * lightView;
+	// }
+
+	glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir, uint32_t shadow_map_resolution) {
 		// ------------------------------------------------------------------
-		// 1. Get the world-space corners of the camera's view frustum
+		// 1. Get the 8 world-space corners of the camera frustum and compute its center
 		// ------------------------------------------------------------------
-		// glm::mat4 camProj = camera_manager.get_perspective();
 		CameraManager::Camera active_camera = camera_manager.get_active_camera();
 		glm::mat4 camProj = glm::perspectiveRH_ZO(active_camera.camera_fov, active_camera.aspect, near_plane, far_plane);
-    	camProj[1][1] *= -1.0f;
+		camProj[1][1] *= -1.0f; // Vulkan Y-flip
 		glm::mat4 camView = camera_manager.get_view();
 
-		// inverse of (Projection * View) transforms from NDC space back to world space
 		glm::mat4 invCamVP = glm::inverse(camProj * camView);
 
-		// Vulkan NDC space has X: [-1, 1], Y: [1, -1], Z: [0, 1]
+		// Vulkan NDC space
 		std::vector<glm::vec4> ndcCorners = {
-			{-1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 0.0f, 1.0f}, {-1.0f, 1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f}, // Near plane
-			{-1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}  // Far plane
+			{-1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 0.0f, 1.0f}, {-1.0f, 1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f},
+			{-1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}
 		};
 
 		std::vector<glm::vec3> cornersWorld(8);
@@ -83,46 +150,71 @@ namespace {
 
 		for (int i = 0; i < 8; ++i) {
 			glm::vec4 pt = invCamVP * ndcCorners[i];
-			cornersWorld[i] = glm::vec3(pt) / pt.w; // projective divide
+			cornersWorld[i] = glm::vec3(pt) / pt.w; 
 			frustumCenter += cornersWorld[i];
 		}
 		frustumCenter /= 8.0f;
 
-		// 2. Light view matrix
-		glm::vec3 lightPos = frustumCenter - light_dir; 
-		glm::vec3 up = camera_manager.get_active_camera().world_up;
+		// ------------------------------------------------------------------
+		// 2. Compute a stable bounding sphere
+		// ------------------------------------------------------------------
+		// Use the farthest corner distance from the center as the sphere radius
+		float radius = 0.0f;
+		for (int i = 0; i < 8; ++i) {
+			float distance = glm::length(cornersWorld[i] - frustumCenter);
+			radius = std::max(radius, distance);
+		}
+		
+		// Slightly round up to reduce edge precision issues (optional refinement)
+		radius = std::ceil(radius * 16.0f) / 16.0f;
 
-		glm::mat4 lightView = glm::lookAtRH(lightPos, frustumCenter, up);
-
-		// 3. Compute the axis-aligned bounding box (AABB) of the frustum in light space
-		float minX = std::numeric_limits<float>::max();
-		float maxX = std::numeric_limits<float>::lowest();
-		float minY = std::numeric_limits<float>::max();
-		float maxY = std::numeric_limits<float>::lowest();
-		float minZ = std::numeric_limits<float>::max();
-		float maxZ = std::numeric_limits<float>::lowest();
-
-		for (const auto& corner : cornersWorld) {
-			glm::vec4 trf = lightView * glm::vec4(corner, 1.0f);
-			minX = std::min(minX, trf.x);
-			maxX = std::max(maxX, trf.x);
-			minY = std::min(minY, trf.y);
-			maxY = std::max(maxY, trf.y);
-			minZ = std::min(minZ, trf.z);
-			maxZ = std::max(maxZ, trf.z);
+		// ------------------------------------------------------------------
+		// 3. Build the base light view matrix
+		// ------------------------------------------------------------------
+		glm::vec3 L = glm::normalize(light_dir);
+		// Choose a safe up vector to avoid NaN in glm::lookAt when light points nearly vertical
+		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+		if (std::abs(glm::dot(L, up)) > 0.999f) {
+			up = glm::vec3(0.0f, 0.0f, 1.0f);
 		}
 
-		// 4. Create the orthographic projection matrix for the light
-		float range = maxZ - minZ;
-		maxZ += range * 10.0f;
-		minZ -= range * 10.0f;
+		glm::vec3 lightPos = frustumCenter - L * radius; 
+		glm::mat4 lightView = glm::lookAtRH(lightPos, frustumCenter, up);
 
-		// minY += range * 0.5f;
-		// maxY -= range * 0.5f;
-		// minX += range * 0.5f;
-		// maxX -= range * 0.5f;
+		// ------------------------------------------------------------------
+		// 4. Perform texel snapping, the key step to reduce translational shadow shimmering
+		// ------------------------------------------------------------------
+		// Convert one shadow texel to a world-space distance
+		float texelsPerUnit = static_cast<float>(shadow_map_resolution) / (radius * 2.0f);
 
-		glm::mat4 lightProj = glm::orthoRH_ZO(minX, maxX, minY, maxY, minZ, maxZ);
+		// Scale into texel space
+		glm::mat4 scaleToTexelSpace = glm::scale(glm::mat4(1.0f), glm::vec3(texelsPerUnit));
+		lightView = scaleToTexelSpace * lightView;
+
+		// Snap translation to integer texel steps
+		lightView[3][0] = std::floor(lightView[3][0]);
+		lightView[3][1] = std::floor(lightView[3][1]);
+		// Keep Z (depth) continuous for stable depth comparisons
+
+		// Scale back to world space
+		glm::mat4 scaleBackToWorld = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f / texelsPerUnit));
+		lightView = scaleBackToWorld * lightView;
+
+		// ------------------------------------------------------------------
+		// 5. Build a fixed orthographic projection
+		// ------------------------------------------------------------------
+		// Orthographic width/height are fixed to the sphere diameter (radius * 2), independent of camera rotation
+		// Extend Z range (near/far) to include casters outside the camera frustum but still affecting visible shadows
+		float zMultiplier = 5.0f; // 10x radius usually covers most scenes
+
+		glm::mat4 lightProj = glm::orthoRH_ZO(
+			-radius, radius,          // Left, Right
+			-radius, radius,          // Bottom, Top
+			-radius * zMultiplier,    // Near (extends far behind the light)
+			radius * zMultiplier      // Far  (extends far in front of the light)
+		);
+		
+		// Vulkan Y-flip
 		lightProj[1][1] *= -1.0f;
 
 		return lightProj * lightView;
@@ -243,13 +335,10 @@ void LightsManager::update(
 			if (has_shadow) {
 				float cascade_near = camera_manager.get_active_camera().camera_near;
 
-				for (uint32_t i = 0; i < SunCascadeCount; ++i) {
-					dst.cascadeSplits[i] = splits[i];
-				}
-
 				for (uint32_t cascade = 0; cascade < SunCascadeCount; ++cascade) {
+					dst.cascadeSplits[cascade] = splits[cascade];
 					const float cascade_far = splits[cascade];
-					dst.orthographic[cascade] = lightspace_PV(camera_manager, cascade_near, cascade_far, direction);
+					dst.orthographic[cascade] = lightspace_PV(camera_manager, cascade_near, cascade_far, direction, src_light.shadow);
 					cascade_near = cascade_far;
 				}
 			}

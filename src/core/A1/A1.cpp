@@ -128,7 +128,7 @@ A1::~A1() {
 }
 
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.create(rtg_, swapchain, render_pass_manager);
+	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, false);
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera));
 }
 

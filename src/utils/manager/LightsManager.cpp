@@ -48,24 +48,25 @@ namespace {
 
 	std::array<float, SunCascadeCount> compute_sun_cascade_splits(float near_plane, float far_plane) {
 		std::array<float, SunCascadeCount> splits{};
-		const float n = std::max(0.01f, near_plane);
-		const float f = std::max(n + 0.01f, far_plane);
 		for (uint32_t i = 0; i < SunCascadeCount; ++i) {
 			const float p = float(i + 1) / float(SunCascadeCount);
-			const float log_split = n * std::pow(f / n, p);
-			const float uni_split = n + (f - n) * p;
+			const float log_split = near_plane * std::pow(far_plane / near_plane, p);
+			const float uni_split = near_plane + (far_plane - near_plane) * p;
 			const float split = SunCascadeLambda * log_split + (1.0f - SunCascadeLambda) * uni_split;
 			splits[i] = split;
 		}
 		return splits;
 	}
 
-	glm::mat4 lightspace_PV(const CameraManager& camera_manager, const glm::vec3& light_dir) {
+	glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
 		
 		// ------------------------------------------------------------------
 		// 1. Get the world-space corners of the camera's view frustum
 		// ------------------------------------------------------------------
-		glm::mat4 camProj = camera_manager.get_perspective();
+		// glm::mat4 camProj = camera_manager.get_perspective();
+		CameraManager::Camera active_camera = camera_manager.get_active_camera();
+		glm::mat4 camProj = glm::perspectiveRH_ZO(active_camera.camera_fov, active_camera.aspect, near_plane, far_plane);
+    	camProj[1][1] *= -1.0f;
 		glm::mat4 camView = camera_manager.get_view();
 
 		// inverse of (Projection * View) transforms from NDC space back to world space
@@ -85,7 +86,7 @@ namespace {
 			cornersWorld[i] = glm::vec3(pt) / pt.w; // projective divide
 			frustumCenter += cornersWorld[i];
 		}
-		frustumCenter /= 8.0f; // frustum center in world space
+		frustumCenter /= 8.0f;
 
 		// 2. Light view matrix
 		glm::vec3 lightPos = frustumCenter - light_dir; 
@@ -114,16 +115,11 @@ namespace {
 		}
 
 		// 4. Create the orthographic projection matrix for the light
-		float zNearDistance = -maxZ;
-		float zFarDistance = -minZ;
+		maxZ += (maxZ - minZ) * 10.0f;
 
-		float zExtension = 150.0f; // huristic extension to ensure the shadow map covers objects slightly beyond the frustum
-		zNearDistance -= zExtension;
-
-		glm::mat4 lightProj = glm::orthoRH_ZO(minX, maxX, minY, maxY, zNearDistance, zFarDistance);
+		glm::mat4 lightProj = glm::orthoRH_ZO(minX, maxX, minY, maxY, minZ, maxZ);
 		lightProj[1][1] *= -1.0f;
 
-		// return light space matrix
 		return lightProj * lightView;
 	}
 }
@@ -240,17 +236,15 @@ void LightsManager::update(
 			auto& dst = has_shadow ? shadow_sun_lights.at(shadow_sun_idx++) : sun_lights.at(sun_idx++);
 			dst.direction = direction;
 			if (has_shadow) {
-				float cascade_near = std::max(0.01f, camera_manager.get_active_camera().camera_near);
+				float cascade_near = camera_manager.get_active_camera().camera_near;
 
 				for (uint32_t i = 0; i < SunCascadeCount; ++i) {
-					dst.cascadeSplits[i] = -splits[SunCascadeCount - 1 - i];
+					dst.cascadeSplits[i] = splits[i];
 				}
 
 				for (uint32_t cascade = 0; cascade < SunCascadeCount; ++cascade) {
 					const float cascade_far = splits[cascade];
-
-					const uint32_t shader_cascade_index = SunCascadeCount - 1 - cascade;
-					dst.orthographic[shader_cascade_index] = lightspace_PV(camera_manager, direction);
+					dst.orthographic[cascade] = lightspace_PV(camera_manager, cascade_near, cascade_far, direction);
 					cascade_near = cascade_far;
 				}
 			}

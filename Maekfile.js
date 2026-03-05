@@ -120,6 +120,10 @@ const a3_sun_shadow_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-sun-shadow.vert'),
 ];
 
+const a3_cascade_debug_shaders = [
+	maek.GLSLC('./src/shaders/A3/A3-cascade-debug.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
@@ -150,7 +154,7 @@ const common_objs = [
 	maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
 	maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
 	maek.CPP('./src/core/A3/A3SpotShadowPipeline.cpp', undefined, { depends: [...a3_spot_shadow_shaders] }),
-	maek.CPP('./src/core/A3/A3SunShadowPipeline.cpp', undefined, { depends: [...a3_sun_shadow_shaders] }),
+	maek.CPP('./src/core/A3/A3SunShadowPipeline.cpp', undefined, { depends: [...a3_sun_shadow_shaders, ...a3_cascade_debug_shaders] }),
 	maek.CPP('./src/core/A3/A3TonemappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
 	// Cube integrator
 	maek.CPP('./src/core/Cube/CubeIntegrator.cpp', undefined, { depends: [...cube_lambertian_shader, ...cube_ggx_shader, ...cube_brdf_lut_shader] }),

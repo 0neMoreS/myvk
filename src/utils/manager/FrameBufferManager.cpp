@@ -1,6 +1,6 @@
 #include "FrameBufferManager.hpp"
 
-void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager){
+void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager, bool use_hdr_tonemap){
 	// Clean up swapchain/HDR resources only (spot shadow targets are persistent)
 	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
 		if (framebuffer != VK_NULL_HANDLE) {
@@ -36,38 +36,7 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		hdr_sampler = VK_NULL_HANDLE;
 	}
 
-	// Create HDR color image
-	hdr_color_image = rtg.helpers.create_image(
-		swapchain.extent,
-		render_pass_manager.hdr_format,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		Helpers::Unmapped,
-		0,
-		1,
-		1
-	);
-
-	{ // Create HDR color image view
-		VkImageViewCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = hdr_color_image.handle,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = render_pass_manager.hdr_format,
-			.subresourceRange{
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel = 0,
-				.levelCount = 1,
-				.baseArrayLayer = 0,
-				.layerCount = 1
-			},
-		};
-
-		VK( vkCreateImageView(rtg.device, &create_info, nullptr, &hdr_color_image_view) );
-	}
-
-	// Create HDR depth image
+	// Create depth image
 	depth_image = rtg.helpers.create_image(
 		swapchain.extent,
 		render_pass_manager.depth_format,
@@ -80,7 +49,7 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		1
 	);
 
-	{ // Create HDR depth image view
+	{ // Create depth image view
 		VkImageViewCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.image = depth_image.handle,
@@ -98,66 +67,120 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		VK( vkCreateImageView(rtg.device, &create_info, nullptr, &depth_image_view) );
 	}
 
-	{ // Create HDR framebuffer
-		std::array< VkImageView, 2 > hdr_attachments{
-			hdr_color_image_view,
-			depth_image_view,
-		};
+	if (use_hdr_tonemap) {
+		// Create HDR color image
+		hdr_color_image = rtg.helpers.create_image(
+			swapchain.extent,
+			render_pass_manager.hdr_format,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			Helpers::Unmapped,
+			0,
+			1,
+			1
+		);
 
-		VkFramebufferCreateInfo create_info{
-			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = render_pass_manager.hdr_render_pass,
-			.attachmentCount = uint32_t(hdr_attachments.size()),
-			.pAttachments = hdr_attachments.data(),
-			.width = swapchain.extent.width,
-			.height = swapchain.extent.height,
-			.layers = 1,
-		};
+		{ // Create HDR color image view
+			VkImageViewCreateInfo create_info{
+				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				.image = hdr_color_image.handle,
+				.viewType = VK_IMAGE_VIEW_TYPE_2D,
+				.format = render_pass_manager.hdr_format,
+				.subresourceRange{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1
+				},
+			};
 
-		VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &hdr_framebuffer) );
+			VK( vkCreateImageView(rtg.device, &create_info, nullptr, &hdr_color_image_view) );
+		}
+
+		{ // Create HDR framebuffer
+			std::array< VkImageView, 2 > hdr_attachments{
+				hdr_color_image_view,
+				depth_image_view,
+			};
+
+			VkFramebufferCreateInfo create_info{
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				.renderPass = render_pass_manager.hdr_render_pass,
+				.attachmentCount = uint32_t(hdr_attachments.size()),
+				.pAttachments = hdr_attachments.data(),
+				.width = swapchain.extent.width,
+				.height = swapchain.extent.height,
+				.layers = 1,
+			};
+
+			VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &hdr_framebuffer) );
+		}
+
+		{ // Create HDR sampler for tone mapping
+			VkSamplerCreateInfo sampler_info{
+				.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+				.magFilter = VK_FILTER_LINEAR,
+				.minFilter = VK_FILTER_LINEAR,
+				.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+				.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+				.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+				.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+				.mipLodBias = 0.0f,
+				.anisotropyEnable = VK_FALSE,
+				.maxAnisotropy = 1.0f,
+				.compareEnable = VK_FALSE,
+				.minLod = 0.0f,
+				.maxLod = 0.0f,
+				.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+				.unnormalizedCoordinates = VK_FALSE,
+			};
+
+			VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &hdr_sampler) );
+		}
+
+		// Create swapchain framebuffers for tone mapping pass (no depth)
+		swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
+		for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
+			std::array< VkImageView, 1 > attachments{
+				swapchain.image_views[i]
+			};
+
+			VkFramebufferCreateInfo create_info{
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				.renderPass = render_pass_manager.tonemap_render_pass,
+				.attachmentCount = uint32_t(attachments.size()),
+				.pAttachments = attachments.data(),
+				.width = swapchain.extent.width,
+				.height = swapchain.extent.height,
+				.layers = 1,
+			};
+
+			VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
+		}
+	} else {
+		// Create swapchain framebuffers for single-pass rendering (color + depth)
+		swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
+		for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
+			std::array< VkImageView, 2 > attachments{
+				swapchain.image_views[i],
+				depth_image_view,
+			};
+
+			VkFramebufferCreateInfo create_info{
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				.renderPass = render_pass_manager.render_pass,
+				.attachmentCount = uint32_t(attachments.size()),
+				.pAttachments = attachments.data(),
+				.width = swapchain.extent.width,
+				.height = swapchain.extent.height,
+				.layers = 1,
+			};
+
+			VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
+		}
 	}
-
-	{ // Create HDR sampler for tone mapping
-		VkSamplerCreateInfo sampler_info{
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.magFilter = VK_FILTER_LINEAR,
-			.minFilter = VK_FILTER_LINEAR,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-			.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.mipLodBias = 0.0f,
-			.anisotropyEnable = VK_FALSE,
-			.maxAnisotropy = 1.0f,
-			.compareEnable = VK_FALSE,
-			.minLod = 0.0f,
-			.maxLod = 0.0f,
-			.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
-			.unnormalizedCoordinates = VK_FALSE,
-		};
-
-		VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &hdr_sampler) );
-	}
-
-	// Create swapchain framebuffers for tone mapping pass (no depth)
-	swapchain_framebuffers.assign(swapchain.image_views.size(), VK_NULL_HANDLE);
-	for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
-        std::array< VkImageView, 1 > attachments{
-            swapchain.image_views[i]
-        };
-
-        VkFramebufferCreateInfo create_info{
-            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass = render_pass_manager.tonemap_render_pass,
-            .attachmentCount = uint32_t(attachments.size()),
-            .pAttachments = attachments.data(),
-            .width = swapchain.extent.width,
-            .height = swapchain.extent.height,
-            .layers = 1,
-        };
-
-        VK( vkCreateFramebuffer(rtg.device, &create_info, nullptr, &swapchain_framebuffers[i]) );
-    }
 }
 
 void  FrameBufferManager::destroy(RTG &rtg){

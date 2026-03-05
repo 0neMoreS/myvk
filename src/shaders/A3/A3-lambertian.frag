@@ -3,6 +3,7 @@
 
 #include "A3-light-def.glsl"
 #include "A3-light-intensity.glsl"
+#include "A3-light-shadow.glsl"
 
 layout(set=2,binding=0) uniform samplerCube irradiance_map;
 layout(set=2,binding=1) uniform sampler2D Textures[];

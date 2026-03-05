@@ -85,7 +85,7 @@ void A3SpotShadowPipeline::create(
         VK(vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout));
     }
 
-    create_pipeline(rtg, render_pass, subpass, true, false, false, 0, false);
+    create_pipeline(rtg, render_pass, subpass, true, true, false, 0, false);
 
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);
     vert_module = VK_NULL_HANDLE;

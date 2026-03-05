@@ -8,10 +8,17 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <cstdint>
+#include <array>
 #include <memory>
 
 class LightsManager {
 public:
+	struct DebugSunOrthoAABB {
+		std::array<glm::vec3, 8> world_corners;
+		std::array<glm::vec3, 8> frustum_corners;
+		std::array<uint8_t, 8> frustum_corner_inside;
+	};
+
 	LightsManager() = default;
 	~LightsManager() = default;
 

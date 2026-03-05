@@ -19,7 +19,7 @@ class FrameBufferManager {
         // Swapchain framebuffers (for tone mapping pass, no depth)
         std::vector< VkFramebuffer > swapchain_framebuffers;
 
-        void create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager);
+        void create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager, bool use_hdr_tonemap);
         void destroy(RTG &rtg);
 
         FrameBufferManager() = default;

@@ -409,8 +409,8 @@ void LightsManager::update(
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
 
 			if (has_shadow) {
-				const float near_plane = std::max(0.01f, dst.radius);
-				const float far_plane = std::max(near_plane + 0.01f, dst.limit);
+				const float near_plane = 0.01f;
+				const float far_plane = std::max(dst.radius, dst.limit);
 				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);
 				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, near_plane, far_plane);
 			}
@@ -420,8 +420,9 @@ void LightsManager::update(
 			auto& dst = has_shadow ? shadow_spot_lights.at(shadow_spot_idx++) : spot_lights.at(spot_idx++);
 			dst.position = position;
 			dst.direction = direction;
-			const float near_plane = 0.1f;
-			const float far_plane = dst.limit;
+			// Get this parameter from LearnOpenGL
+			const float near_plane = 1.0f;
+			const float far_plane = 25.0f;
 			glm::mat4 view = glm::lookAtRH(position, position + direction, up);
 			glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, near_plane, far_plane);
 			proj[1][1] *= -1.0f;

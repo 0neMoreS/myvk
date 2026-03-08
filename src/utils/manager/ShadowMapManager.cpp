@@ -152,8 +152,11 @@ void ShadowMapManager::create(
     sphere_shadow_targets.reserve(shadow_sphere_lights.size());
 
     // Build one depth cubemap target per shadow sphere light.
-    for (size_t i = 0; i < shadow_sphere_lights.size(); ++i) {
-        const uint32_t resolution = 1024; //TODO: add shadow parameters to SphereLight and use them here
+    for (const auto &light : shadow_sphere_lights) {
+        const uint32_t resolution = static_cast<uint32_t>(light.shadow);
+        if (resolution == 0) {
+            continue;
+        }
 
         SphereShadowTarget target{};
         target.resolution = resolution;

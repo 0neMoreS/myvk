@@ -313,6 +313,7 @@ void LightsManager::create(
 			dst.radius = src_light.sphere->radius;
 			dst.tint = src_light.tint * src_light.sphere->power;
 			dst.limit = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * std::numbers::pi_v<float>) * 256.0f));
+			dst.shadow = static_cast<int32_t>(src_light.shadow);
 			if (has_shadow) {
 				shadow_sphere_lights.emplace_back(std::move(dst));
 			}
@@ -405,6 +406,7 @@ void LightsManager::update(
 		if (src_light.sphere) {
 			auto& dst = has_shadow ? shadow_sphere_lights.at(shadow_sphere_idx++) : sphere_lights.at(sphere_idx++);
 			dst.position = position;
+			dst.shadow = static_cast<int32_t>(src_light.shadow);
 
 			if (has_shadow) {
 				const float near_plane = std::max(0.01f, dst.radius);

@@ -30,8 +30,10 @@ public:
         float radius;
         glm::vec3 tint;
         float limit;
+		int32_t shadow;
+		int32_t _pad_[3];
     };
-    static_assert(sizeof(SphereLight) == 32, "SphereLight must match std430 layout.");
+	static_assert(sizeof(SphereLight) == 48, "SphereLight must match std430 layout.");
 
     struct alignas(16) SpotLight {
         glm::mat4 perspective;

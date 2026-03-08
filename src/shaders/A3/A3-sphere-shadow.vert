@@ -15,6 +15,8 @@ struct SphereLight {
     float radius;
     vec3 tint;
     float limit;
+    int shadow;
+    int _pad_[3];
 };
 
 struct SphereShadowMatrices {

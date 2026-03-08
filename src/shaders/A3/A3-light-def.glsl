@@ -12,6 +12,8 @@ struct SphereLight {
 	float radius;
 	vec3 tint; // Already multiplied by power
 	float limit;
+	int shadow; // Shadow map size
+	int _pad_[3];
 };
 
 struct SpotLight {

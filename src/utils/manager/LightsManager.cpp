@@ -174,9 +174,6 @@ namespace {
 		glm::vec3 L = glm::normalize(light_dir);
 		// Choose a safe up vector to avoid NaN in glm::lookAt when light points nearly vertical
 		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-		if (std::abs(glm::dot(L, up)) > 0.999f) {
-			up = glm::vec3(0.0f, 0.0f, 1.0f);
-		}
 
 		glm::vec3 lightPos = frustumCenter - L * radius; 
 		glm::mat4 lightView = glm::lookAtRH(lightPos, frustumCenter, up);

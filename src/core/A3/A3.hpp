@@ -79,7 +79,6 @@ struct A3 : RTG::Application {
 
 	float time = 0.0f;
 
-	A3CommonData::PV pv_matrix;
 	QueryPoolManager query_pool_manager;
 	uint64_t gpu_frame_counter = 0;
 	double last_gpu_frame_ms = 0.0;

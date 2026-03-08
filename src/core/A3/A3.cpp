@@ -39,7 +39,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 
@@ -325,8 +325,10 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		query_pool_manager.begin_frame(workspace.command_buffer, render_params.workspace_index);
 
 		{ //upload global data:
+			auto const &pv_matrix = camera_manager.get_camera_pv();
+
 			assert(workspace.global_buffer_pairs["PV"]->host.size == sizeof(A3CommonData::PV));
-			workspace.write_global_buffer(rtg, "PV", &pv_matrix, sizeof(A3CommonData::PV));
+			workspace.write_global_buffer(rtg, "PV", (void *)(&pv_matrix), sizeof(A3CommonData::PV));
 			assert(workspace.global_buffer_pairs["PV"]->host.size == workspace.global_buffer_pairs["PV"]->device.size);
 
 			auto const &sun_lights_bytes = lights_manager.get_sun_lights_bytes();
@@ -848,20 +850,8 @@ void A3::update(float dt) {
 	SceneTree::update_animation(doc, time);
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	// Update camera
-	camera_manager.update(dt, camera_tree_data);
-
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-
-		// revers-z
-		pv_matrix.PERSPECTIVE[0][2] = pv_matrix.PERSPECTIVE[0][3] - pv_matrix.PERSPECTIVE[0][2];
-		pv_matrix.PERSPECTIVE[1][2] = pv_matrix.PERSPECTIVE[1][3] - pv_matrix.PERSPECTIVE[1][2];
-		pv_matrix.PERSPECTIVE[2][2] = pv_matrix.PERSPECTIVE[2][3] - pv_matrix.PERSPECTIVE[2][2];
-		pv_matrix.PERSPECTIVE[3][2] = pv_matrix.PERSPECTIVE[3][3] - pv_matrix.PERSPECTIVE[3][2];
-
-		pv_matrix.VIEW = camera_manager.get_view();
-		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
+		camera_manager.update(dt, camera_tree_data, rtg.configuration);
 
 		lights_manager.update(
 			doc,

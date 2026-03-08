@@ -39,6 +39,12 @@ public:
 		float aspect;
 	};
 
+	struct CameraPV {
+		glm::mat4 PERSPECTIVE;
+        glm::mat4 VIEW;
+        glm::vec4 CAMERA_POSITION;
+	};
+
 	CameraManager() = default;
 	~CameraManager() = default;
 
@@ -46,11 +52,11 @@ public:
 	void create(const std::shared_ptr<S72Loader::Document> doc, 
 				const uint32_t swapchain_width, const uint32_t swapchain_height, 
 				const std::vector<SceneTree::CameraTreeData>& camera_tree_data, 
-				std::string init_camera_name
+				const RTG::Configuration &configuration
 			);
 
 	// Update camera state (called every frame)
-	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data);
+	void update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, const RTG::Configuration &configuration);
 
 	// Handle input events
 	void on_input(const InputEvent& event);
@@ -71,6 +77,8 @@ public:
 	size_t get_camera_count() const { return cameras.size(); }
 
 	void change_active_camera() { active_camera_index = (active_camera_index + 1) % cameras.size();	}
+
+	const CameraPV& get_camera_pv() const { return camera_pv; }
 
 private:
 	// Cameras loaded from scene
@@ -99,4 +107,6 @@ private:
 	const float move_speed = 10.0f;
 	const float fov_speed = 1.0f;
 	const float rotate_speed = 1.0f;
+
+	CameraPV camera_pv; // data for camera UBO
 };

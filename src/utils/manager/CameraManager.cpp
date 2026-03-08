@@ -8,7 +8,7 @@
 void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc, 
 				const uint32_t swapchain_width, const uint32_t swapchain_height, 
 				const std::vector<SceneTree::CameraTreeData>& camera_tree_data, 
-				std::string init_camera_name
+				const RTG::Configuration &configuration
 			) {
     // Create a user camera at index 0
 	cameras.emplace_back(CameraManager::Camera {
@@ -53,17 +53,44 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 			.aspect = camera.perspective.has_value() ? camera.perspective.value().aspect : 1.0f,
 		});
 
-		if(camera.name == init_camera_name){
+		if(camera.name == configuration.init_camera_name){
 			active_camera_index = cameras.size() - 1;
 		}
     }
+
+	this->camera_pv = CameraPV{
+		.PERSPECTIVE = get_perspective(),
+		.VIEW = get_view(),
+		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f)
+	};
+
+	if(configuration.reverse_z){
+		camera_pv.PERSPECTIVE[0][2] = camera_pv.PERSPECTIVE[0][3] - camera_pv.PERSPECTIVE[0][2];
+		camera_pv.PERSPECTIVE[1][2] = camera_pv.PERSPECTIVE[1][3] - camera_pv.PERSPECTIVE[1][2];
+		camera_pv.PERSPECTIVE[2][2] = camera_pv.PERSPECTIVE[2][3] - camera_pv.PERSPECTIVE[2][2];
+		camera_pv.PERSPECTIVE[3][2] = camera_pv.PERSPECTIVE[3][3] - camera_pv.PERSPECTIVE[3][2];
+	}
 }
 
-void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data) {
+void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, const RTG::Configuration &configuration) {
 	for(size_t i = 1; i < cameras.size(); ++i){
 		update_scene_camera(i, camera_tree_data[i - 1]);
 	}
+
 	update_user_camera(dt, open_debug_camera ? debug_camera : cameras[0]);
+
+		this->camera_pv = CameraPV{
+		.PERSPECTIVE = get_perspective(),
+		.VIEW = get_view(),
+		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f)
+	};
+
+	if(configuration.reverse_z){
+		camera_pv.PERSPECTIVE[0][2] = camera_pv.PERSPECTIVE[0][3] - camera_pv.PERSPECTIVE[0][2];
+		camera_pv.PERSPECTIVE[1][2] = camera_pv.PERSPECTIVE[1][3] - camera_pv.PERSPECTIVE[1][2];
+		camera_pv.PERSPECTIVE[2][2] = camera_pv.PERSPECTIVE[2][3] - camera_pv.PERSPECTIVE[2][2];
+		camera_pv.PERSPECTIVE[3][2] = camera_pv.PERSPECTIVE[3][3] - camera_pv.PERSPECTIVE[3][2];
+	}
 }
 
 void CameraManager::update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd) {

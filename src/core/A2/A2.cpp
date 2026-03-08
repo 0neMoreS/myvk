@@ -36,7 +36,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
-	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration.init_camera_name);
+	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 
@@ -582,7 +582,7 @@ void A2::update(float dt) {
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	// Update camera
-	camera_manager.update(dt, camera_tree_data);
+	camera_manager.update(dt, camera_tree_data, rtg.configuration);
 
 	{ // update global data
 		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();

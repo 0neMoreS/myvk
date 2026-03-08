@@ -298,12 +298,24 @@ void A3LambertianPipeline::create(
                 }
 
                 std::vector<VkDescriptorImageInfo> sphere_shadow_infos(sphere_shadow_count);
-                for (auto &info : sphere_shadow_infos) {
-                    info = VkDescriptorImageInfo{
-                        .sampler = texture_manager.raw_environment_cubemap_texture[0]->sampler,
-                        .imageView = texture_manager.raw_environment_cubemap_texture[0]->image_view,
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    };
+                if (shadow_map_manager && !shadow_map_manager->sphere_shadow_targets.empty()) {
+                    const size_t available = shadow_map_manager->sphere_shadow_targets.size();
+                    for (uint32_t i = 0; i < sphere_shadow_count; ++i) {
+                        const auto &target = shadow_map_manager->sphere_shadow_targets[i % available];
+                        sphere_shadow_infos[i] = VkDescriptorImageInfo{
+                            .sampler = shadow_map_manager->sphere_shadow_sampler,
+                            .imageView = target.depth_cube_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        };
+                    }
+                } else {
+                    for (auto &info : sphere_shadow_infos) {
+                        info = VkDescriptorImageInfo{
+                            .sampler = texture_manager.raw_environment_cubemap_texture[0]->sampler,
+                            .imageView = texture_manager.raw_environment_cubemap_texture[0]->image_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        };
+                    }
                 }
 
                 std::vector<VkDescriptorImageInfo> spot_shadow_infos(spot_shadow_count);

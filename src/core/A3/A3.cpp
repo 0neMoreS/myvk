@@ -28,6 +28,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	pbr_pipeline{},
 	sun_shadow_pipeline{},
 	spot_shadow_pipeline{},
+	sphere_shadow_pipeline{},
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
@@ -47,7 +48,13 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	lights_manager.create(doc, light_tree_data);
 
-	shadow_map_manager.create(rtg, render_pass_manager, lights_manager.get_shadow_sun_lights(), lights_manager.get_shadow_spot_lights());
+	shadow_map_manager.create(
+		rtg,
+		render_pass_manager,
+		lights_manager.get_shadow_sun_lights(),
+		lights_manager.get_shadow_sphere_lights(),
+		lights_manager.get_shadow_spot_lights()
+	);
 
 	texture_manager.create(rtg, doc, 5, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
 
@@ -67,15 +74,18 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
+	sphere_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
+
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
 
-	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{5};
+	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{6};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3BackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3LambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3PBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["A3SphereShadowPipeline"]] = sphere_shadow_pipeline.block_descriptor_configs;
 
 	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
 	VkDeviceSize sun_lights_buffer_capacity = lights_manager.get_sun_lights_buffer_capacity();
@@ -83,6 +93,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	VkDeviceSize spot_lights_buffer_capacity = lights_manager.get_spot_lights_buffer_capacity();
 	VkDeviceSize shadow_sun_lights_buffer_capacity = lights_manager.get_shadow_sun_lights_buffer_capacity();
 	VkDeviceSize shadow_sphere_lights_buffer_capacity = lights_manager.get_shadow_sphere_lights_buffer_capacity();
+	VkDeviceSize shadow_sphere_matrices_buffer_capacity = lights_manager.get_shadow_sphere_matrices_buffer_capacity();
 	VkDeviceSize shadow_spot_lights_buffer_capacity = lights_manager.get_shadow_spot_lights_buffer_capacity();
 
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
@@ -114,6 +125,11 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "ShadowSphereLights",
 			.size = shadow_sphere_lights_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSphereMatrices",
+			.size = shadow_sphere_matrices_buffer_capacity,
 			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
 		WorkspaceManager::GlobalBufferConfig{
@@ -243,6 +259,20 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		spot_shadow_pipeline.block_binding_name_to_index["ShadowSpotLights"],
 		"ShadowSpotLights"
 	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3SphereShadowPipeline"],
+		sphere_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
+		sphere_shadow_pipeline.block_binding_name_to_index["ShadowSphereLights"],
+		"ShadowSphereLights"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3SphereShadowPipeline"],
+		sphere_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
+		sphere_shadow_pipeline.block_binding_name_to_index["ShadowSphereMatrices"],
+		"ShadowSphereMatrices"
+	);
 
 	scene_manager.create(rtg, doc);
 }
@@ -270,6 +300,8 @@ A3::~A3() {
 	sun_shadow_pipeline.destroy(rtg);
 
 	spot_shadow_pipeline.destroy(rtg);
+
+	sphere_shadow_pipeline.destroy(rtg);
 
 	tonemapping_pipeline.destroy(rtg);
 
@@ -336,6 +368,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto const &spot_lights_bytes = lights_manager.get_spot_lights_bytes();
 			auto const &shadow_sun_lights_bytes = lights_manager.get_shadow_sun_lights_bytes();
 			auto const &shadow_sphere_lights_bytes = lights_manager.get_shadow_sphere_lights_bytes();
+			auto const &shadow_sphere_matrices_bytes = lights_manager.get_shadow_sphere_matrices_bytes();
 			auto const &shadow_spot_lights_bytes = lights_manager.get_shadow_spot_lights_bytes();
 
 			assert(workspace.global_buffer_pairs["SunLights"]->host.size >= sun_lights_bytes.size());
@@ -357,6 +390,10 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["ShadowSphereLights"]->host.size >= shadow_sphere_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "ShadowSphereLights", (void*)shadow_sphere_lights_bytes.data(), shadow_sphere_lights_bytes.size());
 			assert(workspace.global_buffer_pairs["ShadowSphereLights"]->host.size == workspace.global_buffer_pairs["ShadowSphereLights"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSphereMatrices"]->host.size >= shadow_sphere_matrices_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSphereMatrices", (void*)shadow_sphere_matrices_bytes.data(), shadow_sphere_matrices_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSphereMatrices"]->host.size == workspace.global_buffer_pairs["ShadowSphereMatrices"]->device.size);
 
 			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size >= shadow_spot_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "ShadowSpotLights", (void*)shadow_spot_lights_bytes.data(), shadow_spot_lights_bytes.size());
@@ -396,6 +433,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			upload_transforms("A3PBRPipeline", pbr_object_instances, pbr_pipeline);
 			upload_transforms("A3SunShadowPipeline", shadow_object_instances, sun_shadow_pipeline);
 			upload_transforms("A3SpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
+			upload_transforms("A3SphereShadowPipeline", shadow_object_instances, sphere_shadow_pipeline);
 		}
 
 		{ //memory barrier to make sure copies complete before rendering happens:
@@ -485,6 +523,87 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 								.CASCADE_INDEX = cascade_index,
 							};
 							vkCmdPushConstants(workspace.command_buffer, sun_shadow_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+
+							for (uint32_t i = 0; i < shadow_object_instances.size(); ++i) {
+								vkCmdDraw(workspace.command_buffer, shadow_object_instances[i].object_ranges.count, 1, shadow_object_instances[i].object_ranges.first, i);
+							}
+						}
+					}
+					vkCmdEndRenderPass(workspace.command_buffer);
+				}
+			}
+		}
+
+		// =====================================================================
+		// Sphere shadow pass: render depth cubemap for each shadow-casting sphere light
+		// =====================================================================
+		{
+			VkClearValue shadow_clear_value{
+				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
+			};
+
+			const uint32_t sphere_shadow_count = std::min(
+				static_cast<uint32_t>(shadow_map_manager.sphere_shadow_targets.size()),
+				static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size())
+			);
+
+			for (uint32_t light_index = 0; light_index < sphere_shadow_count; ++light_index) {
+				auto const &shadow_target = shadow_map_manager.sphere_shadow_targets[light_index];
+
+				VkExtent2D shadow_extent{
+					.width = shadow_target.resolution,
+					.height = shadow_target.resolution,
+				};
+
+				for (uint32_t face_index = 0; face_index < ShadowMapManager::SphereFaceCount; ++face_index) {
+					VkRenderPassBeginInfo begin_info{
+						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+						.renderPass = render_pass_manager.spot_shadow_render_pass,
+						.framebuffer = shadow_target.face_framebuffers[face_index],
+						.renderArea{
+							.offset = {.x = 0, .y = 0},
+							.extent = shadow_extent,
+						},
+						.clearValueCount = 1,
+						.pClearValues = &shadow_clear_value,
+					};
+
+					vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+					{
+						const VkRect2D shadow_scissor = render_pass_manager.get_shadow_scissor(shadow_target.resolution);
+						const VkViewport shadow_viewport = render_pass_manager.get_shadow_viewport(shadow_target.resolution);
+						vkCmdSetScissor(workspace.command_buffer, 0, 1, &shadow_scissor);
+						vkCmdSetViewport(workspace.command_buffer, 0, 1, &shadow_viewport);
+
+						if (!shadow_object_instances.empty()) {
+							vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_shadow_pipeline.pipeline);
+
+							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
+							std::array< VkDeviceSize, 1 > offsets{ 0 };
+							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+
+							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SphereShadowPipeline"]][sphere_shadow_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["A3SphereShadowPipeline"]][sphere_shadow_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+
+							std::array< VkDescriptorSet, 2 > descriptor_sets{
+								global_descriptor_set,
+								transform_descriptor_set,
+							};
+
+							vkCmdBindDescriptorSets(
+								workspace.command_buffer,
+								VK_PIPELINE_BIND_POINT_GRAPHICS,
+								sphere_shadow_pipeline.layout,
+								0,
+								uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+								0, nullptr
+							);
+
+							A3SphereShadowPipeline::Push push{
+								.LIGHT_INDEX = light_index,
+								.FACE_INDEX = face_index,
+							};
+							vkCmdPushConstants(workspace.command_buffer, sphere_shadow_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
 
 							for (uint32_t i = 0; i < shadow_object_instances.size(); ++i) {
 								vkCmdDraw(workspace.command_buffer, shadow_object_instances[i].object_ranges.count, 1, shadow_object_instances[i].object_ranges.first, i);

@@ -17,6 +17,43 @@ float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D s
 	return sum / 9.0;
 }
 
+/*
+ * PCF kernel directions for omnidirectional point-light shadow maps.
+ * We jitter the lookup direction and sample from the cubemap depth.
+ */
+vec3 sphereShadowPcfDirections[20] = vec3[](
+	vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
+	vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
+	vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+	vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
+	vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+);
+
+float computeSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerCube shadowMapTexture) {
+	vec3 lightToFrag = fragPosition - sphereLight.position;
+	float distanceToLight = length(lightToFrag);
+
+	if (distanceToLight <= sphereLight.radius) {
+		return 1.0;
+	}
+	if (distanceToLight >= sphereLight.limit) {
+		return 0.0;
+	}
+
+	vec3 sampleDir = normalize(lightToFrag);
+	int litSamples = 0;
+
+	for (int i = 0; i < 20; ++i) {
+		float closestDepth = texture(shadowMapTexture, sampleDir + sphereShadowPcfDirections[i] * 0.0005).r;
+		closestDepth = sphereLight.radius + (sphereLight.limit - sphereLight.radius) * closestDepth;
+		if (distanceToLight <= closestDepth) {
+			litSamples += 1;
+		}
+	}
+
+	return float(litSamples) / 20.0;
+}
+
 // float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFragPosition, sampler2DArray shadowMapTexture) {
 // 	int cascadeIndex = 3;
 // 	for (int i = 0; i < 4; ++i) {

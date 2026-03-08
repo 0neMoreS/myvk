@@ -55,6 +55,15 @@ void main() {
 			}
 		}
 
+		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
+			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
+			LightSample ls = sampleSphereLightIntensity(light, position, N);
+			if (ls.NoL > 0.0) {
+				float shadow = computeSphereLightShadow(light, position, sphereShadowMap[i]);
+				Lo += shadow * ls.intensity * albedo * ls.NoL;
+			}
+		}
+
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
 			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
 			if (ls.NoL > 0.0) {

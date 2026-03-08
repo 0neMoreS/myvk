@@ -19,6 +19,7 @@
 namespace {
 	constexpr uint32_t SunCascadeCount = 4;
 	constexpr float SunCascadeLambda = 0.75f;
+	constexpr uint32_t SphereShadowFaceCount = 6;
 
 	template< typename LightsT >
 	void init_lights_bytes(const LightsT& lights, std::vector<uint8_t>& bytes) {
@@ -56,6 +57,51 @@ namespace {
 			splits[i] = split;
 		}
 		return splits;
+	}
+
+	std::array<glm::mat4, SphereShadowFaceCount> compute_sphere_shadow_face_pv(
+		const glm::vec3& position,
+		float near_plane,
+		float far_plane
+	) {
+		const glm::mat4 proj = [&]() {
+			glm::mat4 p = glm::perspectiveRH_ZO(glm::radians(90.0f), 1.0f, near_plane, far_plane);
+			p[1][1] *= -1.0f; // Vulkan clip-space Y-flip
+
+			// reverse-z, same remap used by sun/spot shadow matrices
+			p[0][2] = p[0][3] - p[0][2];
+			p[1][2] = p[1][3] - p[1][2];
+			p[2][2] = p[2][3] - p[2][2];
+			p[3][2] = p[3][3] - p[3][2];
+			return p;
+		}();
+
+		// Face directions and up vectors match a stable cubemap camera convention.
+		// This mirrors spotlight's lookAtRH usage while switching target direction per face.
+		const std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
+			glm::vec3(1.0f, 0.0f, 0.0f),
+			glm::vec3(-1.0f, 0.0f, 0.0f),
+			glm::vec3(0.0f, 1.0f, 0.0f),
+			glm::vec3(0.0f, -1.0f, 0.0f),
+			glm::vec3(0.0f, 0.0f, 1.0f),
+			glm::vec3(0.0f, 0.0f, -1.0f),
+		};
+		const std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
+			glm::vec3(0.0f, -1.0f, 0.0f),
+			glm::vec3(0.0f, -1.0f, 0.0f),
+			glm::vec3(0.0f, 0.0f, 1.0f),
+			glm::vec3(0.0f, 0.0f, -1.0f),
+			glm::vec3(0.0f, -1.0f, 0.0f),
+			glm::vec3(0.0f, -1.0f, 0.0f),
+		};
+
+		std::array<glm::mat4, SphereShadowFaceCount> face_pv{};
+		for (uint32_t face = 0; face < SphereShadowFaceCount; ++face) {
+			const glm::mat4 view = glm::lookAtRH(position, position + face_dirs[face], face_ups[face]);
+			face_pv[face] = proj * view;
+		}
+
+		return face_pv;
 	}
 
 	// glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
@@ -228,6 +274,7 @@ void LightsManager::create(
 	shadow_sun_lights.clear();
 	shadow_sphere_lights.clear();
 	shadow_spot_lights.clear();
+	shadow_sphere_matrices.clear();
 
 	sun_lights.reserve(light_tree_data.size());
 	sphere_lights.reserve(light_tree_data.size());
@@ -235,6 +282,7 @@ void LightsManager::create(
 	shadow_sun_lights.reserve(light_tree_data.size());
 	shadow_sphere_lights.reserve(light_tree_data.size());
 	shadow_spot_lights.reserve(light_tree_data.size());
+	shadow_sphere_matrices.reserve(light_tree_data.size());
 
 	for (const auto& ltd : light_tree_data) {
 		if (ltd.light_index >= doc->lights.size()) continue;
@@ -265,7 +313,9 @@ void LightsManager::create(
 			dst.radius = src_light.sphere->radius;
 			dst.tint = src_light.tint * src_light.sphere->power;
 			dst.limit = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * std::numbers::pi_v<float>) * 256.0f));
-			if (has_shadow) shadow_sphere_lights.emplace_back(std::move(dst));
+			if (has_shadow) {
+				shadow_sphere_lights.emplace_back(std::move(dst));
+			}
 			else sphere_lights.emplace_back(std::move(dst));
 		}
 
@@ -298,6 +348,10 @@ void LightsManager::create(
 	init_lights_bytes(shadow_sun_lights, shadow_sun_lights_bytes);
 	init_lights_bytes(shadow_sphere_lights, shadow_sphere_lights_bytes);
 	init_lights_bytes(shadow_spot_lights, shadow_spot_lights_bytes);
+
+	shadow_sphere_matrices.resize(shadow_sphere_lights.size());
+	shadow_sphere_matrices_bytes.assign(static_cast<size_t>(sphere_shadow_matrices_buffer_size(static_cast<uint32_t>(shadow_sphere_matrices.size()))), 0);
+	init_lights_bytes(shadow_sphere_matrices, shadow_sphere_matrices_bytes);
 }
 
 void LightsManager::update(
@@ -351,6 +405,13 @@ void LightsManager::update(
 		if (src_light.sphere) {
 			auto& dst = has_shadow ? shadow_sphere_lights.at(shadow_sphere_idx++) : sphere_lights.at(sphere_idx++);
 			dst.position = position;
+
+			if (has_shadow) {
+				const float near_plane = std::max(0.01f, dst.radius);
+				const float far_plane = std::max(near_plane + 0.01f, dst.limit);
+				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);
+				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, near_plane, far_plane);
+			}
 		}
 
 		if (src_light.spot) {
@@ -379,4 +440,5 @@ void LightsManager::update(
 	overwrite_lights_payload(shadow_sun_lights, shadow_sun_lights_bytes);
 	overwrite_lights_payload(shadow_sphere_lights, shadow_sphere_lights_bytes);
 	overwrite_lights_payload(shadow_spot_lights, shadow_spot_lights_bytes);
+	overwrite_lights_payload(shadow_sphere_matrices, shadow_sphere_matrices_bytes);
 }

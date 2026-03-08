@@ -13,6 +13,8 @@
 
 class LightsManager {
 public:
+	static constexpr uint32_t SphereShadowFaceCount = 6;
+
 	struct alignas(16) SunLight {
         float cascadeSplits[4];
         glm::mat4 orthographic[4];
@@ -51,6 +53,11 @@ public:
     };
     static_assert(sizeof(LightsHeader) == 16, "LightsHeader must match std430 layout.");
 
+	struct alignas(16) SphereShadowMatrices {
+		std::array<glm::mat4, SphereShadowFaceCount> face_pv;
+	};
+	static_assert(sizeof(SphereShadowMatrices) == 384, "SphereShadowMatrices must match std430 layout.");
+
     inline VkDeviceSize sun_lights_buffer_size(uint32_t count) {
         return sizeof(LightsHeader) + sizeof(SunLight) * count;
     }
@@ -62,6 +69,10 @@ public:
     inline VkDeviceSize spot_lights_buffer_size(uint32_t count) {
         return sizeof(LightsHeader) + sizeof(SpotLight) * count;
     }
+
+	inline VkDeviceSize sphere_shadow_matrices_buffer_size(uint32_t count) {
+		return sizeof(LightsHeader) + sizeof(SphereShadowMatrices) * count;
+	}
 
 	LightsManager() = default;
 	~LightsManager() = default;
@@ -83,6 +94,7 @@ public:
 	const std::vector<SunLight>& get_shadow_sun_lights() const { return shadow_sun_lights; }
 	const std::vector<SphereLight>& get_shadow_sphere_lights() const { return shadow_sphere_lights; }
 	const std::vector<SpotLight>& get_shadow_spot_lights() const { return shadow_spot_lights; }
+	const std::vector<SphereShadowMatrices>& get_shadow_sphere_matrices() const { return shadow_sphere_matrices; }
 
 	const std::vector<uint8_t>& get_sun_lights_bytes() const { return sun_lights_bytes; }
 	const std::vector<uint8_t>& get_sphere_lights_bytes() const { return sphere_lights_bytes; }
@@ -90,6 +102,7 @@ public:
 	const std::vector<uint8_t>& get_shadow_sun_lights_bytes() const { return shadow_sun_lights_bytes; }
 	const std::vector<uint8_t>& get_shadow_sphere_lights_bytes() const { return shadow_sphere_lights_bytes; }
 	const std::vector<uint8_t>& get_shadow_spot_lights_bytes() const { return shadow_spot_lights_bytes; }
+	const std::vector<uint8_t>& get_shadow_sphere_matrices_bytes() const { return shadow_sphere_matrices_bytes; }
 
 	VkDeviceSize get_sun_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(sun_lights_bytes.size()); }
 	VkDeviceSize get_sphere_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(sphere_lights_bytes.size()); }
@@ -97,6 +110,7 @@ public:
 	VkDeviceSize get_shadow_sun_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_sun_lights_bytes.size()); }
 	VkDeviceSize get_shadow_sphere_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_sphere_lights_bytes.size()); }
 	VkDeviceSize get_shadow_spot_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_spot_lights_bytes.size()); }
+	VkDeviceSize get_shadow_sphere_matrices_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_sphere_matrices_bytes.size()); }
 
 private:
 	std::vector<SunLight> sun_lights;
@@ -105,6 +119,7 @@ private:
 	std::vector<SunLight> shadow_sun_lights;
 	std::vector<SphereLight> shadow_sphere_lights;
 	std::vector<SpotLight> shadow_spot_lights;
+	std::vector<SphereShadowMatrices> shadow_sphere_matrices;
 
 	std::vector<uint8_t> sun_lights_bytes;
 	std::vector<uint8_t> sphere_lights_bytes;
@@ -112,4 +127,5 @@ private:
 	std::vector<uint8_t> shadow_sun_lights_bytes;
 	std::vector<uint8_t> shadow_sphere_lights_bytes;
 	std::vector<uint8_t> shadow_spot_lights_bytes;
+	std::vector<uint8_t> shadow_sphere_matrices_bytes;
 };

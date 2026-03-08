@@ -339,6 +339,48 @@ void main() {
 			}
 		}
 
+		// --- 2.1 SHADOW SPHERE LIGHTS ---
+		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
+			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
+			LightSample ls = sampleSphereLightIntensity(light, fragPos, N);
+
+			vec3 toLight = light.position - fragPos;
+			float distToLight = length(toLight);
+			vec3 L_center = toLight / max(distToLight, 1e-5);
+
+			vec3 centerToRay = dot(toLight, R) * R - toLight;
+			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
+			vec3 L_spec = normalize(closestPoint);
+
+			float NoL_spec = max(dot(N, L_spec), 0.0);
+
+			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
+				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+
+				vec3 specularTerm = vec3(0.0);
+				if (NoL_spec > 0.0) {
+					vec3 H = normalize(V + L_spec);
+					float NDF = DistributionGGX(N, H, roughness);
+					float G = GeometrySmith(N, V, L_spec, roughness);
+					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+					vec3 nominator = NDF * G * F_spec;
+					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+					vec3 specular = nominator / denominator;
+
+					float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
+					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+
+					specularTerm = specular * normalization * NoL_spec;
+				}
+
+				float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[i]);
+				Lo += shadow * (diffuseTerm + specularTerm) * ls.intensity;
+			}
+		}
+
 		// --- 3. SPOT LIGHTS ---
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
 			SpotLight light = spotLightsBuf.lights[i];

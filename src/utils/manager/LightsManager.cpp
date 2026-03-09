@@ -96,23 +96,36 @@ namespace {
 		// 	glm::vec3(0.0f, -1.0f, 0.0f),
 		// };
 
-		static constexpr std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
+		const glm::mat3 rotXNeg90(
+			1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f,
+			0.0f, -1.0f, 0.0f
+		);
+
+		const std::array<glm::vec3, SphereShadowFaceCount> base_dirs = {
 			glm::vec3( 1.0f,  0.0f,  0.0f),
 			glm::vec3(-1.0f,  0.0f,  0.0f),
-			glm::vec3( 0.0f,  0.0f, -1.0f),
-			glm::vec3( 0.0f,  0.0f,  1.0f),
 			glm::vec3( 0.0f, -1.0f,  0.0f),
 			glm::vec3( 0.0f,  1.0f,  0.0f),
+			glm::vec3( 0.0f,  0.0f,  1.0f),
+			glm::vec3( 0.0f,  0.0f, -1.0f),
 		};
 
-		static constexpr std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
-			glm::vec3(0.0f,  0.0f, -1.0f),
-			glm::vec3(0.0f,  0.0f, -1.0f),
-			glm::vec3(0.0f,  1.0f,  0.0f),
+		const std::array<glm::vec3, SphereShadowFaceCount> base_ups = {
+			glm::vec3(0.0f, -1.0f,  0.0f),
 			glm::vec3(0.0f, -1.0f,  0.0f),
 			glm::vec3(0.0f,  0.0f, -1.0f),
-			glm::vec3(0.0f,  0.0f, -1.0f),
+			glm::vec3(0.0f,  0.0f,  1.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
 		};
+
+		std::array<glm::vec3, SphereShadowFaceCount> face_dirs{};
+		std::array<glm::vec3, SphereShadowFaceCount> face_ups{};
+		for (uint32_t i = 0; i < SphereShadowFaceCount; ++i) {
+			face_dirs[i] = base_dirs[i];
+			face_ups[i]  = base_ups[i];
+		}
 
 		std::array<glm::mat4, SphereShadowFaceCount> face_pv{};
 		for (uint32_t face = 0; face < SphereShadowFaceCount; ++face) {

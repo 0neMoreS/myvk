@@ -78,21 +78,40 @@ namespace {
 
 		// Face directions and up vectors match a stable cubemap camera convention.
 		// This mirrors spotlight's lookAtRH usage while switching target direction per face.
-		const std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
-			glm::vec3(1.0f, 0.0f, 0.0f),
-			glm::vec3(-1.0f, 0.0f, 0.0f),
-			glm::vec3(0.0f, 1.0f, 0.0f),
-			glm::vec3(0.0f, -1.0f, 0.0f),
-			glm::vec3(0.0f, 0.0f, 1.0f),
-			glm::vec3(0.0f, 0.0f, -1.0f),
+		// const std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
+		// 	glm::vec3(1.0f, 0.0f, 0.0f), // Back
+		// 	glm::vec3(-1.0f, 0.0f, 0.0f), // Front
+		// 	glm::vec3(0.0f, -1.0f, 0.0f), // Bottom
+		// 	glm::vec3(0.0f, 1.0f, 0.0f), // Top
+		// 	glm::vec3(0.0f, 0.0f, 1.0f), // Right
+		// 	glm::vec3(0.0f, 0.0f, -1.0f), // Left
+		// };
+
+		// const std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
+		// 	glm::vec3(0.0f, -1.0f, 0.0f),
+		// 	glm::vec3(0.0f, -1.0f, 0.0f),
+		// 	glm::vec3(0.0f, 0.0f, -1.0f),
+		// 	glm::vec3(0.0f, 0.0f, 1.0f),
+		// 	glm::vec3(0.0f, -1.0f, 0.0f),
+		// 	glm::vec3(0.0f, -1.0f, 0.0f),
+		// };
+
+		static constexpr std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
+			glm::vec3( 1.0f,  0.0f,  0.0f),
+			glm::vec3(-1.0f,  0.0f,  0.0f),
+			glm::vec3( 0.0f,  0.0f, -1.0f),
+			glm::vec3( 0.0f,  0.0f,  1.0f),
+			glm::vec3( 0.0f, -1.0f,  0.0f),
+			glm::vec3( 0.0f,  1.0f,  0.0f),
 		};
-		const std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
-			glm::vec3(0.0f, -1.0f, 0.0f),
-			glm::vec3(0.0f, -1.0f, 0.0f),
-			glm::vec3(0.0f, 0.0f, 1.0f),
-			glm::vec3(0.0f, 0.0f, -1.0f),
-			glm::vec3(0.0f, -1.0f, 0.0f),
-			glm::vec3(0.0f, -1.0f, 0.0f),
+
+		static constexpr std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
+			glm::vec3(0.0f,  0.0f, -1.0f),
+			glm::vec3(0.0f,  0.0f, -1.0f),
+			glm::vec3(0.0f,  1.0f,  0.0f),
+			glm::vec3(0.0f, -1.0f,  0.0f),
+			glm::vec3(0.0f,  0.0f, -1.0f),
+			glm::vec3(0.0f,  0.0f, -1.0f),
 		};
 
 		std::array<glm::mat4, SphereShadowFaceCount> face_pv{};

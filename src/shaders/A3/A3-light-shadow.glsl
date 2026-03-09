@@ -216,7 +216,7 @@ vec3 debugSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerC
 	// 		litSamples += 1;
 	// 	}
 	// }
-
+	
 	float sampledDepth = texture(shadowMapTexture, sampleDir).r;
 	float closestDepth = 25.0 * sampledDepth;
 	float bias = 0.001;

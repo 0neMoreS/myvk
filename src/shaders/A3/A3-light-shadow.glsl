@@ -46,8 +46,8 @@ float computeSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, sampl
 
 	for (int i = 0; i < 20; ++i) {
 		float closestDepth = texture(shadowMapTexture, sampleDir + sphereShadowPcfDirections[i] * 0.0005).r;
-		closestDepth = 25.0 * closestDepth;
-		if (distanceToLight + bias > closestDepth) {
+		closestDepth = 25.0 / (1.0 + 24.0 * closestDepth);
+		if (distanceToLight < closestDepth) {
 			litSamples += 1;
 		}
 	}

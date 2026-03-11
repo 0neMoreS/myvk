@@ -409,7 +409,7 @@ void LightsManager::update(
 
 			if (has_shadow) {
 				// Get this parameter from LearnOpenGL
-				const float near_plane = 1.0f;
+				const float near_plane = 1.0f; // hard coded for now, can be tuned based on scene scale
 				const float far_plane = 25.0f; // hard coded for now
 				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);
 				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, near_plane, far_plane);

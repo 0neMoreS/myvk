@@ -66,7 +66,7 @@ namespace {
 	) {
 		const glm::mat4 proj = [&]() {
 			glm::mat4 p = glm::perspectiveRH_ZO(glm::radians(90.0f), 1.0f, near_plane, far_plane);
-			p[1][1] *= -1.0f; // Vulkan clip-space Y-flip
+			// p[1][1] *= -1.0f; // Y-flip twic in CPU and GPU, so it cancels out and we get correct orientation without flipping here
 
 			// reverse-z, same remap used by sun/spot shadow matrices
 			p[0][2] = p[0][3] - p[0][2];
@@ -76,62 +76,23 @@ namespace {
 			return p;
 		}();
 
-		// Face directions and up vectors match a stable cubemap camera convention.
-		// This mirrors spotlight's lookAtRH usage while switching target direction per face.
-		// const std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
-		// 	glm::vec3(1.0f, 0.0f, 0.0f), // Back
-		// 	glm::vec3(-1.0f, 0.0f, 0.0f), // Front
-		// 	glm::vec3(0.0f, -1.0f, 0.0f), // Bottom
-		// 	glm::vec3(0.0f, 1.0f, 0.0f), // Top
-		// 	glm::vec3(0.0f, 0.0f, 1.0f), // Right
-		// 	glm::vec3(0.0f, 0.0f, -1.0f), // Left
-		// };
-
-		// const std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
-		// 	glm::vec3(0.0f, -1.0f, 0.0f),
-		// 	glm::vec3(0.0f, -1.0f, 0.0f),
-		// 	glm::vec3(0.0f, 0.0f, -1.0f),
-		// 	glm::vec3(0.0f, 0.0f, 1.0f),
-		// 	glm::vec3(0.0f, -1.0f, 0.0f),
-		// 	glm::vec3(0.0f, -1.0f, 0.0f),
-		// };
-
-		const glm::mat3 rotXNeg90(
-			1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f,
-			0.0f, -1.0f, 0.0f
-		);
-
-		const glm::mat3 rotZ90(
-			0.0f, 1.0f, 0.0f,
-			-1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f
-		);
-
-		const std::array<glm::vec3, SphereShadowFaceCount> base_dirs = {
-			glm::vec3( 1.0f,  0.0f,  0.0f),
-			glm::vec3(-1.0f,  0.0f,  0.0f),
-			glm::vec3( 0.0f, -1.0f,  0.0f),
-			glm::vec3( 0.0f,  1.0f,  0.0f),
-			glm::vec3( 0.0f,  0.0f,  1.0f),
-			glm::vec3( 0.0f,  0.0f, -1.0f),
+		const std::array<glm::vec3, SphereShadowFaceCount> face_dirs = {
+			glm::vec3(  1.0f, 0.0f, 0.0f ), // Back
+			glm::vec3( -1.0f, 0.0f, 0.0f ), // Front
+			glm::vec3( 0.0f, 1.0f, 0.0f ), // Bottom
+			glm::vec3( 0.0f, -1.0f, 0.0f ), // Top
+			glm::vec3( 0.0f,  0.0f,  1.0f), // Left
+			glm::vec3( 0.0f,  0.0f, -1.0f), // Right
 		};
 
-		const std::array<glm::vec3, SphereShadowFaceCount> base_ups = {
-			glm::vec3(0.0f, -1.0f,  0.0f),
-			glm::vec3(0.0f, -1.0f,  0.0f),
-			glm::vec3(0.0f,  0.0f, -1.0f),
-			glm::vec3(0.0f,  0.0f,  1.0f),
-			glm::vec3(0.0f, -1.0f,  0.0f),
-			glm::vec3(0.0f, -1.0f,  0.0f),
+		const std::array<glm::vec3, SphereShadowFaceCount> face_ups = {
+			glm::vec3(0.0f, -1.0f, 0.0f), // Back
+			glm::vec3(0.0f, -1.0f, 0.0f), // Front
+			glm::vec3(0.0f, 0.0f, 1.0f), // Bottom
+			glm::vec3(0.0f, 0.0f, -1.0f), // Top
+			glm::vec3(0.0f, -1.0f,  0.0f), // Left
+			glm::vec3(0.0f, -1.0f,  0.0f), // Right
 		};
-
-		std::array<glm::vec3, SphereShadowFaceCount> face_dirs{};
-		std::array<glm::vec3, SphereShadowFaceCount> face_ups{};
-		for (uint32_t i = 0; i < SphereShadowFaceCount; ++i) {
-			face_dirs[i] = rotZ90 * base_dirs[i];
-			face_ups[i]  = rotZ90 * base_ups[i];
-		}
 
 		std::array<glm::mat4, SphereShadowFaceCount> face_pv{};
 		for (uint32_t face = 0; face < SphereShadowFaceCount; ++face) {
@@ -447,8 +408,9 @@ void LightsManager::update(
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
 
 			if (has_shadow) {
-				const float near_plane = 0.01f;
-				const float far_plane = std::max(dst.radius, dst.limit);
+				// Get this parameter from LearnOpenGL
+				const float near_plane = 1.0f;
+				const float far_plane = 25.0f; // hard coded for now
 				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);
 				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, near_plane, far_plane);
 			}
@@ -458,9 +420,8 @@ void LightsManager::update(
 			auto& dst = has_shadow ? shadow_spot_lights.at(shadow_spot_idx++) : spot_lights.at(spot_idx++);
 			dst.position = position;
 			dst.direction = direction;
-			// Get this parameter from LearnOpenGL
-			const float near_plane = 1.0f;
-			const float far_plane = 25.0f;
+			const float near_plane = 0.1f;
+			const float far_plane = dst.limit;
 			glm::mat4 view = glm::lookAtRH(position, position + direction, up);
 			glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, near_plane, far_plane);
 			proj[1][1] *= -1.0f;

@@ -6,7 +6,7 @@ static uint32_t vert_code[] = {
 };
 
 static uint32_t frag_code[] = {
-#include "../../shaders/spv/A3-sphere-debug-lambertian.frag.inl"
+#include "../../shaders/spv/A3-lambertian.frag.inl"
 };
 
 A3LambertianPipeline::~A3LambertianPipeline(){

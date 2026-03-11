@@ -40,23 +40,19 @@ float computeSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, sampl
 		return 0.0;
 	}
 
-	// for (int i = 0; i < 20; ++i) {
-	// 	float closestDepth = texture(shadowMapTexture, sampleDir + sphereShadowPcfDirections[i] * 0.0005).r;
-	// 	closestDepth = sphereLight.radius + (sphereLight.limit - sphereLight.radius) * closestDepth;
-	// 	if (distanceToLight > closestDepth) {
-	// 		litSamples += 1;
-	// 	}
-	// }
-
-	// return float(litSamples) / 20.0;
-
 	vec3 sampleDir = normalize(lightToFrag);
-	float sampledDepth = texture(shadowMapTexture, sampleDir).r;
-	float closestDepth = 25.0 * sampledDepth;
+	int litSamples = 0;
 	float bias = 0.001;
 
-	// Return visibility: 1.0 means lit, 0.0 means shadowed.
-	return (distanceToLight > closestDepth + bias) ? 1.0 : 0.0;
+	for (int i = 0; i < 20; ++i) {
+		float closestDepth = texture(shadowMapTexture, sampleDir + sphereShadowPcfDirections[i] * 0.0005).r;
+		closestDepth = 25.0 * closestDepth;
+		if (distanceToLight + bias > closestDepth) {
+			litSamples += 1;
+		}
+	}
+
+	return litSamples / 20.0;
 }
 
 
@@ -199,12 +195,12 @@ vec3 debugSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerC
 	vec3 lightToFrag = fragPosition - sphereLight.position;
 	float distanceToLight = length(lightToFrag);
 
-	// if (distanceToLight <= sphereLight.radius) {
-	// 	return 1.0;
-	// }
-	// if (distanceToLight >= sphereLight.limit) {
-	// 	return 0.0;
-	// }
+	if (distanceToLight <= sphereLight.radius) {
+		return vec3(1.0);
+	}
+	if (distanceToLight >= sphereLight.limit) {
+		return vec3(0.0);
+	}
 
 	vec3 sampleDir = normalize(lightToFrag);
 	int litSamples = 0;
@@ -222,5 +218,5 @@ vec3 debugSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerC
 	float bias = 0.001;
 
 	// Return visibility: 1.0 means lit, 0.0 means shadowed.
-	return vec3(closestDepth);
+	return vec3(closestDepth < distanceToLight ? 1.0 : 0.0);
 }

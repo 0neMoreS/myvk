@@ -31,7 +31,7 @@ LightSample sampleSphereLightIntensity(SphereLight sphereLight, vec3 fragPositio
 
 	vec3 toLight = sphereLight.position - fragPosition;
 	float distance = length(toLight);
-	if (distance <= 0.0 || distance >= sphereLight.limit) {
+	if (distance <= 0.0 || distance >= sphereLight.far_plane) {
 		return ls;
 	}
 
@@ -41,7 +41,7 @@ LightSample sampleSphereLightIntensity(SphereLight sphereLight, vec3 fragPositio
 		return ls;
 	}
 	float effectiveDistance = max(distance, sphereLight.radius);
-	float attenuation = (1.0 - pow(effectiveDistance / sphereLight.limit, 4.0));
+	float attenuation = (1.0 - pow(effectiveDistance / sphereLight.far_plane, 4.0));
 	attenuation = max(attenuation, 0.0);
 	ls.intensity = sphereLight.tint * attenuation / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
 	return ls;

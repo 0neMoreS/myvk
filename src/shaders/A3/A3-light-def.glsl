@@ -11,9 +11,10 @@ struct SphereLight {
 	vec3 position; // In world space
 	float radius;
 	vec3 tint; // Already multiplied by power
-	float limit;
+	float near_plane;
+	float far_plane;
 	int shadow; // Shadow map size
-	int _pad_[3];
+	int _pad_[2];
 };
 
 struct SpotLight {

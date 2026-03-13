@@ -59,6 +59,17 @@ namespace {
 		return splits;
 	}
 
+	float compute_sphere_light_far_plane(const S72Loader::Light::Sphere& sphere) {
+		const float default_far_plane = 2.0f * std::sqrt(sphere.power / (4.0f * std::numbers::pi_v<float>) * 256.0f);
+		return sphere.limit.value_or(default_far_plane);
+	}
+
+	float compute_sphere_light_near_plane(float radius, float far_plane) {
+		constexpr float MinNearPlane = 0.05f;
+		const float safe_far_plane = std::max(far_plane, MinNearPlane + 0.001f);
+		return std::clamp(std::max(radius, MinNearPlane), MinNearPlane, safe_far_plane - 0.001f);
+	}
+
 	std::array<glm::mat4, SphereShadowFaceCount> compute_sphere_shadow_face_pv(
 		const glm::vec3& position,
 		float near_plane,
@@ -311,7 +322,10 @@ void LightsManager::create(
 			dst.position = position;
 			dst.radius = src_light.sphere->radius;
 			dst.tint = src_light.tint * src_light.sphere->power;
-			dst.limit = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * std::numbers::pi_v<float>) * 256.0f));
+			// dst.far_plane = std::max(compute_sphere_light_far_plane(*src_light.sphere), dst.radius + 0.001f);
+			// dst.near_plane = compute_sphere_light_near_plane(dst.radius, dst.far_plane);
+			dst.far_plane = 25.0f;
+			dst.near_plane = 0.1f;
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
 			if (has_shadow) {
 				shadow_sphere_lights.emplace_back(std::move(dst));
@@ -406,13 +420,14 @@ void LightsManager::update(
 			auto& dst = has_shadow ? shadow_sphere_lights.at(shadow_sphere_idx++) : sphere_lights.at(sphere_idx++);
 			dst.position = position;
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
+			// dst.far_plane = std::max(compute_sphere_light_far_plane(*src_light.sphere), dst.radius + 0.001f);
+			// dst.near_plane = compute_sphere_light_near_plane(dst.radius, dst.far_plane);
+			dst.far_plane = 25.0f;
+			dst.near_plane = 0.1f;
 
 			if (has_shadow) {
-				// Get this parameter from LearnOpenGL
-				const float near_plane = 1.0f; // hard coded for now, can be tuned based on scene scale
-				const float far_plane = 25.0f; // hard coded for now
 				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);
-				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, near_plane, far_plane);
+				sphere_shadow.face_pv = compute_sphere_shadow_face_pv(dst.position, dst.near_plane, dst.far_plane);
 			}
 		}
 

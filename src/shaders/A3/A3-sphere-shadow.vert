@@ -14,9 +14,10 @@ struct SphereLight {
     vec3 position;
     float radius;
     vec3 tint;
-    float limit;
+    float near_plane;
+    float far_plane;
     int shadow;
-    int _pad_[3];
+    int _pad_[2];
 };
 
 struct SphereShadowMatrices {

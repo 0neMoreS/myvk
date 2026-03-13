@@ -29,9 +29,10 @@ public:
         glm::vec3 position;
         float radius;
         glm::vec3 tint;
-        float limit;
+		float near_plane;
+		float far_plane;
 		int32_t shadow;
-		int32_t _pad_[3];
+		int32_t _pad_[2];
     };
 	static_assert(sizeof(SphereLight) == 48, "SphereLight must match std430 layout.");
 

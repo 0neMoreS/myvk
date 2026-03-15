@@ -33,51 +33,39 @@ void main() {
 
 	{ // direct lighting (all lights)
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
-			LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
-			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
+			Lo += lightIntensity * albedo;
 		}
 
 		for (uint i = 0u; i < shadowSunLightsBuf.count; ++i) {
 			SunLight light = shadowSunLightsBuf.shadowLights[i];
-			LightSample ls = sampleSunLightIntensity(light, N);
-			if (ls.NoL > 0.0) {
-				float shadow = computeSunLightShadow(light, position, viewPosition, sunShadowMap[i]);
-				Lo += shadow * ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSunLightIntensity(light, N);
+			float shadow = computeSunLightShadow(light, position, viewPosition, sunShadowMap[i]);
+			Lo += shadow * lightIntensity * albedo;
 		}
 
 		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
-			LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position, N);
-			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position, N);
+			Lo += lightIntensity * albedo;
 		}
 
 		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
 			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
-			LightSample ls = sampleSphereLightIntensity(light, position, N);
-			if (ls.NoL > 0.0) {
-				float shadow = computeSphereLightShadow(light, position, sphereShadowMap[i]);
-				Lo += shadow * ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
+			float shadow = computeSphereLightShadow(light, position, sphereShadowMap[i]);
+			Lo += shadow * lightIntensity * albedo;
 		}
 
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
-			LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
-			if (ls.NoL > 0.0) {
-				Lo += ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
+			Lo += lightIntensity * albedo;
 		}
 
 		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
 			SpotLight light = shadowSpotLightsBuf.shadowLights[i];
-			LightSample ls = sampleSpotLightIntensity(light, position, N);
-			if (ls.NoL > 0.0) {
-				float shadow = computeSpotLightShadow(light, position, spotShadowMap[i]);
-				Lo += shadow * ls.intensity * albedo * ls.NoL;
-			}
+			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
+			float shadow = computeSpotLightShadow(light, position, spotShadowMap[i]);
+			Lo += shadow * lightIntensity * albedo;
 		}
 	}
 

@@ -142,77 +142,13 @@ void main() {
 	// reflectance equation
 	vec3 Lo = vec3(0.0);
 
-	// { // direct lighting (all lights)
-	// 	for (uint i = 0u; i < sunLightsBuf.count; ++i) {
-	// 		LightSample ls = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
-	// 		if (ls.NoL <= 0.0) continue;
-
-	// 		vec3 H = normalize(V + normalize(sunLightsBuf.lights[i].direction));
-	// 		float NDF = DistributionGGX(N, H, roughness);
-	// 		float G = GeometrySmith(N, V, normalize(sunLightsBuf.lights[i].direction), roughness);
-	// 		vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-	// 		vec3 numerator = NDF * G * F;
-	// 		float denominator = 4.0 * max(dot(N, V), 0.0) * ls.NoL + 0.0001;
-	// 		vec3 specular = numerator / denominator;
-
-	// 		vec3 kS = F;
-	// 		vec3 kD = vec3(1.0) - kS;
-	// 		kD *= (1.0 - metallic);
-
-	// 		Lo += (kD * albedo / PI + specular) * ls.intensity * ls.NoL;
-	// 	}
-
-	// 	for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
-	// 		LightSample ls = sampleSphereLightIntensity(sphereLightsBuf.lights[i], fragPos, N);
-	// 		if (ls.NoL <= 0.0) continue;
-
-	// 		vec3 L = normalize(sphereLightsBuf.lights[i].position - fragPos);
-	// 		vec3 H = normalize(V + L);
-	// 		float NDF = DistributionGGX(N, H, roughness);
-	// 		float G = GeometrySmith(N, V, L, roughness);
-	// 		vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-	// 		vec3 numerator = NDF * G * F;
-	// 		float denominator = 4.0 * max(dot(N, V), 0.0) * ls.NoL + 0.0001;
-	// 		vec3 specular = numerator / denominator;
-
-	// 		vec3 kS = F;
-	// 		vec3 kD = vec3(1.0) - kS;
-	// 		kD *= (1.0 - metallic);
-
-	// 		Lo += (kD * albedo / PI + specular) * ls.intensity * ls.NoL;
-	// 	}
-
-	// 	for (uint i = 0u; i < spotLightsBuf.count; ++i) {
-	// 		LightSample ls = sampleSpotLightIntensity(spotLightsBuf.lights[i], fragPos, N);
-	// 		if (ls.NoL <= 0.0) continue;
-
-	// 		vec3 L = normalize(spotLightsBuf.lights[i].position - fragPos);
-	// 		vec3 H = normalize(V + L);
-	// 		float NDF = DistributionGGX(N, H, roughness);
-	// 		float G = GeometrySmith(N, V, L, roughness);
-	// 		vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-	// 		vec3 numerator = NDF * G * F;
-	// 		float denominator = 4.0 * max(dot(N, V), 0.0) * ls.NoL + 0.0001;
-	// 		vec3 specular = numerator / denominator;
-
-	// 		vec3 kS = F;
-	// 		vec3 kD = vec3(1.0) - kS;
-	// 		kD *= (1.0 - metallic);
-
-	// 		Lo += (kD * albedo / PI + specular) * ls.intensity * ls.NoL;
-	// 	}
-	// }
-
 	{ // direct lighting 
 		float alpha = roughness * roughness;
 
 		// --- 1. SUN LIGHTS ---
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
 			SunLight light = sunLightsBuf.lights[i];
-			LightSample ls = sampleSunLightIntensity(light, N);
+			vec3 lightIntensity = sampleSunLightIntensity(light, N);
 			
 			vec3 L_center = normalize(light.direction);
 			
@@ -224,41 +160,40 @@ void main() {
 			
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				// Diffuse (Using Light Center)
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			
+			// Diffuse (Using Light Center)
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				// Specular (Using Representative Point)
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			// Specular (Using Representative Point)
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					// Epic's Energy Normalization Factor
-					float alphaPrime = clamp(alpha + light.angle * 0.25, 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
-					
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				Lo += (diffuseTerm + specularTerm) * ls.intensity;
+				// Epic's Energy Normalization Factor
+				float alphaPrime = clamp(alpha + light.angle * 0.25, 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			Lo += (diffuseTerm + specularTerm) * lightIntensity;
 		}
 
 		// --- 1.1 SHADOW SUN LIGHTS ---
 		for (uint i = 0u; i < shadowSunLightsBuf.count; ++i) {
 			SunLight light = shadowSunLightsBuf.shadowLights[i];
-			LightSample ls = sampleSunLightIntensity(light, N);
+			vec3 lightIntensity = sampleSunLightIntensity(light, N);
 
-			vec3 L_center = normalize(light.direction);
+			vec3 L_center = normalize(-light.direction);
 
 			vec3 centerToRay = dot(L_center, R) * R - L_center;
 			float sunRadius = sin(light.angle * 0.5);
@@ -267,37 +202,35 @@ void main() {
 
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					float alphaPrime = clamp(alpha + light.angle * 0.25, 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				float alphaPrime = clamp(alpha + light.angle * 0.25, 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
 
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				float shadow = computeSunLightShadow(light, fragPos, viewFragPos, sunShadowMap[i]);
-				Lo += shadow * (diffuseTerm + specularTerm) * ls.intensity;
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			float shadow = computeSunLightShadow(light, fragPos, viewFragPos, sunShadowMap[i]);
+			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
 		}
 
 		// --- 2. SPHERE LIGHTS ---
 		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
 			SphereLight light = sphereLightsBuf.lights[i];
-			LightSample ls = sampleSphereLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
@@ -310,39 +243,37 @@ void main() {
 
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				// Diffuse
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			// Diffuse
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				// Specular
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			// Specular
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					// Epic's Energy Normalization Factor
-					float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
-					
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				Lo += (diffuseTerm + specularTerm) * ls.intensity;
+				// Epic's Energy Normalization Factor
+				float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			Lo += (diffuseTerm + specularTerm) * lightIntensity;
 		}
 
 		// --- 2.1 SHADOW SPHERE LIGHTS ---
 		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
 			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
-			LightSample ls = sampleSphereLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
@@ -354,37 +285,35 @@ void main() {
 
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
 
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[i]);
-				Lo += shadow * (diffuseTerm + specularTerm) * ls.intensity;
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[i]);
+			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
 		}
 
 		// --- 3. SPOT LIGHTS ---
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
 			SpotLight light = spotLightsBuf.lights[i];
-			LightSample ls = sampleSpotLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
@@ -397,39 +326,37 @@ void main() {
 
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				// Diffuse
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			// Diffuse
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				// Specular
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			// Specular
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					// Epic's Energy Normalization Factor
-					float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
-					
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				Lo += (diffuseTerm + specularTerm) * ls.intensity;
+				// Epic's Energy Normalization Factor
+				float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			Lo += (diffuseTerm + specularTerm) * lightIntensity;
 		}
 
-		// --- 4. SHADOW SPOT LIGHTS ---
+		// --- 3.1. SHADOW SPOT LIGHTS ---
 		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
 			SpotLight light = shadowSpotLightsBuf.shadowLights[i];
-			LightSample ls = sampleSpotLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
@@ -441,31 +368,29 @@ void main() {
 
 			float NoL_spec = max(dot(N, L_spec), 0.0);
 
-			if (ls.NoL > 0.0 || NoL_spec > 0.0) {
-				vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
-				vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
-				vec3 diffuseTerm = (kD * albedo / PI) * ls.NoL;
+			vec3 F_diff = fresnelSchlick(max(dot(N, V), 0.0), F0);
+			vec3 kD = (1.0 - metallic) * (vec3(1.0) - F_diff);
+			vec3 diffuseTerm = kD * albedo / PI;
 
-				vec3 specularTerm = vec3(0.0);
-				if (NoL_spec > 0.0) {
-					vec3 H = normalize(V + L_spec);
-					float NDF = DistributionGGX(N, H, roughness);
-					float G = GeometrySmith(N, V, L_spec, roughness);
-					vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
+			vec3 specularTerm = vec3(0.0);
+			if (NoL_spec > 0.0) {
+				vec3 H = normalize(V + L_spec);
+				float NDF = DistributionGGX(N, H, roughness);
+				float G = GeometrySmith(N, V, L_spec, roughness);
+				vec3 F_spec = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-					vec3 nominator = NDF * G * F_spec;
-					float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
-					vec3 specular = nominator / denominator;
+				vec3 nominator = NDF * G * F_spec;
+				float denominator = 4.0 * max(dot(N, V), 0.0) * NoL_spec + 0.0001;
+				vec3 specular = nominator / denominator;
 
-					float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
-					float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
+				float alphaPrime = clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0);
+				float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
 
-					specularTerm = specular * normalization * NoL_spec;
-				}
-
-				float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[i]);
-				Lo += shadow * (diffuseTerm + specularTerm) * ls.intensity;
+				specularTerm = specular * normalization * NoL_spec;
 			}
+
+			float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[i]);
+			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
 		}
 	}
 

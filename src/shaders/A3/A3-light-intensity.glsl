@@ -1,69 +1,58 @@
 const float LIGHT_PI = 3.14159265359;
 
-struct LightSample {
-	vec3 intensity; // radiance/intensity (without NoL and BRDF term)
-	float NoL;      // cosine term, already clamped to [0, 1]
-};
-
-LightSample makeNoLightSample() {
-	LightSample ls;
-	ls.intensity = vec3(0.0);
-	ls.NoL = 0.0;
-	return ls;
-}
-
-LightSample sampleSunLightIntensity(SunLight sunLight, vec3 N) {
-	LightSample ls = makeNoLightSample();
-	vec3 L = normalize(-sunLight.direction);
-	ls.intensity = sunLight.tint;
-	float theta = acos(clamp(dot(L, N), -1.0, 1.0)) - sunLight.angle * 0.5;
-	if (theta >= LIGHT_PI * 0.5) {
-		ls.NoL = 0.0;
-		return ls;
+float horizon_approx(float NoL, float sa){
+	float fac;
+	if(NoL > sa){
+		fac = NoL;
+	} else if (NoL > -sa){
+		fac = mix(sa, 0.0, (NoL - sa) / (-sa - sa));
+	} else {
+		fac = 0.0;
 	}
-	theta = max(theta, 0.0);
-	ls.NoL = cos(theta);
-	return ls;
+	return fac;
 }
 
-LightSample sampleSphereLightIntensity(SphereLight sphereLight, vec3 fragPosition, vec3 N) {
-	LightSample ls = makeNoLightSample();
+vec3 sampleSunLightIntensity(SunLight sunLight, vec3 N) {
+	vec3 L = normalize(-sunLight.direction);
+	float theta = sunLight.angle;
+	float NoL = dot(N, L);
+	float e0 = max(NoL, 0.0);
+	float ePI = 0.5 * NoL + 0.5;
+	float NoLFactor = mix(e0, ePI, theta / LIGHT_PI);
+	return sunLight.tint * NoLFactor;
+}
 
+vec3 sampleSphereLightIntensity(SphereLight sphereLight, vec3 fragPosition, vec3 N) {
 	vec3 toLight = sphereLight.position - fragPosition;
 	float distance = length(toLight);
 	if (distance <= 0.0 || distance >= sphereLight.far_plane) {
-		return ls;
+		return vec3(0.0);
 	}
 
 	vec3 L = toLight / distance;
-	ls.NoL = max(dot(N, L), 0.0);
-	if (ls.NoL <= 0.0) {
-		return ls;
-	}
+	float sa = (distance <= sphereLight.radius ? 1.0 : sphereLight.radius / distance);
+	float NoLFactor = horizon_approx(dot(N, L), sa);
+
 	float effectiveDistance = max(distance, sphereLight.radius);
 	float attenuation = (1.0 - pow(effectiveDistance / sphereLight.far_plane, 4.0));
 	attenuation = max(attenuation, 0.0);
-	ls.intensity = sphereLight.tint * attenuation / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
-	return ls;
+	return sphereLight.tint * attenuation * NoLFactor / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
 }
 
-LightSample sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec3 N) {
-	LightSample ls = makeNoLightSample();
-
+vec3 sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec3 N) {
 	vec3 toLight = spotLight.position - fragPosition;
 	float distance = length(toLight);
 	if (distance <= 0.0 || distance >= spotLight.limit) {
-		return ls;
+		return vec3(0.0);
 	}
 
 	vec3 L = toLight / distance;
-	ls.NoL = max(dot(N, L), 0.0);
-	if (ls.NoL <= 0.0) {
-		return ls;
-	}
-	float phi = acos(clamp(dot(L, normalize(-spotLight.direction)), -1.0, 1.0));
+	float sa = (distance <= spotLight.radius ? 1.0 : spotLight.radius / distance);
+	float NoLFactor = horizon_approx(dot(N, L), sa);
+
+	float phi = acos(dot(L, normalize(-spotLight.direction)));
 	if (phi >= spotLight.fov * 0.5) {
-		return ls;
+		return vec3(0.0);
 	}
 
 	float blend = 1.0;
@@ -75,7 +64,5 @@ LightSample sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec
 	float effectiveDistance = max(distance, spotLight.radius);
 	float attenuation = (1.0 - pow(effectiveDistance / spotLight.limit, 4.0));
 	attenuation = max(attenuation, 0.0);
-
-	ls.intensity = blend * spotLight.tint * attenuation / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
-	return ls;
+	return blend * spotLight.tint * attenuation * NoLFactor / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
 }

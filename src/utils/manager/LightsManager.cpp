@@ -344,6 +344,8 @@ void LightsManager::create(
 			dst.blend = src_light.spot->blend;
 			dst.limit = src_light.spot->limit.value_or(2.0f * std::sqrt(src_light.spot->power / (4.0f * std::numbers::pi_v<float>) * 256.0f));
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
+			dst.near_plane = 0.1f;
+			dst.far_plane = dst.limit;
 			if (has_shadow) shadow_spot_lights.emplace_back(std::move(dst));
 			else spot_lights.emplace_back(std::move(dst));
 		}
@@ -435,10 +437,10 @@ void LightsManager::update(
 			auto& dst = has_shadow ? shadow_spot_lights.at(shadow_spot_idx++) : spot_lights.at(spot_idx++);
 			dst.position = position;
 			dst.direction = direction;
-			const float near_plane = 0.1f;
-			const float far_plane = dst.limit;
+			dst.near_plane = 0.1f;
+			dst.far_plane = dst.limit;
 			glm::mat4 view = glm::lookAtRH(position, position + direction, up);
-			glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, near_plane, far_plane);
+			glm::mat4 proj = glm::perspectiveRH_ZO(dst.fov, 1.0f, dst.near_plane, dst.far_plane);
 			proj[1][1] *= -1.0f;
 
 			// revers-z

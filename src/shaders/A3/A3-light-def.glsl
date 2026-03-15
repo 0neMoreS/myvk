@@ -27,6 +27,8 @@ struct SpotLight {
 	float blend;
 	float limit;
 	int shadow; // Shadow map size
+	float near_plane;
+	float far_plane;
 };
 
 layout(set=0, binding=1, std430) readonly buffer SunLightsBuf {

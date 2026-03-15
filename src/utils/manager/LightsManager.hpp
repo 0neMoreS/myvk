@@ -46,9 +46,10 @@ public:
         float blend;
         float limit;
         int32_t shadow;
-        int32_t _pad_[2];
+		float near_plane;
+		float far_plane;
     };
-    static_assert(sizeof(SpotLight) == 128, "SpotLight must match std430 layout.");
+	static_assert(sizeof(SpotLight) == 128, "SpotLight must match std430 layout.");
 
     struct alignas(16) LightsHeader {
         uint32_t count;

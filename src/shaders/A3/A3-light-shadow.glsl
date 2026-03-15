@@ -1,20 +1,65 @@
+float linearizePerspectiveDepth(float depth01, float nearPlane, float farPlane) {
+	float safeNear = max(nearPlane, 1e-5);
+	float safeFar = max(farPlane, safeNear + 1e-5);
+	return (safeNear * safeFar) / (safeNear + depth01 * (safeFar - safeNear));
+}
+
+vec2 spotShadowSampleOffsets[20] = vec2[](
+	vec2( 0.000,  0.000), vec2( 0.527,  0.085), vec2(-0.040,  0.536), vec2(-0.671, -0.044),
+	vec2( 0.043, -0.674), vec2( 0.311,  0.615), vec2(-0.620,  0.331), vec2(-0.352, -0.620),
+	vec2( 0.626, -0.327), vec2( 0.914,  0.258), vec2( 0.287,  0.926), vec2(-0.352,  0.884),
+	vec2(-0.889,  0.266), vec2(-0.930, -0.240), vec2(-0.296, -0.922), vec2( 0.314, -0.914),
+	vec2( 0.878, -0.330), vec2( 0.683,  0.681), vec2(-0.704,  0.662), vec2(-0.684, -0.681)
+);
+
 float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D shadowMapTexture){
-	vec4 light_space = spotLight.perspective * vec4(fragPosition, 1.0);
-	vec3 projected = light_space.xyz / light_space.w;
+	vec4 lightSpace = spotLight.perspective * vec4(fragPosition, 1.0);
+	vec3 projected = lightSpace.xyz / lightSpace.w;
 	vec2 uv = projected.xy * 0.5 + vec2(0.5);
 
-	float bias = 0.001;
-	float texel_size = 1.05 / float(spotLight.shadow);
-	float sum = 0.0;
+	if (projected.z <= 0.0 || projected.z >= 1.0 || uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) {
+		return 1.0;
+	}
 
-	for (int x = -1; x <= 1; ++x) {
-		for (int y = -1; y <= 1; ++y) {
-			float closest_depth = texture(shadowMapTexture, uv + vec2(x, y) * texel_size).r;
-			sum += (projected.z + bias > closest_depth) ? 1.0 : 0.0;
+	const int blockerSamples = 20;
+	const int pcfSamples = 20;
+
+	float receiverDepth = projected.z;
+	float receiverLinearDepth = linearizePerspectiveDepth(receiverDepth, spotLight.near_plane, spotLight.far_plane);
+	float texelSize = 1.0 / max(float(spotLight.shadow), 1.0);
+	float baseBias = 0.0005;
+
+	float lightRadiusUv = clamp(spotLight.radius / max(spotLight.far_plane, 1e-5), 0.0005, 0.08);
+	float searchRadius = lightRadiusUv * clamp((receiverLinearDepth - spotLight.near_plane) / max(receiverLinearDepth, 1e-5), 0.0, 1.0);
+
+	float blockerDepthSum = 0.0;
+	int blockerCount = 0;
+	for (int i = 0; i < blockerSamples; ++i) {
+		vec2 sampleUv = uv + spotShadowSampleOffsets[i] * searchRadius;
+		float sampleDepth = texture(shadowMapTexture, sampleUv).r;
+		if (receiverDepth + baseBias < sampleDepth) {
+			blockerDepthSum += sampleDepth;
+			blockerCount += 1;
 		}
 	}
 
-	return sum / 9.0;
+	if (blockerCount == 0) {
+		return 1.0;
+	}
+
+	float avgBlockerDepth = blockerDepthSum / float(blockerCount);
+	float avgBlockerLinearDepth = linearizePerspectiveDepth(avgBlockerDepth, spotLight.near_plane, spotLight.far_plane);
+	float penumbraRatio = max((receiverLinearDepth - avgBlockerLinearDepth) / max(avgBlockerLinearDepth, 1e-5), 0.0);
+	float filterRadius = max(lightRadiusUv * penumbraRatio, texelSize);
+
+	float shadowed = 0.0;
+	for (int i = 0; i < pcfSamples; ++i) {
+		vec2 sampleUv = uv + spotShadowSampleOffsets[i] * filterRadius;
+		float sampleDepth = texture(shadowMapTexture, sampleUv).r;
+		shadowed += (receiverDepth + baseBias < sampleDepth) ? 1.0 : 0.0;
+	}
+
+	return 1.0 - shadowed / float(pcfSamples);
 }
 
 /*
@@ -31,21 +76,43 @@ vec3 sphereShadowPcfDirections[20] = vec3[](
 
 float computeSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerCube shadowMapTexture) {
 	vec3 lightToFrag = fragPosition - sphereLight.position;
-	float distanceToLight = max(max(abs(lightToFrag.x), abs(lightToFrag.y)), abs(lightToFrag.z));
-
+	float receiverDepth = length(lightToFrag);
 	vec3 sampleDir = normalize(lightToFrag);
-	int litSamples = 0;
-	float bias = 0.05;
+	const int blockerSamples = 20;
+	const int pcfSamples = 20;
+	float bias = 0.01;
 
-	for (int i = 0; i < 20; ++i) {
-		float closestDepth = texture(shadowMapTexture, sampleDir + sphereShadowPcfDirections[i] * 0.001).r;
-		closestDepth = (sphereLight.near_plane * sphereLight.far_plane) / (sphereLight.near_plane + closestDepth * (sphereLight.far_plane - sphereLight.near_plane));
-		if (distanceToLight - bias < closestDepth) {
-			litSamples += 1;
+	float angularSearchRadius = clamp((sphereLight.radius / max(receiverDepth, 1e-5)) * 0.5, 0.0005, 0.2);
+	float blockerDepthSum = 0.0;
+	int blockerCount = 0;
+
+	for (int i = 0; i < blockerSamples; ++i) {
+		vec3 sampleVector = normalize(sampleDir + sphereShadowPcfDirections[i] * angularSearchRadius);
+		float sampleDepth = texture(shadowMapTexture, sampleVector).r;
+		float blockerDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
+		if (receiverDepth > blockerDepth + bias) {
+			blockerDepthSum += blockerDepth;
+			blockerCount += 1;
 		}
 	}
 
-	return litSamples / 20.0;
+	if (blockerCount == 0) {
+		return 1.0;
+	}
+
+	float avgBlockerDepth = blockerDepthSum / float(blockerCount);
+	float penumbra = max((receiverDepth - avgBlockerDepth) / max(avgBlockerDepth, 1e-5), 0.0) * sphereLight.radius;
+	float angularFilterRadius = clamp(penumbra / max(receiverDepth, 1e-5), 0.0005, 0.3);
+
+	float shadowed = 0.0;
+	for (int i = 0; i < pcfSamples; ++i) {
+		vec3 sampleVector = normalize(sampleDir + sphereShadowPcfDirections[i] * angularFilterRadius);
+		float sampleDepth = texture(shadowMapTexture, sampleVector).r;
+		float closestDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
+		shadowed += (receiverDepth > closestDepth + bias) ? 1.0 : 0.0;
+	}
+
+	return 1.0 - shadowed / float(pcfSamples);
 }
 
 
@@ -83,10 +150,10 @@ float sampleShadowPCF(sampler2DArray shadowMap, int cascadeIndex, vec3 projected
         for (int y = -1; y <= 1; ++y) {
             vec2 pcfUV = uv + vec2(x, y) * texelSize;
             float pcfDepth = texture(shadowMap, vec3(pcfUV, cascadeIndex)).r;
-            pcfSum += (currentDepth + bias > pcfDepth) ? 1.0 : 0.0;
+			pcfSum += (currentDepth + bias < pcfDepth) ? 1.0 : 0.0;
         }
     }
-    return pcfSum / 9.0;
+	return 1.0 - pcfSum / 9.0;
 }
 
 

@@ -17,7 +17,7 @@ struct SphereLight {
     float near_plane;
     float far_plane;
     int shadow;
-    int _pad_[2];
+	int _pad_[2];
 };
 
 struct SphereShadowMatrices {

@@ -35,7 +35,7 @@ void A3PBRPipeline::create(
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
     { //the set0_Global layout holds PV(UBO) + light buffers(SSBO):
-        std::array< VkDescriptorSetLayoutBinding, 7 > bindings{
+        std::array< VkDescriptorSetLayoutBinding, 15 > bindings{
             VkDescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -74,6 +74,54 @@ void A3PBRPipeline::create(
             },
             VkDescriptorSetLayoutBinding{
                 .binding = 6,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 7,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 8,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 9,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 10,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 11,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 12,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 13,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 14,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
@@ -435,10 +483,18 @@ void A3PBRPipeline::create(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
         },
         .layout = set0_Global, 
-        .bindings_count = 7
+        .bindings_count = 15
     }); //Global
     block_descriptor_configs.push_back(
         BlockDescriptorConfig{
@@ -461,6 +517,14 @@ void A3PBRPipeline::create(
         {"ShadowSunLights", 4},
         {"ShadowSphereLights", 5},
         {"ShadowSpotLights", 6},
+        {"SphereTileData", 7},
+        {"SphereLightIdx", 8},
+        {"SpotTileData", 9},
+        {"SpotLightIdx", 10},
+        {"ShadowSphereTileData", 11},
+        {"ShadowSphereLightIdx", 12},
+        {"ShadowSpotTileData", 13},
+        {"ShadowSpotLightIdx", 14},
         // Transforms
         {"Transforms", 0},
     };

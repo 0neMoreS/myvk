@@ -46,7 +46,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
-	lights_manager.create(doc, light_tree_data);
+	lights_manager.create(doc, light_tree_data, rtg.swapchain_extent);
 
 	shadow_map_manager.create(
 		rtg,
@@ -95,6 +95,16 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	VkDeviceSize shadow_sphere_lights_buffer_capacity = lights_manager.get_shadow_sphere_lights_buffer_capacity();
 	VkDeviceSize shadow_sphere_matrices_buffer_capacity = lights_manager.get_shadow_sphere_matrices_buffer_capacity();
 	VkDeviceSize shadow_spot_lights_buffer_capacity = lights_manager.get_shadow_spot_lights_buffer_capacity();
+#ifdef USE_TILED_LIGHTING
+	VkDeviceSize sphere_tile_data_buffer_capacity = lights_manager.get_sphere_tile_data_buffer_capacity();
+	VkDeviceSize sphere_light_idx_buffer_capacity = lights_manager.get_sphere_light_idx_buffer_capacity();
+	VkDeviceSize spot_tile_data_buffer_capacity = lights_manager.get_spot_tile_data_buffer_capacity();
+	VkDeviceSize spot_light_idx_buffer_capacity = lights_manager.get_spot_light_idx_buffer_capacity();
+	VkDeviceSize shadow_sphere_tile_data_buffer_capacity = lights_manager.get_shadow_sphere_tile_data_buffer_capacity();
+	VkDeviceSize shadow_sphere_light_idx_buffer_capacity = lights_manager.get_shadow_sphere_light_idx_buffer_capacity();
+	VkDeviceSize shadow_spot_tile_data_buffer_capacity = lights_manager.get_shadow_spot_tile_data_buffer_capacity();
+	VkDeviceSize shadow_spot_light_idx_buffer_capacity = lights_manager.get_shadow_spot_light_idx_buffer_capacity();
+#endif
 
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
@@ -137,6 +147,48 @@ A3::A3(RTG &rtg, const std::string &filename) :
 			.size = shadow_spot_lights_buffer_capacity,
 			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
+	#ifdef USE_TILED_LIGHTING
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SphereTileData",
+			.size = sphere_tile_data_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SphereLightIdx",
+			.size = sphere_light_idx_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SpotTileData",
+			.size = spot_tile_data_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "SpotLightIdx",
+			.size = spot_light_idx_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSphereTileData",
+			.size = shadow_sphere_tile_data_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSphereLightIdx",
+			.size = shadow_sphere_light_idx_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSpotTileData",
+			.size = shadow_spot_tile_data_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+		WorkspaceManager::GlobalBufferConfig{
+			.name = "ShadowSpotLightIdx",
+			.size = shadow_spot_light_idx_buffer_capacity,
+			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+		},
+	#endif
 	};
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), {}, 2);
@@ -196,6 +248,64 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		lambertian_pipeline.block_binding_name_to_index["ShadowSpotLights"],
 		"ShadowSpotLights"
 	);
+#ifdef USE_TILED_LIGHTING
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["SphereTileData"],
+		"SphereTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["SphereLightIdx"],
+		"SphereLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["SpotTileData"],
+		"SpotTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["SpotLightIdx"],
+		"SpotLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSphereTileData"],
+		"ShadowSphereTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSphereLightIdx"],
+		"ShadowSphereLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSpotTileData"],
+		"ShadowSpotTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3LambertianPipeline"],
+		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
+		lambertian_pipeline.block_binding_name_to_index["ShadowSpotLightIdx"],
+		"ShadowSpotLightIdx"
+	);
+#endif
 	workspace_manager.update_all_global_descriptors(
 		rtg, 
 		pipeline_name_to_index["A3PBRPipeline"], 
@@ -245,6 +355,64 @@ A3::A3(RTG &rtg, const std::string &filename) :
 		pbr_pipeline.block_binding_name_to_index["ShadowSpotLights"],
 		"ShadowSpotLights"
 	);
+#ifdef USE_TILED_LIGHTING
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["SphereTileData"],
+		"SphereTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["SphereLightIdx"],
+		"SphereLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["SpotTileData"],
+		"SpotTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["SpotLightIdx"],
+		"SpotLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSphereTileData"],
+		"ShadowSphereTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSphereLightIdx"],
+		"ShadowSphereLightIdx"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSpotTileData"],
+		"ShadowSpotTileData"
+	);
+	workspace_manager.update_all_global_descriptors(
+		rtg,
+		pipeline_name_to_index["A3PBRPipeline"],
+		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
+		pbr_pipeline.block_binding_name_to_index["ShadowSpotLightIdx"],
+		"ShadowSpotLightIdx"
+	);
+#endif
 	workspace_manager.update_all_global_descriptors(
 		rtg,
 		pipeline_name_to_index["A3SunShadowPipeline"],
@@ -370,6 +538,16 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto const &shadow_sphere_lights_bytes = lights_manager.get_shadow_sphere_lights_bytes();
 			auto const &shadow_sphere_matrices_bytes = lights_manager.get_shadow_sphere_matrices_bytes();
 			auto const &shadow_spot_lights_bytes = lights_manager.get_shadow_spot_lights_bytes();
+#ifdef USE_TILED_LIGHTING
+			auto const &sphere_tile_data_bytes = lights_manager.get_sphere_tile_data_bytes();
+			auto const &sphere_light_idx_bytes = lights_manager.get_sphere_light_idx_bytes();
+			auto const &spot_tile_data_bytes = lights_manager.get_spot_tile_data_bytes();
+			auto const &spot_light_idx_bytes = lights_manager.get_spot_light_idx_bytes();
+			auto const &shadow_sphere_tile_data_bytes = lights_manager.get_shadow_sphere_tile_data_bytes();
+			auto const &shadow_sphere_light_idx_bytes = lights_manager.get_shadow_sphere_light_idx_bytes();
+			auto const &shadow_spot_tile_data_bytes = lights_manager.get_shadow_spot_tile_data_bytes();
+			auto const &shadow_spot_light_idx_bytes = lights_manager.get_shadow_spot_light_idx_bytes();
+#endif
 
 			assert(workspace.global_buffer_pairs["SunLights"]->host.size >= sun_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "SunLights", (void*)sun_lights_bytes.data(), sun_lights_bytes.size());
@@ -398,6 +576,40 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size >= shadow_spot_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "ShadowSpotLights", (void*)shadow_spot_lights_bytes.data(), shadow_spot_lights_bytes.size());
 			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size == workspace.global_buffer_pairs["ShadowSpotLights"]->device.size);
+
+#ifdef USE_TILED_LIGHTING
+			assert(workspace.global_buffer_pairs["SphereTileData"]->host.size >= sphere_tile_data_bytes.size());
+			workspace.write_global_buffer(rtg, "SphereTileData", (void*)sphere_tile_data_bytes.data(), sphere_tile_data_bytes.size());
+			assert(workspace.global_buffer_pairs["SphereTileData"]->host.size == workspace.global_buffer_pairs["SphereTileData"]->device.size);
+
+			assert(workspace.global_buffer_pairs["SphereLightIdx"]->host.size >= sphere_light_idx_bytes.size());
+			workspace.write_global_buffer(rtg, "SphereLightIdx", (void*)sphere_light_idx_bytes.data(), sphere_light_idx_bytes.size());
+			assert(workspace.global_buffer_pairs["SphereLightIdx"]->host.size == workspace.global_buffer_pairs["SphereLightIdx"]->device.size);
+
+			assert(workspace.global_buffer_pairs["SpotTileData"]->host.size >= spot_tile_data_bytes.size());
+			workspace.write_global_buffer(rtg, "SpotTileData", (void*)spot_tile_data_bytes.data(), spot_tile_data_bytes.size());
+			assert(workspace.global_buffer_pairs["SpotTileData"]->host.size == workspace.global_buffer_pairs["SpotTileData"]->device.size);
+
+			assert(workspace.global_buffer_pairs["SpotLightIdx"]->host.size >= spot_light_idx_bytes.size());
+			workspace.write_global_buffer(rtg, "SpotLightIdx", (void*)spot_light_idx_bytes.data(), spot_light_idx_bytes.size());
+			assert(workspace.global_buffer_pairs["SpotLightIdx"]->host.size == workspace.global_buffer_pairs["SpotLightIdx"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSphereTileData"]->host.size >= shadow_sphere_tile_data_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSphereTileData", (void*)shadow_sphere_tile_data_bytes.data(), shadow_sphere_tile_data_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSphereTileData"]->host.size == workspace.global_buffer_pairs["ShadowSphereTileData"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSphereLightIdx"]->host.size >= shadow_sphere_light_idx_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSphereLightIdx", (void*)shadow_sphere_light_idx_bytes.data(), shadow_sphere_light_idx_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSphereLightIdx"]->host.size == workspace.global_buffer_pairs["ShadowSphereLightIdx"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSpotTileData"]->host.size >= shadow_spot_tile_data_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSpotTileData", (void*)shadow_spot_tile_data_bytes.data(), shadow_spot_tile_data_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSpotTileData"]->host.size == workspace.global_buffer_pairs["ShadowSpotTileData"]->device.size);
+
+			assert(workspace.global_buffer_pairs["ShadowSpotLightIdx"]->host.size >= shadow_spot_light_idx_bytes.size());
+			workspace.write_global_buffer(rtg, "ShadowSpotLightIdx", (void*)shadow_spot_light_idx_bytes.data(), shadow_spot_light_idx_bytes.size());
+			assert(workspace.global_buffer_pairs["ShadowSpotLightIdx"]->host.size == workspace.global_buffer_pairs["ShadowSpotLightIdx"]->device.size);
+#endif
 		}
 
 		{ //upload transforms for all pipelines
@@ -977,6 +1189,10 @@ void A3::update(float dt) {
 			light_tree_data,
 			camera_manager
 		);
+
+#ifdef USE_TILED_LIGHTING
+		lights_manager.update_tiled_light_bins(camera_manager, rtg.swapchain_extent);
+#endif
 	}
 
 	{ // update object instances with frustum culling

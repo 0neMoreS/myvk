@@ -20,6 +20,9 @@ namespace {
 	constexpr uint32_t SunCascadeCount = 4;
 	constexpr float SunCascadeLambda = 0.75f;
 	constexpr uint32_t SphereShadowFaceCount = 6;
+#ifdef USE_TILED_LIGHTING
+	constexpr uint32_t TileSizePx = 16;
+#endif
 
 	template< typename LightsT >
 	void init_lights_bytes(const LightsT& lights, std::vector<uint8_t>& bytes) {
@@ -113,6 +116,123 @@ namespace {
 
 		return face_pv;
 	}
+
+#ifdef USE_TILED_LIGHTING
+	struct TileRect {
+		uint32_t min_x;
+		uint32_t max_x;
+		uint32_t min_y;
+		uint32_t max_y;
+	};
+
+	inline uint32_t compute_tiles_x(uint32_t width) {
+		return std::max(1u, (width + TileSizePx - 1u) / TileSizePx);
+	}
+
+	inline uint32_t compute_tiles_y(uint32_t height) {
+		return std::max(1u, (height + TileSizePx - 1u) / TileSizePx);
+	}
+
+	bool project_sphere_to_tile_rect(
+		const glm::mat4& view,
+		const glm::mat4& proj,
+		const glm::vec3& world_position,
+		float world_radius,
+		VkExtent2D extent,
+		uint32_t tiles_x,
+		uint32_t tiles_y,
+		TileRect& out_rect
+	) {
+		if (extent.width == 0 || extent.height == 0 || world_radius <= 0.0f) {
+			return false;
+		}
+
+		const glm::vec4 view_pos4 = view * glm::vec4(world_position, 1.0f);
+		const glm::vec3 view_pos = glm::vec3(view_pos4);
+		const float depth = -view_pos.z;
+		if (depth + world_radius <= 0.001f) {
+			return false;
+		}
+
+		const glm::vec4 clip = proj * view_pos4;
+		if (std::abs(clip.w) < 1e-6f) {
+			return false;
+		}
+
+		const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+		const float center_px = (ndc.x * 0.5f + 0.5f) * static_cast<float>(extent.width);
+		const float center_py = (ndc.y * 0.5f + 0.5f) * static_cast<float>(extent.height);
+
+		const float fx = proj[0][0];
+		const float fy = std::abs(proj[1][1]);
+		const float conservative_depth = std::max(depth - world_radius, 0.001f);
+		const float radius_px_x = std::abs(fx) * world_radius / conservative_depth * 0.5f * static_cast<float>(extent.width);
+		const float radius_px_y = std::abs(fy) * world_radius / conservative_depth * 0.5f * static_cast<float>(extent.height);
+
+		const float min_px = center_px - radius_px_x - static_cast<float>(TileSizePx);
+		const float max_px = center_px + radius_px_x + static_cast<float>(TileSizePx);
+		const float min_py = center_py - radius_px_y - static_cast<float>(TileSizePx);
+		const float max_py = center_py + radius_px_y + static_cast<float>(TileSizePx);
+
+		if (max_px < 0.0f || max_py < 0.0f || min_px > static_cast<float>(extent.width - 1u) || min_py > static_cast<float>(extent.height - 1u)) {
+			return false;
+		}
+
+		const float clamped_min_px = std::clamp(min_px, 0.0f, static_cast<float>(extent.width - 1u));
+		const float clamped_max_px = std::clamp(max_px, 0.0f, static_cast<float>(extent.width - 1u));
+		const float clamped_min_py = std::clamp(min_py, 0.0f, static_cast<float>(extent.height - 1u));
+		const float clamped_max_py = std::clamp(max_py, 0.0f, static_cast<float>(extent.height - 1u));
+
+		out_rect.min_x = std::min(static_cast<uint32_t>(clamped_min_px) / TileSizePx, tiles_x - 1u);
+		out_rect.max_x = std::min(static_cast<uint32_t>(clamped_max_px) / TileSizePx, tiles_x - 1u);
+		out_rect.min_y = std::min(static_cast<uint32_t>(clamped_min_py) / TileSizePx, tiles_y - 1u);
+		out_rect.max_y = std::min(static_cast<uint32_t>(clamped_max_py) / TileSizePx, tiles_y - 1u);
+		return true;
+	}
+
+	void pack_tile_lists(
+		uint32_t tiles_x,
+		uint32_t tiles_y,
+		const std::vector<std::vector<uint32_t>>& tile_lists,
+		std::vector<uint8_t>& out_tile_data,
+		std::vector<uint8_t>& out_index_data
+	) {
+		const uint32_t tile_count = tiles_x * tiles_y;
+		std::vector<LightsManager::TileInfo> infos(tile_count);
+
+		uint32_t running_offset = 0u;
+		for (uint32_t i = 0u; i < tile_count; ++i) {
+			infos[i].offset = running_offset;
+			infos[i].count = static_cast<uint32_t>(tile_lists[i].size());
+			running_offset += infos[i].count;
+		}
+
+		std::vector<uint32_t> flat_indices;
+		flat_indices.reserve(running_offset);
+		for (uint32_t i = 0u; i < tile_count; ++i) {
+			flat_indices.insert(flat_indices.end(), tile_lists[i].begin(), tile_lists[i].end());
+		}
+
+		const size_t header_bytes = sizeof(uint32_t) * 2;
+		const size_t info_bytes = sizeof(LightsManager::TileInfo) * infos.size();
+		out_tile_data.resize(header_bytes + info_bytes);
+		std::memcpy(out_tile_data.data(), &tiles_x, sizeof(uint32_t));
+		std::memcpy(out_tile_data.data() + sizeof(uint32_t), &tiles_y, sizeof(uint32_t));
+		if (!infos.empty()) {
+			std::memcpy(out_tile_data.data() + header_bytes, infos.data(), info_bytes);
+		}
+
+		// Keep transfer size > 0 for Vulkan buffer copy calls.
+		const size_t index_count = std::max<size_t>(1, flat_indices.size());
+		out_index_data.resize(sizeof(uint32_t) * index_count);
+		if (!flat_indices.empty()) {
+			std::memcpy(out_index_data.data(), flat_indices.data(), sizeof(uint32_t) * flat_indices.size());
+		} else {
+			const uint32_t zero = 0u;
+			std::memcpy(out_index_data.data(), &zero, sizeof(uint32_t));
+		}
+	}
+#endif
 
 	// glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
 		
@@ -276,7 +396,8 @@ namespace {
 
 void LightsManager::create(
 	const std::shared_ptr<S72Loader::Document>& doc,
-	const std::vector<SceneTree::LightTreeData>& light_tree_data
+	const std::vector<SceneTree::LightTreeData>& light_tree_data,
+	VkExtent2D render_extent
 ) {
 	sun_lights.clear();
 	sphere_lights.clear();
@@ -368,6 +489,25 @@ void LightsManager::create(
 	shadow_sphere_matrices.resize(shadow_sphere_lights.size());
 	shadow_sphere_matrices_bytes.assign(static_cast<size_t>(sphere_shadow_matrices_buffer_size(static_cast<uint32_t>(shadow_sphere_matrices.size()))), 0);
 	init_lights_bytes(shadow_sphere_matrices, shadow_sphere_matrices_bytes);
+
+#ifdef USE_TILED_LIGHTING
+	// Allocate capacities for worst-case per-frame write: every tile references every light of that type.
+	const uint32_t tiles_x = compute_tiles_x(render_extent.width);
+	const uint32_t tiles_y = compute_tiles_y(render_extent.height);
+	const uint32_t tile_count = tiles_x * tiles_y;
+	const uint32_t sphere_count = static_cast<uint32_t>(std::max<size_t>(1, sphere_lights.size()));
+	const uint32_t spot_count = static_cast<uint32_t>(std::max<size_t>(1, spot_lights.size()));
+	const uint32_t shadow_sphere_count = static_cast<uint32_t>(std::max<size_t>(1, shadow_sphere_lights.size()));
+	const uint32_t shadow_spot_count = static_cast<uint32_t>(std::max<size_t>(1, shadow_spot_lights.size()));
+	sphere_tile_data_bytes.assign(static_cast<size_t>(tile_data_buffer_size(tile_count)), 0);
+	sphere_light_idx_bytes.assign(static_cast<size_t>(light_idx_buffer_size(tile_count * sphere_count)), 0);
+	spot_tile_data_bytes.assign(static_cast<size_t>(tile_data_buffer_size(tile_count)), 0);
+	spot_light_idx_bytes.assign(static_cast<size_t>(light_idx_buffer_size(tile_count * spot_count)), 0);
+	shadow_sphere_tile_data_bytes.assign(static_cast<size_t>(tile_data_buffer_size(tile_count)), 0);
+	shadow_sphere_light_idx_bytes.assign(static_cast<size_t>(light_idx_buffer_size(tile_count * shadow_sphere_count)), 0);
+	shadow_spot_tile_data_bytes.assign(static_cast<size_t>(tile_data_buffer_size(tile_count)), 0);
+	shadow_spot_light_idx_bytes.assign(static_cast<size_t>(light_idx_buffer_size(tile_count * shadow_spot_count)), 0);
+#endif
 }
 
 void LightsManager::update(
@@ -461,3 +601,80 @@ void LightsManager::update(
 	overwrite_lights_payload(shadow_spot_lights, shadow_spot_lights_bytes);
 	overwrite_lights_payload(shadow_sphere_matrices, shadow_sphere_matrices_bytes);
 }
+
+#ifdef USE_TILED_LIGHTING
+void LightsManager::update_tiled_light_bins(const CameraManager& camera_manager, VkExtent2D render_extent) {
+	const uint32_t tiles_x = compute_tiles_x(render_extent.width);
+	const uint32_t tiles_y = compute_tiles_y(render_extent.height);
+	const uint32_t tile_count = tiles_x * tiles_y;
+
+	std::vector<std::vector<uint32_t>> sphere_tile_lists(tile_count);
+	std::vector<std::vector<uint32_t>> spot_tile_lists(tile_count);
+	std::vector<std::vector<uint32_t>> shadow_sphere_tile_lists(tile_count);
+	std::vector<std::vector<uint32_t>> shadow_spot_tile_lists(tile_count);
+
+	const glm::mat4 view = camera_manager.get_view();
+	const glm::mat4 proj = camera_manager.get_perspective();
+
+	for (uint32_t i = 0u; i < static_cast<uint32_t>(sphere_lights.size()); ++i) {
+		const float influence_radius = std::max(sphere_lights[i].radius, sphere_lights[i].far_plane);
+		TileRect rect{};
+		if (!project_sphere_to_tile_rect(view, proj, sphere_lights[i].position, influence_radius, render_extent, tiles_x, tiles_y, rect)) {
+			continue;
+		}
+
+		for (uint32_t y = rect.min_y; y <= rect.max_y; ++y) {
+			for (uint32_t x = rect.min_x; x <= rect.max_x; ++x) {
+				sphere_tile_lists[y * tiles_x + x].push_back(i);
+			}
+		}
+	}
+
+	for (uint32_t i = 0u; i < static_cast<uint32_t>(spot_lights.size()); ++i) {
+		const float proxy_radius = std::max(spot_lights[i].radius, spot_lights[i].limit);
+		TileRect rect{};
+		if (!project_sphere_to_tile_rect(view, proj, spot_lights[i].position, proxy_radius, render_extent, tiles_x, tiles_y, rect)) {
+			continue;
+		}
+
+		for (uint32_t y = rect.min_y; y <= rect.max_y; ++y) {
+			for (uint32_t x = rect.min_x; x <= rect.max_x; ++x) {
+				spot_tile_lists[y * tiles_x + x].push_back(i);
+			}
+		}
+	}
+
+	for (uint32_t i = 0u; i < static_cast<uint32_t>(shadow_sphere_lights.size()); ++i) {
+		const float influence_radius = std::max(shadow_sphere_lights[i].radius, shadow_sphere_lights[i].far_plane);
+		TileRect rect{};
+		if (!project_sphere_to_tile_rect(view, proj, shadow_sphere_lights[i].position, influence_radius, render_extent, tiles_x, tiles_y, rect)) {
+			continue;
+		}
+
+		for (uint32_t y = rect.min_y; y <= rect.max_y; ++y) {
+			for (uint32_t x = rect.min_x; x <= rect.max_x; ++x) {
+				shadow_sphere_tile_lists[y * tiles_x + x].push_back(i);
+			}
+		}
+	}
+
+	for (uint32_t i = 0u; i < static_cast<uint32_t>(shadow_spot_lights.size()); ++i) {
+		const float proxy_radius = std::max(shadow_spot_lights[i].radius, shadow_spot_lights[i].limit);
+		TileRect rect{};
+		if (!project_sphere_to_tile_rect(view, proj, shadow_spot_lights[i].position, proxy_radius, render_extent, tiles_x, tiles_y, rect)) {
+			continue;
+		}
+
+		for (uint32_t y = rect.min_y; y <= rect.max_y; ++y) {
+			for (uint32_t x = rect.min_x; x <= rect.max_x; ++x) {
+				shadow_spot_tile_lists[y * tiles_x + x].push_back(i);
+			}
+		}
+	}
+
+	pack_tile_lists(tiles_x, tiles_y, sphere_tile_lists, sphere_tile_data_bytes, sphere_light_idx_bytes);
+	pack_tile_lists(tiles_x, tiles_y, spot_tile_lists, spot_tile_data_bytes, spot_light_idx_bytes);
+	pack_tile_lists(tiles_x, tiles_y, shadow_sphere_tile_lists, shadow_sphere_tile_data_bytes, shadow_sphere_light_idx_bytes);
+	pack_tile_lists(tiles_x, tiles_y, shadow_spot_tile_lists, shadow_spot_tile_data_bytes, shadow_spot_light_idx_bytes);
+}
+#endif

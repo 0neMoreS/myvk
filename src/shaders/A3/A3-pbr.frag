@@ -116,18 +116,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-vec3 computeSpecularTerm(vec3 N, vec3 V, vec3 L, float NoL, float NdotV, vec3 F0, float roughness, float alpha)
-{
-	vec3 H = normalize(V + L);
-	float NDF = DistributionGGX(N, H, roughness);
-	float G = GeometrySmith(N, V, L, roughness);
-	vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-	vec3 nominator = NDF * G * F;
-	float denominator = 4.0 * NdotV * NoL + 0.0001;
-	return (nominator / denominator);
-}
-
-vec3 computeSpecularTermApprox(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, float NdotV, vec3 F0, float roughness, float alpha, float alphaPrime)
+vec3 computeSpecularTerm(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, float NdotV, vec3 F0, float roughness, float alpha, float alphaPrime)
 {
 	vec3 H = normalize(V + L_spec);
 	float NDF = DistributionGGX(N, H, roughness);
@@ -137,12 +126,6 @@ vec3 computeSpecularTermApprox(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, floa
 	float denominator = 4.0 * NdotV * NoL_spec + 0.0001;
 	float normalization = (alpha * alpha) / max(alphaPrime * alphaPrime, 1e-5);
 	return (nominator / denominator) * normalization;
-}
-
-float representativeBlendFactor(float cosLR, float sinTheta)
-{
-	float transitionWidth = max(0.02, 0.25 * sinTheta);
-	return smoothstep(sinTheta - transitionWidth, sinTheta + transitionWidth, cosLR);
 }
 
 void main() {
@@ -212,46 +195,29 @@ void main() {
 		// --- 1. SUN LIGHTS ---
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
 			SunLight light = sunLightsBuf.lights[i];
-			vec3 lightIntensity = sampleSunLightIntensity(light, N);
+			vec3 lightIntensity = sampleSunLightIntensity(light);
 			
-			vec3 L_center = normalize(light.direction);
-			
-			// Representative Point for Specular
-			vec3 centerToRay = dot(L_center, R) * R - L_center;
-			float sunRadius = sin(light.angle * 0.5); 
-			vec3 closestPoint = L_center + centerToRay * clamp(sunRadius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
-			
-			float NoL_spec = max(dot(N, L_spec), 0.0);
+			// no representative point for directional light
+			vec3 L_center = normalize(-light.direction);
+			float NoL = sunLightNoLFactor(light, N);
+			vec3 specularTerm = computeSpecularTerm(N, V, L_center, NoL, NdotV, F0, roughness, alpha, alpha);
 
-			
-			// Diffuse (Using Light Center)
-			// Specular (Using Representative Point)
-			vec3 specularTerm = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
-				alpha);
-
-			Lo += (diffuseTerm + specularTerm) * lightIntensity;
+			float shadow = 1.0;
+			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity * NoL;
 		}
 
 		// --- 1.1 SHADOW SUN LIGHTS ---
 		for (uint i = 0u; i < shadowSunLightsBuf.count; ++i) {
 			SunLight light = shadowSunLightsBuf.shadowLights[i];
-			vec3 lightIntensity = sampleSunLightIntensity(light, N);
-
+			vec3 lightIntensity = sampleSunLightIntensity(light);
+			
+			// no representative point for directional light
 			vec3 L_center = normalize(-light.direction);
-
-			vec3 centerToRay = dot(L_center, R) * R - L_center;
-			float sunRadius = sin(light.angle * 0.5);
-			vec3 closestPoint = L_center + centerToRay * clamp(sunRadius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
-
-			float NoL_spec = max(dot(N, L_spec), 0.0);
-
-			vec3 specularTerm = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
-				alpha);
+			float NoL = sunLightNoLFactor(light, N);
+			vec3 specularTerm = computeSpecularTerm(N, V, L_center, NoL, NdotV, F0, roughness, alpha, alpha);
 
 			float shadow = computeSunLightShadow(light, fragPos, viewFragPos, sunShadowMap[i]);
-			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
+			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity * NoL;
 		}
 
 		// --- 2. SPHERE LIGHTS ---
@@ -266,29 +232,22 @@ void main() {
 	#endif
 			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
-			// Specular
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
-
-			float sinTheta = light.radius / max(distToLight, 1e-5);
-			float centerWeight = representativeBlendFactor(dot(L_center, R), sinTheta);
-
-			float NoL_center = max(dot(N, L_center), 0.0);
-			vec3 centerSpecular = computeSpecularTerm(N, V, L_center, NoL_center, NdotV, F0, roughness, alpha);
 
 			// Representative Point for Specular
 			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = normalize(closestPoint);
-
-			float NoL_spec = max(dot(N, L_spec), 0.0);
-			vec3 representativeSpecular = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
+			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
-			vec3 specularTerm = mix(representativeSpecular, centerSpecular, centerWeight);
+			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-			Lo += (diffuseTerm + specularTerm) * lightIntensity;
+			float shadow = 1.0;
+			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 
 		// --- 2.1 SHADOW SPHERE LIGHTS ---
@@ -303,34 +262,25 @@ void main() {
 	#endif
 			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
-			// Specular
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			float sinTheta = light.radius / max(distToLight, 1e-5);
-			float centerWeight = representativeBlendFactor(dot(L_center, R), sinTheta);
-
-			float NoL_center = max(dot(N, L_center), 0.0);
-			vec3 centerSpecular = computeSpecularTerm(N, V, L_center, NoL_center, NdotV, F0, roughness, alpha);
-
-			// Representative Point for Specular
 			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = normalize(closestPoint);
-
-			float NoL_spec = max(dot(N, L_spec), 0.0);
-			vec3 representativeSpecular = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
+			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
-			vec3 specularTerm = mix(representativeSpecular, centerSpecular, centerWeight);
+			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
 	#ifdef USE_TILED_LIGHTING
 			float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[lightIndex]);
 	#else
 			float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[i]);
 	#endif
-			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
+			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 
 		// --- 3. SPOT LIGHTS ---
@@ -345,29 +295,22 @@ void main() {
 	#endif
 			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
-			// Specular
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
-
-			float sinTheta = light.radius / max(distToLight, 1e-5);
-			float centerWeight = representativeBlendFactor(dot(L_center, R), sinTheta);
-
-			float NoL_center = max(dot(N, L_center), 0.0);
-			vec3 centerSpecular = computeSpecularTerm(N, V, L_center, NoL_center, NdotV, F0, roughness, alpha);
 
 			// Representative Point for Specular
 			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = normalize(closestPoint);
-
-			float NoL_spec = max(dot(N, L_spec), 0.0);
-			vec3 representativeSpecular = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
+			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
-			vec3 specularTerm = mix(representativeSpecular, centerSpecular, centerWeight);
+			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-			Lo += (diffuseTerm + specularTerm) * lightIntensity;
+			float shadow = 1.0;
+			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 
 		// --- 3.1. SHADOW SPOT LIGHTS ---
@@ -382,34 +325,27 @@ void main() {
 	#endif
 			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
-			// Specular
 			vec3 toLight = light.position - fragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			float sinTheta = light.radius / max(distToLight, 1e-5);
-			float centerWeight = representativeBlendFactor(dot(L_center, R), sinTheta);
-
-			float NoL_center = max(dot(N, L_center), 0.0);
-			vec3 centerSpecular = computeSpecularTerm(N, V, L_center, NoL_center, NdotV, F0, roughness, alpha);
-
-			// Representative Point for Specular
 			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = normalize(closestPoint);
 
-			float NoL_spec = max(dot(N, L_spec), 0.0);
-			vec3 representativeSpecular = computeSpecularTermApprox(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
+			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+
+			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
-			vec3 specularTerm = mix(representativeSpecular, centerSpecular, centerWeight);
+			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
 	#ifdef USE_TILED_LIGHTING
 			float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[lightIndex]);
 	#else
 			float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[i]);
 	#endif
-			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity;
+			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 	}
 

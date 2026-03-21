@@ -63,29 +63,37 @@ void main() {
 		}
 	#endif
 
+	// ============= SUN LIGHTS =============
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
-			vec3 lightIntensity = sampleSunLightIntensity(sunLightsBuf.lights[i], N);
-			Lo += lightIntensity * albedo;
+			vec3 lightIntensity = sampleSunLightIntensity(sunLightsBuf.lights[i]);
+			float NoL = sunLightNoLFactor(sunLightsBuf.lights[i], N);
+			Lo += lightIntensity * albedo * NoL;
 		}
 
 		for (uint i = 0u; i < shadowSunLightsBuf.count; ++i) {
 			SunLight light = shadowSunLightsBuf.shadowLights[i];
-			vec3 lightIntensity = sampleSunLightIntensity(light, N);
+			vec3 lightIntensity = sampleSunLightIntensity(light);
+			float NoL = sunLightNoLFactor(light, N);
 			float shadow = computeSunLightShadow(light, position, viewPosition, sunShadowMap[i]);
-			Lo += shadow * lightIntensity * albedo;
+			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 
+	// ============= SPHERE LIGHTS =============
 	#ifdef USE_TILED_LIGHTING
 		TileInfo sphereTileInfo = sphereTileDataBuf.tiles[sphereTileIndex];
 		for (uint i = 0u; i < sphereTileInfo.count; ++i) {
 			uint lightIndex = sphereLightIdxBuf.indices[sphereTileInfo.offset + i];
 			vec3 lightIntensity = sampleSphereLightIntensity(sphereLightsBuf.lights[lightIndex], position, N);
-			Lo += lightIntensity * albedo;
+			vec3 toLight = sphereLightsBuf.lights[lightIndex].position - position;
+			float NoL = areaLightNoLFactor(sphereLightsBuf.lights[lightIndex].radius, toLight, N);
+			Lo += lightIntensity * albedo * NoL;
 		}
 	#else
 		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
 			vec3 lightIntensity = sampleSphereLightIntensity(sphereLightsBuf.lights[i], position, N);
-			Lo += lightIntensity * albedo;
+			vec3 toLight = sphereLightsBuf.lights[i].position - position;
+			float NoL = areaLightNoLFactor(sphereLightsBuf.lights[i].radius, toLight, N);
+			Lo += lightIntensity * albedo * NoL;
 		}
 	#endif
 
@@ -95,29 +103,38 @@ void main() {
 			uint lightIndex = shadowSphereLightIdxBuf.indices[shadowSphereTileInfo.offset + i];
 			SphereLight light = shadowSphereLightsBuf.shadowLights[lightIndex];
 			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
+			vec3 toLight = light.position - position;
+			float NoL = areaLightNoLFactor(light.radius, toLight, N);
 			float shadow = computeSphereLightShadow(light, position, sphereShadowMap[lightIndex]);
-			Lo += shadow * lightIntensity * albedo;
+			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#else
 		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
 			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
 			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
+			vec3 toLight = light.position - position;
+			float NoL = areaLightNoLFactor(light.radius, toLight, N);
 			float shadow = computeSphereLightShadow(light, position, sphereShadowMap[i]);
-			Lo += shadow * lightIntensity * albedo;
+			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#endif
 
+	// ============= SPOT LIGHTS =============
 	#ifdef USE_TILED_LIGHTING
 		TileInfo spotTileInfo = spotTileDataBuf.tiles[spotTileIndex];
 		for (uint i = 0u; i < spotTileInfo.count; ++i) {
 			uint lightIndex = spotLightIdxBuf.indices[spotTileInfo.offset + i];
 			vec3 lightIntensity = sampleSpotLightIntensity(spotLightsBuf.lights[lightIndex], position, N);
-			Lo += lightIntensity * albedo;
+			vec3 toLight = spotLightsBuf.lights[lightIndex].position - position;
+			float NoL = areaLightNoLFactor(spotLightsBuf.lights[lightIndex].radius, toLight, N);
+			Lo += lightIntensity * albedo * NoL;
 		}
 	#else
 		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
 			vec3 lightIntensity = sampleSpotLightIntensity(spotLightsBuf.lights[i], position, N);
-			Lo += lightIntensity * albedo;
+			vec3 toLight = spotLightsBuf.lights[i].position - position;
+			float NoL = areaLightNoLFactor(spotLightsBuf.lights[i].radius, toLight, N);
+			Lo += lightIntensity * albedo * NoL;
 		}
 	#endif
 
@@ -127,6 +144,8 @@ void main() {
 			uint lightIndex = shadowSpotLightIdxBuf.indices[shadowSpotTileInfo.offset + i];
 			SpotLight light = shadowSpotLightsBuf.shadowLights[lightIndex];
 			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
+			vec3 toLight = light.position - position;
+			float NoL = areaLightNoLFactor(light.radius, toLight, N);
 			float shadow = computeSpotLightShadow(light, position, spotShadowMap[lightIndex]);
 			Lo += shadow * lightIntensity * albedo;
 		}
@@ -134,6 +153,8 @@ void main() {
 		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
 			SpotLight light = shadowSpotLightsBuf.shadowLights[i];
 			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
+			vec3 toLight = light.position - position;
+			float NoL = areaLightNoLFactor(light.radius, toLight, N);
 			float shadow = computeSpotLightShadow(light, position, spotShadowMap[i]);
 			Lo += shadow * lightIntensity * albedo;
 		}

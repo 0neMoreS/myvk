@@ -10,7 +10,7 @@
 #include <algorithm>
 
 namespace Texture2DLoader {
-std::unique_ptr<Texture> load_image(
+std::unique_ptr<TextureCommon::Texture> load_image(
 	Helpers &helpers,
 	const std::string &filepath,
 	VkFilter filter,
@@ -39,7 +39,7 @@ std::unique_ptr<Texture> load_image(
 	}
 
 	// Create GPU texture resource
-	auto texture = std::make_unique<Texture>();
+	auto texture = std::make_unique<TextureCommon::Texture>();
 	uint32_t mip_levels = generate_mipmaps ? helpers.calc_mip_levels(static_cast<uint32_t>(width), static_cast<uint32_t>(height)) : 1;
 
 	// Create GPU image with transfer destination flag
@@ -80,7 +80,7 @@ std::unique_ptr<Texture> load_image(
 	return texture;
 }
 
-std::unique_ptr<Texture> create_rgb_texture(
+std::unique_ptr<TextureCommon::Texture> create_rgb_texture(
     Helpers &helpers,
     const glm::vec3 &color,
     VkFilter filter
@@ -92,7 +92,7 @@ std::unique_ptr<Texture> create_rgb_texture(
         255, // alpha = 1.0
     };
 
-    auto texture = std::make_unique<Texture>();
+    auto texture = std::make_unique<TextureCommon::Texture>();
     
     texture->image = helpers.create_image(
         VkExtent2D{.width = 1, .height = 1},
@@ -119,30 +119,6 @@ std::unique_ptr<Texture> create_rgb_texture(
 	);
 
     return texture;
-}
-
-void destroy(std::unique_ptr<Texture> texture, RTG& rtg) {
-	if (!texture) return;
-
-	if (texture->sampler != VK_NULL_HANDLE) {
-		vkDestroySampler(rtg.helpers.rtg.device, texture->sampler, nullptr);
-		texture->sampler = VK_NULL_HANDLE;
-	}
-
-	if (texture->image_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.helpers.rtg.device, texture->image_view, nullptr);
-		texture->image_view = VK_NULL_HANDLE;
-	}
-
-	if (texture->image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(texture->image));
-	}
-}
-
-Texture::~Texture() {
-	if (sampler != VK_NULL_HANDLE || image_view != VK_NULL_HANDLE) {
-		std::cerr << "[Texture2DLoader] Texture destructor called without destroy() being called" << std::endl;
-	}
 }
 
 } // namespace Texture2DLoader

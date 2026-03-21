@@ -5,6 +5,7 @@
 #include "S72Loader.hpp"
 #include "Texture2DLoader.hpp"
 #include "TextureCubeLoader.hpp"
+#include "TextureCommon.hpp"
 #include "VK.hpp"
 
 #include <optional>
@@ -20,23 +21,19 @@ class TextureManager {
         uint32_t sphere_shadow_descriptor_count = 1;
         uint32_t spot_shadow_descriptor_count = 1;
         // Raw textures from document: textures_by_material[material_index][texture_slot]
-        std::vector< std::array< std::optional<std::unique_ptr<Texture2DLoader::Texture>>, 5 > > raw_2d_textures_by_material;
+        std::vector< std::array< std::optional<std::unique_ptr<TextureCommon::Texture>>, 5 > > raw_2d_textures_by_material;
 
         // 0: cubemaps, 1: irradiance map, 2 : prefilter map(with mipmaps)
-        std::vector<std::unique_ptr<TextureCubeLoader::Texture>> raw_environment_cubemap_texture;
+        std::vector<std::unique_ptr<TextureCommon::Texture>> raw_environment_cubemap_texture;
 
         // BRDF LUT texture
-        std::unique_ptr<Texture2DLoader::Texture> raw_brdf_LUT_texture;
+        std::unique_ptr<TextureCommon::Texture> raw_brdf_LUT_texture;
 
         // Dummy shadow textures for fallback when shadow maps are not available
-        VkImage dummy_shadow_2d = VK_NULL_HANDLE;
-        VkImageView dummy_shadow_2d_view = VK_NULL_HANDLE;
+        TextureCommon::Texture dummy_shadow_2d{};
         VkImageView dummy_shadow_2d_array_view = VK_NULL_HANDLE;
-        VkSampler dummy_shadow_sampler_2d = VK_NULL_HANDLE;
 
-        VkImage dummy_shadow_cubemap = VK_NULL_HANDLE;
-        VkImageView dummy_shadow_cube_view = VK_NULL_HANDLE;
-        VkSampler dummy_shadow_sampler_cube = VK_NULL_HANDLE;
+        TextureCommon::Texture dummy_shadow_cubemap{};
             
         void create(
             RTG & rtg,

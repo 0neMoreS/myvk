@@ -9,15 +9,6 @@
 
 namespace TextureCubeLoader {
 
-struct Texture {
-    Helpers::AllocatedImage image;
-    VkImageView image_view = VK_NULL_HANDLE;
-    VkSampler sampler = VK_NULL_HANDLE;
-
-    Texture() = default;
-    ~Texture();
-};
-
 // Order of cubemap faces expected by Vulkan
 // +X, -X, +Y, -Y, +Z, -Z
 enum Face : size_t{
@@ -49,18 +40,16 @@ const std::pair<Face, size_t> tile_for_vulkan_face[6] = {
     {PX, 90}, // right
 };
 
-std::unique_ptr<Texture> load_cubemap(
+std::unique_ptr<TextureCommon::Texture> load_cubemap(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter = VK_FILTER_LINEAR,
     uint32_t mipmap_levels = 1
 );
 
-std::unique_ptr<Texture> create_default_cubemap(
+std::unique_ptr<TextureCommon::Texture> create_default_cubemap(
     Helpers &helpers,
     VkFilter filter
 );
-
-void destroy(std::unique_ptr<Texture> texture, RTG &rtg);
 
 } // namespace TextureCubeLoader

@@ -1,11 +1,44 @@
 #pragma once
 
 #include "VK.hpp"
+#include "Helpers.hpp"
 
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <cmath>
 #include <algorithm>
+
+namespace TextureCommon {
+
+struct Texture {
+    Helpers::AllocatedImage image{};
+    VkImageView image_view = VK_NULL_HANDLE;
+    VkSampler sampler = VK_NULL_HANDLE;
+};
+
+inline void destroy_texture(Texture &texture, VkDevice device, Helpers &helpers) {
+    if (texture.sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(device, texture.sampler, nullptr);
+        texture.sampler = VK_NULL_HANDLE;
+    }
+
+    if (texture.image_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, texture.image_view, nullptr);
+        texture.image_view = VK_NULL_HANDLE;
+    }
+
+    if (texture.image.handle != VK_NULL_HANDLE) {
+        helpers.destroy_image(std::move(texture.image));
+    }
+}
+
+inline void destroy_texture(std::unique_ptr<Texture> texture, VkDevice device, Helpers &helpers) {
+    if (!texture) return;
+    destroy_texture(*texture, device, helpers);
+}
+
+} // namespace TextureCommon
 
 inline void decode_rgbe(const unsigned char* src, float* dst){
     unsigned char r = src[0];

@@ -6,7 +6,7 @@ void TextureManager::destroy(RTG &rtg) {
     for (auto &material_slots : raw_2d_textures_by_material) {
         for (auto &texture_opt : material_slots) {
             if (texture_opt) {
-                Texture2DLoader::destroy(std::move(*texture_opt), rtg);
+                TextureCommon::destroy_texture(*(*texture_opt), rtg.device, rtg.helpers);
             }
             texture_opt.reset();
         }
@@ -15,11 +15,16 @@ void TextureManager::destroy(RTG &rtg) {
     raw_2d_textures_by_material.clear();
 
     for (auto &cubemap_texture : raw_environment_cubemap_texture) {
-        TextureCubeLoader::destroy(std::move(cubemap_texture), rtg);
+        if (cubemap_texture) {
+            TextureCommon::destroy_texture(*cubemap_texture, rtg.device, rtg.helpers);
+            cubemap_texture.reset();
+        }
     }
     raw_environment_cubemap_texture.clear();
 
-    Texture2DLoader::destroy(std::move(raw_brdf_LUT_texture), rtg);
+    if (raw_brdf_LUT_texture) {
+        TextureCommon::destroy_texture(*raw_brdf_LUT_texture, rtg.device, rtg.helpers);
+    }
     raw_brdf_LUT_texture = nullptr;
 
     // Destroy dummy shadow textures
@@ -28,35 +33,8 @@ void TextureManager::destroy(RTG &rtg) {
         dummy_shadow_2d_array_view = VK_NULL_HANDLE;
     }
     
-    if (dummy_shadow_2d_view != VK_NULL_HANDLE) {
-        vkDestroyImageView(rtg.device, dummy_shadow_2d_view, nullptr);
-        dummy_shadow_2d_view = VK_NULL_HANDLE;
-    }
-    
-    if (dummy_shadow_2d != VK_NULL_HANDLE) {
-        vkDestroyImage(rtg.device, dummy_shadow_2d, nullptr);
-        dummy_shadow_2d = VK_NULL_HANDLE;
-    }
-
-    if (dummy_shadow_sampler_2d != VK_NULL_HANDLE) {
-        vkDestroySampler(rtg.device, dummy_shadow_sampler_2d, nullptr);
-        dummy_shadow_sampler_2d = VK_NULL_HANDLE;
-    }
-
-    if (dummy_shadow_cube_view != VK_NULL_HANDLE) {
-        vkDestroyImageView(rtg.device, dummy_shadow_cube_view, nullptr);
-        dummy_shadow_cube_view = VK_NULL_HANDLE;
-    }
-    
-    if (dummy_shadow_cubemap != VK_NULL_HANDLE) {
-        vkDestroyImage(rtg.device, dummy_shadow_cubemap, nullptr);
-        dummy_shadow_cubemap = VK_NULL_HANDLE;
-    }
-
-    if (dummy_shadow_sampler_cube != VK_NULL_HANDLE) {
-        vkDestroySampler(rtg.device, dummy_shadow_sampler_cube, nullptr);
-        dummy_shadow_sampler_cube = VK_NULL_HANDLE;
-    }
+    TextureCommon::destroy_texture(dummy_shadow_2d, rtg.device, rtg.helpers);
+    TextureCommon::destroy_texture(dummy_shadow_cubemap, rtg.device, rtg.helpers);
 
     if(texture_descriptor_pool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(rtg.device, texture_descriptor_pool, nullptr);
@@ -186,12 +164,12 @@ void TextureManager::create(
                     1,
                     1
                 );
-                dummy_shadow_2d = dummy_2d_img.handle;
+                dummy_shadow_2d.image = std::move(dummy_2d_img);
 
                 // Create 2D view for spot shadow sampling
                 VkImageViewCreateInfo view_create_info{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .image = dummy_shadow_2d,
+                    .image = dummy_shadow_2d.image.handle,
                     .viewType = VK_IMAGE_VIEW_TYPE_2D,
                     .format = VK_FORMAT_D32_SFLOAT,
                     .components = {
@@ -208,7 +186,7 @@ void TextureManager::create(
                         .layerCount = 1,
                     },
                 };
-                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_2d_view) );
+                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_2d.image_view) );
 
                 // Create 2D_ARRAY view for sun shadow sampling
                 view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
@@ -234,7 +212,7 @@ void TextureManager::create(
                     .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
                     .unnormalizedCoordinates = VK_FALSE,
                 };
-                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_sampler_2d) );
+                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_2d.sampler) );
             }
 
             // Create dummy cubemap shadow texture (1x1x6)
@@ -251,12 +229,12 @@ void TextureManager::create(
                     1,
                     6  // 6 cube faces
                 );
-                dummy_shadow_cubemap = dummy_cube_img.handle;
+                dummy_shadow_cubemap.image = std::move(dummy_cube_img);
 
                 // Create cube view for sphere shadow sampling
                 VkImageViewCreateInfo view_create_info{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .image = dummy_shadow_cubemap,
+                    .image = dummy_shadow_cubemap.image.handle,
                     .viewType = VK_IMAGE_VIEW_TYPE_CUBE,
                     .format = VK_FORMAT_D32_SFLOAT,
                     .components = {
@@ -273,7 +251,7 @@ void TextureManager::create(
                         .layerCount = 6,
                     },
                 };
-                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_cube_view) );
+                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_cubemap.image_view) );
 
                 // Create sampler for cube shadow
                 VkSamplerCreateInfo sampler_info{
@@ -294,7 +272,7 @@ void TextureManager::create(
                     .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
                     .unnormalizedCoordinates = VK_FALSE,
                 };
-                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_sampler_cube) );
+                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_cubemap.sampler) );
             }
         }
 

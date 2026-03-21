@@ -13,7 +13,7 @@
 #include <cmath>
 
 namespace TextureCubeLoader {
-std::unique_ptr<Texture> load_cubemap(
+std::unique_ptr<TextureCommon::Texture> load_cubemap(
     Helpers &helpers,
     const std::string &filepath,
     VkFilter filter,
@@ -109,7 +109,7 @@ std::unique_ptr<Texture> load_cubemap(
     }
     
     // Create GPU cubemap image with mipmaps
-    auto texture = std::make_unique<Texture>();
+    auto texture = std::make_unique<TextureCommon::Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = static_cast<uint32_t>(widths[0]), .height = static_cast<uint32_t>(heights[0] / 6) },
         VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
@@ -154,7 +154,7 @@ std::unique_ptr<Texture> load_cubemap(
     return texture;
 }
 
-std::unique_ptr<Texture> create_default_cubemap(
+std::unique_ptr<TextureCommon::Texture> create_default_cubemap(
     Helpers &helpers,
     VkFilter filter
 ) {
@@ -163,7 +163,7 @@ std::unique_ptr<Texture> create_default_cubemap(
     std::vector<uint32_t> cubemap_data(pixel_count_per_face * face_count, pack_e5b9g9r9(0.0f, 0.0f, 0.0f));
     
     // Create GPU cubemap image (single mipmap level)
-    auto texture = std::make_unique<Texture>();
+    auto texture = std::make_unique<TextureCommon::Texture>();
     texture->image = helpers.create_image(
         VkExtent2D{ .width = 1, .height = 1 },
         VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,
@@ -199,28 +199,6 @@ std::unique_ptr<Texture> create_default_cubemap(
     );
     
     return texture;
-}
-
-void destroy(std::unique_ptr<Texture> texture, RTG &rtg) {
-    if (!texture) return;
-
-    if (texture->sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(rtg.helpers.rtg.device, texture->sampler, nullptr);
-        texture->sampler = VK_NULL_HANDLE;
-    }
-    if (texture->image_view != VK_NULL_HANDLE) {
-        vkDestroyImageView(rtg.helpers.rtg.device, texture->image_view, nullptr);
-        texture->image_view = VK_NULL_HANDLE;
-    }
-    if (texture->image.handle != VK_NULL_HANDLE) {
-        rtg.helpers.destroy_image(std::move(texture->image));
-    }
-}
-
-Texture::~Texture() {
-    if (sampler != VK_NULL_HANDLE || image_view != VK_NULL_HANDLE) {
-        std::cerr << "[TextureCubeLoader] Texture destructor called without destroy() being called" << std::endl;
-    }
 }
 
 } // namespace TextureCubeLoader

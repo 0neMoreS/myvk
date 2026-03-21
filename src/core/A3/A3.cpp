@@ -283,6 +283,10 @@ A3::~A3() {
 
 	tonemapping_pipeline.destroy(rtg);
 
+#ifdef USE_TILED_LIGHTING
+    tiled_compute_pipeline.destroy(rtg);
+#endif
+
 	workspace_manager.destroy(rtg);
 
 	render_pass_manager.destroy(rtg);
@@ -348,16 +352,6 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto const &shadow_sphere_lights_bytes = lights_manager.get_shadow_sphere_lights_bytes();
 			auto const &shadow_sphere_matrices_bytes = lights_manager.get_shadow_sphere_matrices_bytes();
 			auto const &shadow_spot_lights_bytes = lights_manager.get_shadow_spot_lights_bytes();
-			#ifdef USE_TILED_LIGHTING
-			// auto const &sphere_tile_data_bytes = lights_manager.get_sphere_tile_data_bytes();
-			// auto const &sphere_light_idx_bytes = lights_manager.get_sphere_light_idx_bytes();
-			// auto const &spot_tile_data_bytes = lights_manager.get_spot_tile_data_bytes();
-			// auto const &spot_light_idx_bytes = lights_manager.get_spot_light_idx_bytes();
-			// auto const &shadow_sphere_tile_data_bytes = lights_manager.get_shadow_sphere_tile_data_bytes();
-			// auto const &shadow_sphere_light_idx_bytes = lights_manager.get_shadow_sphere_light_idx_bytes();
-			// auto const &shadow_spot_tile_data_bytes = lights_manager.get_shadow_spot_tile_data_bytes();
-			// auto const &shadow_spot_light_idx_bytes = lights_manager.get_shadow_spot_light_idx_bytes();
-			#endif
 
 			assert(workspace.global_buffer_pairs["SunLights"]->host.size >= sun_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "SunLights", (void*)sun_lights_bytes.data(), sun_lights_bytes.size());

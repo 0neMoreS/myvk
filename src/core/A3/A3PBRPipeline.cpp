@@ -258,7 +258,7 @@ void A3PBRPipeline::create(
                     // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : sun_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.dummy_shadow_sampler_2d,
+                            .sampler = texture_manager.dummy_shadow_2d.sampler,
                             .imageView = texture_manager.dummy_shadow_2d_array_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
@@ -280,8 +280,8 @@ void A3PBRPipeline::create(
                     // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : sphere_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.dummy_shadow_sampler_cube,
-                            .imageView = texture_manager.dummy_shadow_cube_view,
+                            .sampler = texture_manager.dummy_shadow_cubemap.sampler,
+                            .imageView = texture_manager.dummy_shadow_cubemap.image_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
@@ -302,8 +302,8 @@ void A3PBRPipeline::create(
                     // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : spot_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.dummy_shadow_sampler_2d,
-                            .imageView = texture_manager.dummy_shadow_2d_view,
+                            .sampler = texture_manager.dummy_shadow_2d.sampler,
+                            .imageView = texture_manager.dummy_shadow_2d.image_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }

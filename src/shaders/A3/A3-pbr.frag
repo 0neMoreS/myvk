@@ -237,10 +237,11 @@ void main() {
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
 			// Representative Point for Specular
-			vec3 centerToRay = dot(toLight, R) * R - toLight;
+			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
+			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+			// float NoL_spec = abs(dot(N, L_spec));
 			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
@@ -266,10 +267,11 @@ void main() {
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			vec3 centerToRay = dot(toLight, R) * R - toLight;
+			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
+			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
+			// float NoL_spec = abs(dot(N, L_spec), 0.0);
 			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
 
@@ -300,9 +302,9 @@ void main() {
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
 			// Representative Point for Specular
-			vec3 centerToRay = dot(toLight, R) * R - toLight;
+			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
+			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
 			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,
 				clamp(alpha + light.radius / (2.0 * distToLight), 0.0, 1.0));
@@ -329,10 +331,9 @@ void main() {
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			vec3 centerToRay = dot(toLight, R) * R - toLight;
+			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
-			vec3 L_spec = normalize(closestPoint);
-
+			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
 
 			vec3 specularTerm = computeSpecularTerm(N, V, L_spec, NoL_spec, NdotV, F0, roughness, alpha,

@@ -46,8 +46,6 @@ vec3 sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec3 N) {
 	}
 
 	vec3 L = toLight / distance;
-	float sa = (distance <= spotLight.radius ? 1.0 : spotLight.radius / distance);
-	float NoLFactor = horizon_approx(dot(N, L), sa);
 
 	float phi = acos(dot(L, normalize(-spotLight.direction)));
 	if (phi >= spotLight.fov * 0.5) {
@@ -63,7 +61,7 @@ vec3 sampleSpotLightIntensity(SpotLight spotLight, vec3 fragPosition, vec3 N) {
 	float effectiveDistance = max(distance, spotLight.radius);
 	float attenuation = (1.0 - pow(effectiveDistance / spotLight.limit, 4.0));
 	attenuation = max(attenuation, 0.0);
-	return blend * spotLight.tint * attenuation * NoLFactor / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
+	return blend * spotLight.tint * attenuation / (4.0 * LIGHT_PI * effectiveDistance * effectiveDistance);
 }
 
 float areaLightNoLFactor(float radius, vec3 toLight, vec3 N) {

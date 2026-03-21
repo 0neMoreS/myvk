@@ -27,6 +27,16 @@ class TextureManager {
 
         // BRDF LUT texture
         std::unique_ptr<Texture2DLoader::Texture> raw_brdf_LUT_texture;
+
+        // Dummy shadow textures for fallback when shadow maps are not available
+        VkImage dummy_shadow_2d = VK_NULL_HANDLE;
+        VkImageView dummy_shadow_2d_view = VK_NULL_HANDLE;
+        VkImageView dummy_shadow_2d_array_view = VK_NULL_HANDLE;
+        VkSampler dummy_shadow_sampler_2d = VK_NULL_HANDLE;
+
+        VkImage dummy_shadow_cubemap = VK_NULL_HANDLE;
+        VkImageView dummy_shadow_cube_view = VK_NULL_HANDLE;
+        VkSampler dummy_shadow_sampler_cube = VK_NULL_HANDLE;
             
         void create(
             RTG & rtg,

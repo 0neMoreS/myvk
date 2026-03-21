@@ -240,32 +240,12 @@ void A3LambertianPipeline::create(
                         };
                     }
                 } else {
-                    VkImageViewCreateInfo sun_shadow_array_view_create_info{
-                        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                        .image = texture_manager.raw_brdf_LUT_texture->image.handle,
-                        .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-                        .format = texture_manager.raw_brdf_LUT_texture->image.format,
-                        .components = {
-                            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        },
-                        .subresourceRange = {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .baseMipLevel = 0,
-                            .levelCount = 1,
-                            .baseArrayLayer = 0,
-                            .layerCount = 1,
-                        },
-                    };
-                    VK(vkCreateImageView(rtg.device, &sun_shadow_array_view_create_info, nullptr, &sun_shadow_array_view));
-
+                    // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : sun_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                            .imageView = sun_shadow_array_view,
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            .sampler = texture_manager.dummy_shadow_sampler_2d,
+                            .imageView = texture_manager.dummy_shadow_2d_array_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
                 }
@@ -282,11 +262,12 @@ void A3LambertianPipeline::create(
                         };
                     }
                 } else {
+                    // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : sphere_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.raw_environment_cubemap_texture[0]->sampler,
-                            .imageView = texture_manager.raw_environment_cubemap_texture[0]->image_view,
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            .sampler = texture_manager.dummy_shadow_sampler_cube,
+                            .imageView = texture_manager.dummy_shadow_cube_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
                 }
@@ -303,11 +284,12 @@ void A3LambertianPipeline::create(
                         };
                     }
                 } else {
+                    // Use dummy shadow texture as fallback (no shadow)
                     for (auto &info : spot_shadow_infos) {
                         info = VkDescriptorImageInfo{
-                            .sampler = texture_manager.raw_brdf_LUT_texture->sampler,
-                            .imageView = texture_manager.raw_brdf_LUT_texture->image_view,
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            .sampler = texture_manager.dummy_shadow_sampler_2d,
+                            .imageView = texture_manager.dummy_shadow_2d_view,
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
                 }

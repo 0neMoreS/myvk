@@ -22,6 +22,42 @@ void TextureManager::destroy(RTG &rtg) {
     Texture2DLoader::destroy(std::move(raw_brdf_LUT_texture), rtg);
     raw_brdf_LUT_texture = nullptr;
 
+    // Destroy dummy shadow textures
+    if (dummy_shadow_2d_array_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(rtg.device, dummy_shadow_2d_array_view, nullptr);
+        dummy_shadow_2d_array_view = VK_NULL_HANDLE;
+    }
+    
+    if (dummy_shadow_2d_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(rtg.device, dummy_shadow_2d_view, nullptr);
+        dummy_shadow_2d_view = VK_NULL_HANDLE;
+    }
+    
+    if (dummy_shadow_2d != VK_NULL_HANDLE) {
+        vkDestroyImage(rtg.device, dummy_shadow_2d, nullptr);
+        dummy_shadow_2d = VK_NULL_HANDLE;
+    }
+
+    if (dummy_shadow_sampler_2d != VK_NULL_HANDLE) {
+        vkDestroySampler(rtg.device, dummy_shadow_sampler_2d, nullptr);
+        dummy_shadow_sampler_2d = VK_NULL_HANDLE;
+    }
+
+    if (dummy_shadow_cube_view != VK_NULL_HANDLE) {
+        vkDestroyImageView(rtg.device, dummy_shadow_cube_view, nullptr);
+        dummy_shadow_cube_view = VK_NULL_HANDLE;
+    }
+    
+    if (dummy_shadow_cubemap != VK_NULL_HANDLE) {
+        vkDestroyImage(rtg.device, dummy_shadow_cubemap, nullptr);
+        dummy_shadow_cubemap = VK_NULL_HANDLE;
+    }
+
+    if (dummy_shadow_sampler_cube != VK_NULL_HANDLE) {
+        vkDestroySampler(rtg.device, dummy_shadow_sampler_cube, nullptr);
+        dummy_shadow_sampler_cube = VK_NULL_HANDLE;
+    }
+
     if(texture_descriptor_pool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(rtg.device, texture_descriptor_pool, nullptr);
         texture_descriptor_pool = VK_NULL_HANDLE;
@@ -133,6 +169,133 @@ void TextureManager::create(
             std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
             raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR, false, false);
             
+        }
+
+        { // Create dummy shadow textures for fallback
+            // Create dummy 2D shadow texture (1x1)
+            {
+                VkExtent2D extent{1, 1};
+                auto dummy_2d_img = rtg.helpers.create_image(
+                    extent,
+                    VK_FORMAT_D32_SFLOAT,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    Helpers::Unmapped,
+                    0,
+                    1,
+                    1
+                );
+                dummy_shadow_2d = dummy_2d_img.handle;
+
+                // Create 2D view for spot shadow sampling
+                VkImageViewCreateInfo view_create_info{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .image = dummy_shadow_2d,
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = VK_FORMAT_D32_SFLOAT,
+                    .components = {
+                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    },
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+                };
+                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_2d_view) );
+
+                // Create 2D_ARRAY view for sun shadow sampling
+                view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+                view_create_info.subresourceRange.layerCount = 1;
+                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_2d_array_view) );
+
+                // Create sampler for 2D shadow
+                VkSamplerCreateInfo sampler_info{
+                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    .magFilter = VK_FILTER_LINEAR,
+                    .minFilter = VK_FILTER_LINEAR,
+                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+                    .mipLodBias = 0.0f,
+                    .anisotropyEnable = VK_FALSE,
+                    .maxAnisotropy = 1.0f,
+                    .compareEnable = VK_FALSE,
+                    .compareOp = VK_COMPARE_OP_ALWAYS,
+                    .minLod = 0.0f,
+                    .maxLod = 0.0f,
+                    .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+                    .unnormalizedCoordinates = VK_FALSE,
+                };
+                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_sampler_2d) );
+            }
+
+            // Create dummy cubemap shadow texture (1x1x6)
+            {
+                VkExtent2D extent{1, 1};
+                auto dummy_cube_img = rtg.helpers.create_image(
+                    extent,
+                    VK_FORMAT_D32_SFLOAT,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    Helpers::Unmapped,
+                    VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+                    1,
+                    6  // 6 cube faces
+                );
+                dummy_shadow_cubemap = dummy_cube_img.handle;
+
+                // Create cube view for sphere shadow sampling
+                VkImageViewCreateInfo view_create_info{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .image = dummy_shadow_cubemap,
+                    .viewType = VK_IMAGE_VIEW_TYPE_CUBE,
+                    .format = VK_FORMAT_D32_SFLOAT,
+                    .components = {
+                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    },
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 6,
+                    },
+                };
+                VK( vkCreateImageView(rtg.device, &view_create_info, nullptr, &dummy_shadow_cube_view) );
+
+                // Create sampler for cube shadow
+                VkSamplerCreateInfo sampler_info{
+                    .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                    .magFilter = VK_FILTER_LINEAR,
+                    .minFilter = VK_FILTER_LINEAR,
+                    .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                    .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                    .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                    .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                    .mipLodBias = 0.0f,
+                    .anisotropyEnable = VK_FALSE,
+                    .maxAnisotropy = 1.0f,
+                    .compareEnable = VK_FALSE,
+                    .compareOp = VK_COMPARE_OP_ALWAYS,
+                    .minLod = 0.0f,
+                    .maxLod = 0.0f,
+                    .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+                    .unnormalizedCoordinates = VK_FALSE,
+                };
+                VK( vkCreateSampler(rtg.device, &sampler_info, nullptr, &dummy_shadow_sampler_cube) );
+            }
         }
 
         { // the descriptor pool for texture descriptors

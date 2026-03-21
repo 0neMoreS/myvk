@@ -2,7 +2,7 @@
 
 // Compile-time switch: comment out to disable Tiled Forward Lighting.
 // Must match #define USE_TILED_LIGHTING in A3-light-def.glsl.
-#define USE_TILED_LIGHTING
+// #define USE_TILED_LIGHTING
 
 #include "S72Loader.hpp"
 #include "SceneTree.hpp"

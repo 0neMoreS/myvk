@@ -14,6 +14,7 @@
 
 //maek is configured using properties and methods of the `maek` object:
 const maek = init_maek();
+const ENABLE_TILED_LIGHTING = true;
 // (it's a quirk of javascript that function definitions anywhere in scope get 'hoisted'
 //   -- you can see the definition of init_maek by scrolling down.)
 
@@ -124,9 +125,11 @@ const a3_sun_shadow_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-sun-shadow.vert'),
 ];
 
-const a3_tiled_lighting_compute_shaders = [
-	maek.GLSLC('./src/shaders/A3/A3-tiled-lighting.comp'),
-];
+const a3_tiled_lighting_compute_shaders = ENABLE_TILED_LIGHTING
+	? [
+		maek.GLSLC('./src/shaders/A3/A3-tiled-lighting.comp'),
+	]
+	: [];
 
 const a3_cascade_debug_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-cascade-debug-lambertian.frag'),
@@ -348,6 +351,17 @@ function custom_flags_and_rules() {
 
 	maek.DEFAULT_OPTIONS.GLSLC = [`${VULKAN_SDK}/bin/glslc` + (maek.OS === 'windows' ? '.exe' : ''), '-Werror', '-g', '-mfmt=c', '--target-env=vulkan1.4'];
 	maek.DEFAULT_OPTIONS.GLSLCFlags = [];
+
+	if (ENABLE_TILED_LIGHTING) {
+		if (maek.OS === 'windows') {
+			maek.options.CPPFlags.push('/DUSE_TILED_LIGHTING');
+		}
+		else {
+			maek.options.CPPFlags.push('-DUSE_TILED_LIGHTING');
+		}
+		maek.DEFAULT_OPTIONS.GLSLCFlags.push('-DUSE_TILED_LIGHTING');
+	}
+
 	maek.DEFAULT_OPTIONS.spirvSuffix = '.inl';
 	maek.DEFAULT_OPTIONS.spirvPrefix = '../spv/';
 

@@ -1,7 +1,7 @@
 #pragma once
 
-// Compile-time switch: comment out to disable Tiled Forward Lighting.
-// Must match #define USE_TILED_LIGHTING in A3-light-def.glsl.
+// Compile-time switch is controlled by Maekfile.js (ENABLE_TILED_LIGHTING).
+// Keep this commented to avoid diverging from build configuration.
 // #define USE_TILED_LIGHTING
 
 #include "S72Loader.hpp"
@@ -95,7 +95,8 @@ public:
 	}
 
 	LightsManager() = default;
-	~LightsManager() = default;
+		// Compile-time switch is controlled by Maekfile.js (ENABLE_TILED_LIGHTING).
+		// Do not manually define here unless debugging build configuration.
 
 	void create(
 		const std::shared_ptr<S72Loader::Document>& doc,

@@ -11,6 +11,8 @@ layout(push_constant) uniform Push {
     uint tiles_y;
 } push;
 
+#define TILE_DATA_BUFFER_ACCESS 
+
 layout(set=0, binding=0, std140) uniform PV {
     mat4 PERSPECTIVE;
     mat4 VIEW;
@@ -19,9 +21,7 @@ layout(set=0, binding=0, std140) uniform PV {
 
 #include "A3-light-def.glsl"
 
-#ifdef USE_TILED_LIGHTING
-
-const uint MAX_LIGHTS_PER_TILE = 512; // Shared memory limit
+const uint MAX_LIGHTS_PER_TILE = 2048; // Shared memory limit
 shared uint s_sphere_count;
 shared uint s_sphere_indices[MAX_LIGHTS_PER_TILE];
 
@@ -92,11 +92,7 @@ bool project_sphere_to_tile_rect(vec3 world_position, float world_radius, out Ti
     return true;
 }
 
-#endif // USE_TILED_LIGHTING
-
 void main() {
-    #ifdef USE_TILED_LIGHTING
-
     uint tile_x = gl_WorkGroupID.x;
     uint tile_y = gl_WorkGroupID.y;
     uint tile_index = tile_y * push.tiles_x + tile_x;
@@ -240,6 +236,4 @@ void main() {
     for (uint i = local_index; i < count_shadow_spot; i += 256) {
         shadowSpotLightIdxBuf.indices[offset_shadow_spot + i] = s_shadow_spot_indices[i];
     }
-
-    #endif // USE_TILED_LIGHTING
 }

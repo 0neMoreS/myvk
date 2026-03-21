@@ -65,6 +65,10 @@ layout(set=0, binding=6, std430) readonly buffer ShadowSpotLightsBuf {
     SpotLight shadowLights[];
 } shadowSpotLightsBuf;
 
+#ifndef TILE_DATA_BUFFER_ACCESS
+#define TILE_DATA_BUFFER_ACCESS readonly
+#endif
+
 #ifdef USE_TILED_LIGHTING
 // Per-tile light list entry: start offset + count in the flat index buffer.
 struct TileInfo {
@@ -73,46 +77,46 @@ struct TileInfo {
 };
 
 // Sphere lights: tile→index mapping (set=0, binding=7,8)
-layout(set=0, binding=7, std430) readonly buffer SphereTileDataBuf {
+layout(set=0, binding=7, std430) TILE_DATA_BUFFER_ACCESS buffer SphereTileDataBuf {
     uint tiles_x;
     uint tiles_y;
     TileInfo tiles[]; // [tiles_y * tiles_x]
 } sphereTileDataBuf;
 
-layout(set=0, binding=8, std430) readonly buffer SphereLightIdxBuf {
+layout(set=0, binding=8, std430) TILE_DATA_BUFFER_ACCESS buffer SphereLightIdxBuf {
     uint indices[];
 } sphereLightIdxBuf;
 
 // Spot lights: tile→index mapping (set=0, binding=9,10)
-layout(set=0, binding=9, std430) readonly buffer SpotTileDataBuf {
+layout(set=0, binding=9, std430) TILE_DATA_BUFFER_ACCESS buffer SpotTileDataBuf {
     uint tiles_x;
     uint tiles_y;
     TileInfo tiles[]; // [tiles_y * tiles_x]
 } spotTileDataBuf;
 
-layout(set=0, binding=10, std430) readonly buffer SpotLightIdxBuf {
+layout(set=0, binding=10, std430) TILE_DATA_BUFFER_ACCESS buffer SpotLightIdxBuf {
     uint indices[];
 } spotLightIdxBuf;
 
 // Shadow sphere lights: tile→index mapping (set=0, binding=11,12)
-layout(set=0, binding=11, std430) readonly buffer ShadowSphereTileDataBuf {
+layout(set=0, binding=11, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSphereTileDataBuf {
 	uint tiles_x;
 	uint tiles_y;
 	TileInfo tiles[]; // [tiles_y * tiles_x]
 } shadowSphereTileDataBuf;
 
-layout(set=0, binding=12, std430) readonly buffer ShadowSphereLightIdxBuf {
+layout(set=0, binding=12, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSphereLightIdxBuf {
 	uint indices[];
 } shadowSphereLightIdxBuf;
 
 // Shadow spot lights: tile→index mapping (set=0, binding=13,14)
-layout(set=0, binding=13, std430) readonly buffer ShadowSpotTileDataBuf {
+layout(set=0, binding=13, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSpotTileDataBuf {
 	uint tiles_x;
 	uint tiles_y;
 	TileInfo tiles[]; // [tiles_y * tiles_x]
 } shadowSpotTileDataBuf;
 
-layout(set=0, binding=14, std430) readonly buffer ShadowSpotLightIdxBuf {
+layout(set=0, binding=14, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSpotLightIdxBuf {
 	uint indices[];
 } shadowSpotLightIdxBuf;
 #endif // USE_TILED_LIGHTING

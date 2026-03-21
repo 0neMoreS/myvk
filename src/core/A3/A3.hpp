@@ -19,6 +19,7 @@
 #include "A3SunShadowPipeline.hpp"
 #include "A3SpotShadowPipeline.hpp"
 #include "A3SphereShadowPipeline.hpp"
+#include "A3TiledLightingComputePipeline.hpp"
 #include "A3ToneMappingPipeline.hpp"
 #include "A3CommonData.hpp"
 #include "SceneManager.hpp"
@@ -57,6 +58,7 @@ struct A3 : RTG::Application {
 	A3SunShadowPipeline sun_shadow_pipeline;
 	A3SpotShadowPipeline spot_shadow_pipeline;
 	A3SphereShadowPipeline sphere_shadow_pipeline;
+	A3TiledLightingComputePipeline tiled_compute_pipeline;
 	A3ToneMappingPipeline tonemapping_pipeline;
 
 	//-------------------------------------------------------------------

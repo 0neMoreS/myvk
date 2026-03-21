@@ -1,0 +1,239 @@
+#version 460
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(push_constant) uniform Push {
+    uint render_width;
+    uint render_height;
+    uint tiles_x;
+    uint tiles_y;
+} push;
+
+#define TILE_DATA_BUFFER_ACCESS 
+
+layout(set=0, binding=0, std140) uniform PV {
+    mat4 PERSPECTIVE;
+    mat4 VIEW;
+    vec4 CAMERA_POSITION;
+};
+
+#include "A3-light-def.glsl"
+
+const uint MAX_LIGHTS_PER_TILE = 512; // Shared memory limit
+shared uint s_sphere_count;
+shared uint s_sphere_indices[MAX_LIGHTS_PER_TILE];
+
+shared uint s_spot_count;
+shared uint s_spot_indices[MAX_LIGHTS_PER_TILE];
+
+shared uint s_shadow_sphere_count;
+shared uint s_shadow_sphere_indices[MAX_LIGHTS_PER_TILE];
+
+shared uint s_shadow_spot_count;
+shared uint s_shadow_spot_indices[MAX_LIGHTS_PER_TILE];
+
+struct TileRect {
+    uint min_x;
+    uint max_x;
+    uint min_y;
+    uint max_y;
+};
+
+const float TileSizePx = 16.0; // Same as local_size_x
+
+bool project_sphere_to_tile_rect(vec3 world_position, float world_radius, out TileRect rect) {
+    if (push.render_width == 0 || push.render_height == 0 || world_radius <= 0.0) {
+        return false;
+    }
+
+    vec4 view_pos4 = VIEW * vec4(world_position, 1.0);
+    vec3 view_pos = view_pos4.xyz;
+    float depth = -view_pos.z;
+    if (depth + world_radius <= 0.001) {
+        return false;
+    }
+
+    vec4 clip = PERSPECTIVE * view_pos4;
+    // clip.w is -view_pos.z for perspective projection
+    if (abs(clip.w) < 1e-6) {
+        return false;
+    }
+
+    vec3 ndc = clip.xyz / clip.w;
+    float center_px = (ndc.x * 0.5 + 0.5) * float(push.render_width);
+    float center_py = (ndc.y * 0.5 + 0.5) * float(push.render_height);
+
+    float fx = PERSPECTIVE[0][0]; // perspective projection m[0][0]
+    float fy = abs(PERSPECTIVE[1][1]);
+    float conservative_depth = max(depth - world_radius, 0.001);
+    float radius_px_x = abs(fx) * world_radius / conservative_depth * 0.5 * float(push.render_width);
+    float radius_px_y = abs(fy) * world_radius / conservative_depth * 0.5 * float(push.render_height);
+
+    float min_px = center_px - radius_px_x - TileSizePx;
+    float max_px = center_px + radius_px_x + TileSizePx;
+    float min_py = center_py - radius_px_y - TileSizePx;
+    float max_py = center_py + radius_px_y + TileSizePx;
+
+    if (max_px < 0.0 || max_py < 0.0 || min_px > float(push.render_width - 1u) || min_py > float(push.render_height - 1u)) {
+        return false;
+    }
+
+    float clamped_min_px = clamp(min_px, 0.0, float(push.render_width - 1u));
+    float clamped_max_px = clamp(max_px, 0.0, float(push.render_width - 1u));
+    float clamped_min_py = clamp(min_py, 0.0, float(push.render_height - 1u));
+    float clamped_max_py = clamp(max_py, 0.0, float(push.render_height - 1u));
+
+    rect.min_x = min(uint(clamped_min_px) / uint(TileSizePx), push.tiles_x - 1u);
+    rect.max_x = min(uint(clamped_max_px) / uint(TileSizePx), push.tiles_x - 1u);
+    rect.min_y = min(uint(clamped_min_py) / uint(TileSizePx), push.tiles_y - 1u);
+    rect.max_y = min(uint(clamped_max_py) / uint(TileSizePx), push.tiles_y - 1u);
+    return true;
+}
+
+void main() {
+    uint tile_x = gl_WorkGroupID.x;
+    uint tile_y = gl_WorkGroupID.y;
+    uint tile_index = tile_y * push.tiles_x + tile_x;
+    uint local_index = gl_LocalInvocationIndex; // 0 to 255
+
+    if (local_index == 0) {
+        s_sphere_count = 0;
+        s_spot_count = 0;
+        s_shadow_sphere_count = 0;
+        s_shadow_spot_count = 0;
+    }
+    barrier();
+
+    // 1. Process Sphere Lights
+    uint sphere_total = sphereLightsBuf.count;
+    for (uint i = local_index; i < sphere_total; i += 256) {
+        float influence_radius = max(sphereLightsBuf.lights[i].radius, sphereLightsBuf.lights[i].far_plane);
+        TileRect rect;
+        if (project_sphere_to_tile_rect(sphereLightsBuf.lights[i].position, influence_radius, rect)) {
+            if (tile_x >= rect.min_x && tile_x <= rect.max_x && tile_y >= rect.min_y && tile_y <= rect.max_y) {
+                uint pos = atomicAdd(s_sphere_count, 1);
+                if (pos < MAX_LIGHTS_PER_TILE) {
+                    s_sphere_indices[pos] = i;
+                }
+            }
+        }
+    }
+
+    // 2. Process Spot Lights
+    uint spot_total = spotLightsBuf.count;
+    for (uint i = local_index; i < spot_total; i += 256) {
+        float proxy_radius = max(spotLightsBuf.lights[i].radius, spotLightsBuf.lights[i].limit);
+        TileRect rect;
+        if (project_sphere_to_tile_rect(spotLightsBuf.lights[i].position, proxy_radius, rect)) {
+            if (tile_x >= rect.min_x && tile_x <= rect.max_x && tile_y >= rect.min_y && tile_y <= rect.max_y) {
+                uint pos = atomicAdd(s_spot_count, 1);
+                if (pos < MAX_LIGHTS_PER_TILE) {
+                    s_spot_indices[pos] = i;
+                }
+            }
+        }
+    }
+
+    // 3. Process Shadow Sphere Lights
+    uint shadow_sphere_total = shadowSphereLightsBuf.count;
+    for (uint i = local_index; i < shadow_sphere_total; i += 256) {
+        float influence_radius = max(shadowSphereLightsBuf.shadowLights[i].radius, shadowSphereLightsBuf.shadowLights[i].far_plane);
+        TileRect rect;
+        if (project_sphere_to_tile_rect(shadowSphereLightsBuf.shadowLights[i].position, influence_radius, rect)) {
+            if (tile_x >= rect.min_x && tile_x <= rect.max_x && tile_y >= rect.min_y && tile_y <= rect.max_y) {
+                uint pos = atomicAdd(s_shadow_sphere_count, 1);
+                if (pos < MAX_LIGHTS_PER_TILE) {
+                    s_shadow_sphere_indices[pos] = i;
+                }
+            }
+        }
+    }
+
+    // 4. Process Shadow Spot Lights
+    uint shadow_spot_total = shadowSpotLightsBuf.count;
+    for (uint i = local_index; i < shadow_spot_total; i += 256) {
+        float proxy_radius = max(shadowSpotLightsBuf.shadowLights[i].radius, shadowSpotLightsBuf.shadowLights[i].limit);
+        TileRect rect;
+        if (project_sphere_to_tile_rect(shadowSpotLightsBuf.shadowLights[i].position, proxy_radius, rect)) {
+            if (tile_x >= rect.min_x && tile_x <= rect.max_x && tile_y >= rect.min_y && tile_y <= rect.max_y) {
+                uint pos = atomicAdd(s_shadow_spot_count, 1);
+                if (pos < MAX_LIGHTS_PER_TILE) {
+                    s_shadow_spot_indices[pos] = i;
+                }
+            }
+        }
+    }
+
+    barrier();
+
+    // Write results to global memory
+    // Instead of using global atomics, we lay out the index buffer sequentially per tile.
+    // Each tile owns a designated block of size = (total_lights_of_type).
+    // This perfectly matches the CPU's maximum allocation size formula.
+    
+    // Sphere
+    if (local_index == 0) {
+        sphereTileDataBuf.tiles_x = push.tiles_x;
+        sphereTileDataBuf.tiles_y = push.tiles_y;
+        uint count = min(s_sphere_count, MAX_LIGHTS_PER_TILE);
+        uint offset = tile_index * max(1u, sphere_total); // Strided allocation prevents buffer overflow
+        sphereTileDataBuf.tiles[tile_index].offset = offset;
+        sphereTileDataBuf.tiles[tile_index].count = count;
+    }
+    barrier();
+    uint count_sphere = min(s_sphere_count, MAX_LIGHTS_PER_TILE);
+    uint offset_sphere = tile_index * max(1u, sphere_total);
+    for (uint i = local_index; i < count_sphere; i += 256) {
+        sphereLightIdxBuf.indices[offset_sphere + i] = s_sphere_indices[i];
+    }
+
+    // Spot
+    if (local_index == 0) {
+        spotTileDataBuf.tiles_x = push.tiles_x;
+        spotTileDataBuf.tiles_y = push.tiles_y;
+        uint count = min(s_spot_count, MAX_LIGHTS_PER_TILE);
+        uint offset = tile_index * max(1u, spot_total);
+        spotTileDataBuf.tiles[tile_index].offset = offset;
+        spotTileDataBuf.tiles[tile_index].count = count;
+    }
+    barrier();
+    uint count_spot = min(s_spot_count, MAX_LIGHTS_PER_TILE);
+    uint offset_spot = tile_index * max(1u, spot_total);
+    for (uint i = local_index; i < count_spot; i += 256) {
+        spotLightIdxBuf.indices[offset_spot + i] = s_spot_indices[i];
+    }
+
+    // Shadow Sphere
+    if (local_index == 0) {
+        shadowSphereTileDataBuf.tiles_x = push.tiles_x;
+        shadowSphereTileDataBuf.tiles_y = push.tiles_y;
+        uint count = min(s_shadow_sphere_count, MAX_LIGHTS_PER_TILE);
+        uint offset = tile_index * max(1u, shadow_sphere_total);
+        shadowSphereTileDataBuf.tiles[tile_index].offset = offset;
+        shadowSphereTileDataBuf.tiles[tile_index].count = count;
+    }
+    barrier();
+    uint count_shadow_sphere = min(s_shadow_sphere_count, MAX_LIGHTS_PER_TILE);
+    uint offset_shadow_sphere = tile_index * max(1u, shadow_sphere_total);
+    for (uint i = local_index; i < count_shadow_sphere; i += 256) {
+        shadowSphereLightIdxBuf.indices[offset_shadow_sphere + i] = s_shadow_sphere_indices[i];
+    }
+
+    // Shadow Spot
+    if (local_index == 0) {
+        shadowSpotTileDataBuf.tiles_x = push.tiles_x;
+        shadowSpotTileDataBuf.tiles_y = push.tiles_y;
+        uint count = min(s_shadow_spot_count, MAX_LIGHTS_PER_TILE);
+        uint offset = tile_index * max(1u, shadow_spot_total);
+        shadowSpotTileDataBuf.tiles[tile_index].offset = offset;
+        shadowSpotTileDataBuf.tiles[tile_index].count = count;
+    }
+    barrier();
+    uint count_shadow_spot = min(s_shadow_spot_count, MAX_LIGHTS_PER_TILE);
+    uint offset_shadow_spot = tile_index * max(1u, shadow_spot_total);
+    for (uint i = local_index; i < count_shadow_spot; i += 256) {
+        shadowSpotLightIdxBuf.indices[offset_shadow_spot + i] = s_shadow_spot_indices[i];
+    }
+}

@@ -199,285 +199,57 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	};
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), {}, 2);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3BackgroundPipeline"], 
-		background_pipeline.block_descriptor_set_name_to_index["PV"], 
-		background_pipeline.block_binding_name_to_index["PV"], 
-		"PV"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3LambertianPipeline"], 
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
-		lambertian_pipeline.block_binding_name_to_index["PV"], 
-		"PV"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3LambertianPipeline"], 
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
-		lambertian_pipeline.block_binding_name_to_index["SunLights"], 
-		"SunLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3LambertianPipeline"], 
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
-		lambertian_pipeline.block_binding_name_to_index["SphereLights"], 
-		"SphereLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3LambertianPipeline"], 
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"], 
-		lambertian_pipeline.block_binding_name_to_index["SpotLights"], 
-		"SpotLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSunLights"],
-		"ShadowSunLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSphereLights"],
-		"ShadowSphereLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSpotLights"],
-		"ShadowSpotLights"
-	);
+	auto update_pipeline_descriptors = [&](const char *pipeline_name, auto &pipeline, const char *descriptor_set_name, const std::vector<const char *> &binding_names) {
+		for (const char *binding_name : binding_names) {
+			workspace_manager.update_all_global_descriptors(
+				rtg,
+				pipeline_name_to_index[pipeline_name],
+				pipeline.block_descriptor_set_name_to_index[descriptor_set_name],
+				pipeline.block_binding_name_to_index[binding_name],
+				binding_name
+			);
+		}
+	};
+
+	const std::vector<const char *> lit_global_bindings{
+		"PV",
+		"SunLights",
+		"SphereLights",
+		"SpotLights",
+		"ShadowSunLights",
+		"ShadowSphereLights",
+		"ShadowSpotLights",
+	};
+
+	const std::vector<const char *> tiled_light_bindings{
+		"SphereTileData",
+		"SphereLightIdx",
+		"SpotTileData",
+		"SpotLightIdx",
+		"ShadowSphereTileData",
+		"ShadowSphereLightIdx",
+		"ShadowSpotTileData",
+		"ShadowSpotLightIdx",
+	};
+
+	std::vector<const char *> lambertian_bindings = lit_global_bindings;
+	std::vector<const char *> pbr_bindings = lit_global_bindings;
 #ifdef USE_TILED_LIGHTING
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["SphereTileData"],
-		"SphereTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["SphereLightIdx"],
-		"SphereLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["SpotTileData"],
-		"SpotTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["SpotLightIdx"],
-		"SpotLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSphereTileData"],
-		"ShadowSphereTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSphereLightIdx"],
-		"ShadowSphereLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSpotTileData"],
-		"ShadowSpotTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3LambertianPipeline"],
-		lambertian_pipeline.block_descriptor_set_name_to_index["Global"],
-		lambertian_pipeline.block_binding_name_to_index["ShadowSpotLightIdx"],
-		"ShadowSpotLightIdx"
-	);
+	lambertian_bindings.insert(lambertian_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
+	pbr_bindings.insert(pbr_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 #endif
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3PBRPipeline"], 
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
-		pbr_pipeline.block_binding_name_to_index["PV"], 
-		"PV"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3PBRPipeline"], 
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
-		pbr_pipeline.block_binding_name_to_index["SunLights"], 
-		"SunLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3PBRPipeline"], 
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
-		pbr_pipeline.block_binding_name_to_index["SphereLights"], 
-		"SphereLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg, 
-		pipeline_name_to_index["A3PBRPipeline"], 
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"], 
-		pbr_pipeline.block_binding_name_to_index["SpotLights"], 
-		"SpotLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSunLights"],
-		"ShadowSunLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSphereLights"],
-		"ShadowSphereLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSpotLights"],
-		"ShadowSpotLights"
-	);
-#ifdef USE_TILED_LIGHTING
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["SphereTileData"],
-		"SphereTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["SphereLightIdx"],
-		"SphereLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["SpotTileData"],
-		"SpotTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["SpotLightIdx"],
-		"SpotLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSphereTileData"],
-		"ShadowSphereTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSphereLightIdx"],
-		"ShadowSphereLightIdx"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSpotTileData"],
-		"ShadowSpotTileData"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3PBRPipeline"],
-		pbr_pipeline.block_descriptor_set_name_to_index["Global"],
-		pbr_pipeline.block_binding_name_to_index["ShadowSpotLightIdx"],
-		"ShadowSpotLightIdx"
-	);
-#endif
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3SunShadowPipeline"],
-		sun_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
-		sun_shadow_pipeline.block_binding_name_to_index["ShadowSunLights"],
-		"ShadowSunLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3SpotShadowPipeline"],
-		spot_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
-		spot_shadow_pipeline.block_binding_name_to_index["ShadowSpotLights"],
-		"ShadowSpotLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3SphereShadowPipeline"],
-		sphere_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
-		sphere_shadow_pipeline.block_binding_name_to_index["ShadowSphereLights"],
-		"ShadowSphereLights"
-	);
-	workspace_manager.update_all_global_descriptors(
-		rtg,
-		pipeline_name_to_index["A3SphereShadowPipeline"],
-		sphere_shadow_pipeline.block_descriptor_set_name_to_index["Global"],
-		sphere_shadow_pipeline.block_binding_name_to_index["ShadowSphereMatrices"],
-		"ShadowSphereMatrices"
-	);
+
+	update_pipeline_descriptors("A3BackgroundPipeline", background_pipeline, "PV", {"PV"});
+	update_pipeline_descriptors("A3LambertianPipeline", lambertian_pipeline, "Global", lambertian_bindings);
+	update_pipeline_descriptors("A3PBRPipeline", pbr_pipeline, "Global", pbr_bindings);
+	update_pipeline_descriptors("A3SunShadowPipeline", sun_shadow_pipeline, "Global", {"ShadowSunLights"});
+	update_pipeline_descriptors("A3SpotShadowPipeline", spot_shadow_pipeline, "Global", {"ShadowSpotLights"});
+	update_pipeline_descriptors("A3SphereShadowPipeline", sphere_shadow_pipeline, "Global", {"ShadowSphereLights", "ShadowSphereMatrices"});
 
 	#ifdef USE_TILED_LIGHTING
-	// Init Compute Pipeline Descriptors
-    std::vector<std::string> compute_bindings = {
-        "PV",
-        "SunLights",
-        "SphereLights",
-        "SpotLights",
-        "ShadowSunLights",
-        "ShadowSphereLights",
-        "ShadowSpotLights",
-        "SphereTileData",
-        "SphereLightIdx",
-        "SpotTileData",
-        "SpotLightIdx",
-        "ShadowSphereTileData",
-        "ShadowSphereLightIdx",
-        "ShadowSpotTileData",
-        "ShadowSpotLightIdx"
-    };
-    
-    for (const auto& binding_name : compute_bindings) {
-        workspace_manager.update_all_global_descriptors(
-            rtg,
-            pipeline_name_to_index["A3TiledLightingComputePipeline"],
-            tiled_compute_pipeline.block_descriptor_set_name_to_index["Global"],
-            tiled_compute_pipeline.block_binding_name_to_index[binding_name],
-            binding_name
-        );
-    }
+	std::vector<const char *> compute_bindings = lit_global_bindings;
+	compute_bindings.insert(compute_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
+	update_pipeline_descriptors("A3TiledLightingComputePipeline", tiled_compute_pipeline, "Global", compute_bindings);
 #endif
 
 	scene_manager.create(rtg, doc);
@@ -576,7 +348,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			auto const &shadow_sphere_lights_bytes = lights_manager.get_shadow_sphere_lights_bytes();
 			auto const &shadow_sphere_matrices_bytes = lights_manager.get_shadow_sphere_matrices_bytes();
 			auto const &shadow_spot_lights_bytes = lights_manager.get_shadow_spot_lights_bytes();
-#ifdef USE_TILED_LIGHTING
+			#ifdef USE_TILED_LIGHTING
 			// auto const &sphere_tile_data_bytes = lights_manager.get_sphere_tile_data_bytes();
 			// auto const &sphere_light_idx_bytes = lights_manager.get_sphere_light_idx_bytes();
 			// auto const &spot_tile_data_bytes = lights_manager.get_spot_tile_data_bytes();
@@ -585,7 +357,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			// auto const &shadow_sphere_light_idx_bytes = lights_manager.get_shadow_sphere_light_idx_bytes();
 			// auto const &shadow_spot_tile_data_bytes = lights_manager.get_shadow_spot_tile_data_bytes();
 			// auto const &shadow_spot_light_idx_bytes = lights_manager.get_shadow_spot_light_idx_bytes();
-#endif
+			#endif
 
 			assert(workspace.global_buffer_pairs["SunLights"]->host.size >= sun_lights_bytes.size());
 			workspace.write_global_buffer(rtg, "SunLights", (void*)sun_lights_bytes.data(), sun_lights_bytes.size());
@@ -615,9 +387,9 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			workspace.write_global_buffer(rtg, "ShadowSpotLights", (void*)shadow_spot_lights_bytes.data(), shadow_spot_lights_bytes.size());
 			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size == workspace.global_buffer_pairs["ShadowSpotLights"]->device.size);
 
-#ifdef USE_TILED_LIGHTING
+		#ifdef USE_TILED_LIGHTING
 			// Tile data will be generated by compute shader, so we skip host writes.
-#endif
+		#endif
 		}
 
 		{ //upload transforms for all pipelines

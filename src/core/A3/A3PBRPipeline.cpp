@@ -35,98 +35,23 @@ void A3PBRPipeline::create(
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
     { //the set0_Global layout holds PV(UBO) + light buffers(SSBO):
-        std::array< VkDescriptorSetLayoutBinding, 15 > bindings{
-            VkDescriptorSetLayoutBinding{
-                .binding = 0,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1, // PV matrix
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1, // Light
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 2,
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        bindings.reserve(15);
+        bindings.push_back(VkDescriptorSetLayoutBinding{
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1, // PV matrix
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        });
+
+        for (uint32_t i = 1; i <= 14; ++i) {
+            bindings.push_back(VkDescriptorSetLayoutBinding{
+                .binding = i,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 3,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 4,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 5,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 6,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 7,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 8,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 9,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 10,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 11,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 12,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 13,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 14,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-            },
-        };
+            });
+        }
         
         VkDescriptorSetLayoutCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -473,26 +398,13 @@ void A3PBRPipeline::create(
     frag_module = VK_NULL_HANDLE;
     vert_module = VK_NULL_HANDLE;
 
+    std::vector<VkDescriptorType> global_binding_types(15, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    global_binding_types[0] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
     block_descriptor_configs.push_back(
         BlockDescriptorConfig{
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .binding_types = {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
-        },
+        .binding_types = std::move(global_binding_types),
         .layout = set0_Global, 
         .bindings_count = 15
     }); //Global

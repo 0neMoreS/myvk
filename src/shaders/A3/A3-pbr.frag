@@ -237,7 +237,7 @@ void main() {
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
 			// Representative Point for Specular
-			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
+			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
@@ -267,7 +267,7 @@ void main() {
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
+			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
@@ -302,7 +302,7 @@ void main() {
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
 			// Representative Point for Specular
-			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
+			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);
@@ -331,7 +331,7 @@ void main() {
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
-			vec3 centerToRay = max(dot(toLight, R), 0.0) * R - toLight;
+			vec3 centerToRay = dot(toLight, R) * R - toLight;
 			vec3 closestPoint = toLight + centerToRay * clamp(light.radius / max(length(centerToRay), 1e-5), 0.0, 1.0);
 			vec3 L_spec = closestPoint / max(length(closestPoint), 1e-5);
 			float NoL_spec = areaLightNoLFactor(light.radius, closestPoint, N);

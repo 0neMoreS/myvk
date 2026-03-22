@@ -12,54 +12,80 @@ vec2 spotShadowSampleOffsets[20] = vec2[](
 	vec2( 0.878, -0.330), vec2( 0.683,  0.681), vec2(-0.704,  0.662), vec2(-0.684, -0.681)
 );
 
+float getRandomAngle(vec2 fragCoord) {
+    float noise = fract(52.9829189 * fract(dot(fragCoord, vec2(0.06711056, 0.00583715))));
+    return noise * 6.28318530718;
+}
+
 float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D shadowMapTexture){
-	vec4 lightSpace = spotLight.perspective * vec4(fragPosition, 1.0);
-	vec3 projected = lightSpace.xyz / lightSpace.w;
-	vec2 uv = projected.xy * 0.5 + vec2(0.5);
+    vec4 lightSpace = spotLight.perspective * vec4(fragPosition, 1.0);
+    vec3 projected = lightSpace.xyz / lightSpace.w;
+    vec2 uv = projected.xy * 0.5 + vec2(0.5);
 
-	if (projected.z <= 0.0 || projected.z >= 1.0 || uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) {
-		return 1.0;
-	}
+    if (projected.z <= 0.0 || projected.z >= 1.0 || uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) {
+        return 1.0;
+    }
 
-	const int blockerSamples = 20;
-	const int pcfSamples = 20;
+    float angle = getRandomAngle(gl_FragCoord.xy); 
+    float s = sin(angle);
+    float c = cos(angle);
+    mat2 rotationMat = mat2(c, -s, s, c);
 
-	float receiverDepth = projected.z;
-	float receiverLinearDepth = linearizePerspectiveDepth(receiverDepth, spotLight.near_plane, spotLight.far_plane);
-	float texelSize = 1.0 / max(float(spotLight.shadow), 1.0);
-	float baseBias = 0.0005;
+    const int blockerSamples = 20;
+    const int pcfSamples = 20;
 
-	float lightRadiusUv = clamp(spotLight.radius / max(spotLight.far_plane, 1e-5), 0.0005, 0.08);
-	float searchRadius = lightRadiusUv * clamp((receiverLinearDepth - spotLight.near_plane) / max(receiverLinearDepth, 1e-5), 0.0, 1.0);
+    float receiverDepth = projected.z;
+    float receiverLinearDepth = linearizePerspectiveDepth(receiverDepth, spotLight.near_plane, spotLight.far_plane);
+    float texelSize = 1.0 / max(float(spotLight.shadow), 1.0);
+    
+    // 【修复1】：定义一个真实的线性世界空间Bias（需根据你的场景单位微调，比如0.05米）
+    float linearBias = 0.005; 
+    // 将线性Bias动态转换为Reverse-Z非线性Bias：(near / z^2) * linearBias
+    float depthDerivative = spotLight.near_plane / (receiverLinearDepth * receiverLinearDepth);
+    float dynamicBaseBias = linearBias * depthDerivative;
 
-	float blockerDepthSum = 0.0;
-	int blockerCount = 0;
-	for (int i = 0; i < blockerSamples; ++i) {
-		vec2 sampleUv = uv + spotShadowSampleOffsets[i] * searchRadius;
-		float sampleDepth = texture(shadowMapTexture, sampleUv).r;
-		if (receiverDepth + baseBias < sampleDepth) {
-			blockerDepthSum += sampleDepth;
-			blockerCount += 1;
-		}
-	}
+    float lightRadiusUv = clamp(spotLight.radius / max(spotLight.far_plane, 1e-5), 0.0005, 0.08);
+    float searchRadius = lightRadiusUv * clamp((receiverLinearDepth - spotLight.near_plane) / max(receiverLinearDepth, 1e-5), 0.0, 1.0);
 
-	if (blockerCount == 0) {
-		return 1.0;
-	}
+    float blockerLinearDepthSum = 0.0;  
+    int blockerCount = 0;
+    for (int i = 0; i < blockerSamples; ++i) {
+        vec2 rotatedOffset = rotationMat * spotShadowSampleOffsets[i];
+        vec2 sampleUv = uv + rotatedOffset * searchRadius;
+        float sampleDepth = texture(shadowMapTexture, sampleUv).r;
+        
+        // 使用动态转换的Bias
+        if (receiverDepth + dynamicBaseBias < sampleDepth) {
+            blockerLinearDepthSum += linearizePerspectiveDepth(sampleDepth, spotLight.near_plane, spotLight.far_plane);
+            blockerCount += 1;
+        }
+    }
 
-	float avgBlockerDepth = blockerDepthSum / float(blockerCount);
-	float avgBlockerLinearDepth = linearizePerspectiveDepth(avgBlockerDepth, spotLight.near_plane, spotLight.far_plane);
-	float penumbraRatio = max((receiverLinearDepth - avgBlockerLinearDepth) / max(avgBlockerLinearDepth, 1e-5), 0.0);
-	float filterRadius = max(lightRadiusUv * penumbraRatio, texelSize);
+    if (blockerCount == 0) {
+        return 1.0;
+    }
 
-	float shadowed = 0.0;
-	for (int i = 0; i < pcfSamples; ++i) {
-		vec2 sampleUv = uv + spotShadowSampleOffsets[i] * filterRadius;
-		float sampleDepth = texture(shadowMapTexture, sampleUv).r;
-		shadowed += (receiverDepth + baseBias < sampleDepth) ? 1.0 : 0.0;
-	}
+    float avgBlockerLinearDepth = blockerLinearDepthSum / float(blockerCount);
+    
+    // 【修复2】：补齐透视投影丢失的 (near / receiver) 因子，防止 filterRadius 爆炸
+    float penumbraRatio = max((receiverLinearDepth - avgBlockerLinearDepth) * spotLight.near_plane / max(avgBlockerLinearDepth * receiverLinearDepth, 1e-5), 0.0);
+    float filterRadius = max(lightRadiusUv * penumbraRatio, texelSize);
 
-	return 1.0 - shadowed / float(pcfSamples);
+    float shadowed = 0.0;
+    
+    // PCF的Bias也使用基于导数的动态Bias，略微根据滤波半径放大
+    float pcfLinearBias = linearBias + filterRadius * 2.0; // 线性空间的放大
+    float dynamicPcfBias = pcfLinearBias * depthDerivative;
+
+    for (int i = 0; i < pcfSamples; ++i) {
+        vec2 rotatedOffset = rotationMat * spotShadowSampleOffsets[i];
+        vec2 sampleUv = uv + rotatedOffset * filterRadius;
+        float sampleDepth = texture(shadowMapTexture, sampleUv).r;
+        
+        shadowed += (receiverDepth + dynamicPcfBias < sampleDepth) ? 1.0 : 0.0;
+    }
+
+    return 1.0 - shadowed / float(pcfSamples);
 }
 
 /*

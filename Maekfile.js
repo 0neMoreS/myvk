@@ -14,7 +14,7 @@
 
 //maek is configured using properties and methods of the `maek` object:
 const maek = init_maek();
-const ENABLE_TILED_LIGHTING = false;
+const ENABLE_TILED_LIGHTING = true;
 // (it's a quirk of javascript that function definitions anywhere in scope get 'hoisted'
 //   -- you can see the definition of init_maek by scrolling down.)
 

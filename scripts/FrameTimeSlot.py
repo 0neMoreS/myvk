@@ -53,7 +53,7 @@ def plot_frame_times(gpu_times_ms, cpu_times_ms):
 
 
 if __name__ == "__main__":
-    txt_path = "./drawer/headless_frame_time.txt"
+    txt_path = "./scripts/headless_frame_time.txt"
     gpu_ms, cpu_ms = parse_frame_times(txt_path)
     if not gpu_ms or not cpu_ms:
         raise SystemExit("No valid data found in txt file")

@@ -110,10 +110,6 @@ public:
 		const CameraManager& camera_manager
 	);
 
-#ifdef USE_TILED_LIGHTING
-	void update_tiled_light_bins(const CameraManager& camera_manager, VkExtent2D render_extent);
-#endif
-
 	const std::vector<SunLight>& get_sun_lights() const { return sun_lights; }
 	const std::vector<SphereLight>& get_sphere_lights() const { return sphere_lights; }
 	const std::vector<SpotLight>& get_spot_lights() const { return spot_lights; }

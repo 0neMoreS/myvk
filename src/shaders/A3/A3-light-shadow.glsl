@@ -63,7 +63,7 @@ float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D s
 }
 
 /*
- * PCF kernel directions for omnidirectional point-light shadow maps.
+ * PCSS kernel directions for omnidirectional point-light shadow maps.
  * We jitter the lookup direction and sample from the cubemap depth.
  */
 vec3 sphereShadowPcfDirections[20] = vec3[](
@@ -75,44 +75,59 @@ vec3 sphereShadowPcfDirections[20] = vec3[](
 );
 
 float computeSphereLightShadow(SphereLight sphereLight, vec3 fragPosition, samplerCube shadowMapTexture) {
-	vec3 lightToFrag = fragPosition - sphereLight.position;
-	float receiverDepth = length(lightToFrag);
-	vec3 sampleDir = normalize(lightToFrag);
-	const int blockerSamples = 20;
-	const int pcfSamples = 20;
-	float bias = 0.01;
+    vec3 lightToFrag = fragPosition - sphereLight.position;
+    float receiverDepth = length(lightToFrag);
+    vec3 sampleDir = normalize(lightToFrag);
+    const int blockerSamples = 20;
+    const int pcfSamples = 20;
+    float bias = 0.05;
 
-	float angularSearchRadius = clamp((sphereLight.radius / max(receiverDepth, 1e-5)) * 0.5, 0.0005, 0.2);
-	float blockerDepthSum = 0.0;
-	int blockerCount = 0;
+    float angularSearchRadius = clamp((sphereLight.radius / max(receiverDepth, 1e-5)) * 0.5, 0.0005, 0.2);
+    float blockerDepthSum = 0.0;
+    int blockerCount = 0;
 
-	for (int i = 0; i < blockerSamples; ++i) {
-		vec3 sampleVector = normalize(sampleDir + sphereShadowPcfDirections[i] * angularSearchRadius);
-		float sampleDepth = texture(shadowMapTexture, sampleVector).r;
-		float blockerDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
-		if (receiverDepth > blockerDepth + bias) {
-			blockerDepthSum += blockerDepth;
-			blockerCount += 1;
-		}
-	}
+    for (int i = 0; i < blockerSamples; ++i) {
+        vec3 offsetDir = normalize(sphereShadowPcfDirections[i]);
+        vec3 sampleVector = normalize(sampleDir + offsetDir * angularSearchRadius);
+        
+        float sampleDepth = texture(shadowMapTexture, sampleVector).r;
+        float planarDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
+        
+        vec3 absVec = abs(sampleVector);
+        float maxComp = max(absVec.x, max(absVec.y, absVec.z));
+        float blockerDepth = planarDepth / max(maxComp, 1e-5);
 
-	if (blockerCount == 0) {
-		return 1.0;
-	}
+        if (receiverDepth > blockerDepth + bias) {
+            blockerDepthSum += blockerDepth;
+            blockerCount += 1;
+        }
+    }
 
-	float avgBlockerDepth = blockerDepthSum / float(blockerCount);
-	float penumbra = max((receiverDepth - avgBlockerDepth) / max(avgBlockerDepth, 1e-5), 0.0) * sphereLight.radius;
-	float angularFilterRadius = clamp(penumbra / max(receiverDepth, 1e-5), 0.0005, 0.3);
+    if (blockerCount == 0) {
+        return 1.0;
+    }
 
-	float shadowed = 0.0;
-	for (int i = 0; i < pcfSamples; ++i) {
-		vec3 sampleVector = normalize(sampleDir + sphereShadowPcfDirections[i] * angularFilterRadius);
-		float sampleDepth = texture(shadowMapTexture, sampleVector).r;
-		float closestDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
-		shadowed += (receiverDepth > closestDepth + bias) ? 1.0 : 0.0;
-	}
+    float avgBlockerDepth = blockerDepthSum / float(blockerCount);
+    float penumbra = max((receiverDepth - avgBlockerDepth) / max(avgBlockerDepth, 1e-5), 0.0) * sphereLight.radius;
+    float angularFilterRadius = clamp(penumbra / max(receiverDepth, 1e-5), 0.0005, 0.3);
 
-	return 1.0 - shadowed / float(pcfSamples);
+    float shadowed = 0.0;
+    
+    for (int i = 0; i < pcfSamples; ++i) {
+        vec3 offsetDir = normalize(sphereShadowPcfDirections[i]);
+        vec3 sampleVector = normalize(sampleDir + offsetDir * angularFilterRadius);
+        
+        float sampleDepth = texture(shadowMapTexture, sampleVector).r;
+        float planarDepth = linearizePerspectiveDepth(sampleDepth, sphereLight.near_plane, sphereLight.far_plane);
+        
+        vec3 absVec = abs(sampleVector);
+        float maxComp = max(absVec.x, max(absVec.y, absVec.z));
+        float closestDepth = planarDepth / max(maxComp, 1e-5);
+
+        shadowed += (receiverDepth > closestDepth + bias) ? 1.0 : 0.0;
+    }
+
+    return 1.0 - shadowed / float(pcfSamples);
 }
 
 

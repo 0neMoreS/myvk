@@ -332,7 +332,7 @@ void LightsManager::create(
 			dst.tint = src_light.tint * src_light.sphere->power;
 			// dst.far_plane = std::max(compute_sphere_light_far_plane(*src_light.sphere), dst.radius + 0.001f);
 			// dst.near_plane = compute_sphere_light_near_plane(dst.radius, dst.far_plane);
-			dst.far_plane = 25.0f;
+			dst.far_plane = src_light.sphere->limit.value_or(2.0f * std::sqrt(src_light.sphere->power / (4.0f * std::numbers::pi_v<float>) * 256.0f));
 			dst.near_plane = 0.1f;
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
 			if (has_shadow) {
@@ -452,8 +452,8 @@ void LightsManager::update(
 			dst.shadow = static_cast<int32_t>(src_light.shadow);
 			// dst.far_plane = std::max(compute_sphere_light_far_plane(*src_light.sphere), dst.radius + 0.001f);
 			// dst.near_plane = compute_sphere_light_near_plane(dst.radius, dst.far_plane);
-			dst.far_plane = 25.0f;
 			dst.near_plane = 0.1f;
+			dst.far_plane = dst.far_plane;
 
 			if (has_shadow) {
 				auto& sphere_shadow = shadow_sphere_matrices.at(shadow_sphere_idx - 1);

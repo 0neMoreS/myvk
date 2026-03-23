@@ -105,7 +105,7 @@ void main() {
 			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
 			vec3 toLight = light.position - position;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSphereLightShadow(light, position, sphereShadowMap[lightIndex]);
+			float shadow = computeSphereLightShadow(light, position, NoL, sphereShadowMap[lightIndex]);
 			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#else
@@ -114,7 +114,7 @@ void main() {
 			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
 			vec3 toLight = light.position - position;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSphereLightShadow(light, position, sphereShadowMap[i]);
+			float shadow = computeSphereLightShadow(light, position, NoL, sphereShadowMap[i]);
 			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#endif
@@ -146,8 +146,8 @@ void main() {
 			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
 			vec3 toLight = light.position - position;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSpotLightShadow(light, position, spotShadowMap[lightIndex]);
-			Lo += shadow * lightIntensity * albedo;
+			float shadow = computeSpotLightShadow(light, position, NoL, spotShadowMap[lightIndex]);
+			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#else
 		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
@@ -155,8 +155,8 @@ void main() {
 			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
 			vec3 toLight = light.position - position;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSpotLightShadow(light, position, spotShadowMap[i]);
-			Lo += shadow * lightIntensity * albedo;
+			float shadow = computeSpotLightShadow(light, position, NoL, spotShadowMap[i]);
+			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	#endif
 	}

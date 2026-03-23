@@ -278,9 +278,9 @@ void main() {
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
 	#ifdef USE_TILED_LIGHTING
-			float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[lightIndex]);
+			float shadow = computeSphereLightShadow(light, fragPos, NoL_diff, sphereShadowMap[lightIndex]);
 	#else
-			float shadow = computeSphereLightShadow(light, fragPos, sphereShadowMap[i]);
+			float shadow = computeSphereLightShadow(light, fragPos, NoL_diff, sphereShadowMap[i]);
 	#endif
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
@@ -342,9 +342,9 @@ void main() {
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
 	#ifdef USE_TILED_LIGHTING
-			float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[lightIndex]);
+			float shadow = computeSpotLightShadow(light, fragPos, NoL_diff, spotShadowMap[lightIndex]);
 	#else
-			float shadow = computeSpotLightShadow(light, fragPos, spotShadowMap[i]);
+			float shadow = computeSpotLightShadow(light, fragPos, NoL_diff, spotShadowMap[i]);
 	#endif
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}

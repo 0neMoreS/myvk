@@ -28,12 +28,17 @@ float getRandomAngle(vec2 fragCoord) {
     return noise * 6.28318530718;
 }
 // ================= PCF =================
-// float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition, sampler2D shadowMapTexture, float NoL){
+// float computeSpotLightShadow(SpotLight spotLight, vec3 fragPosition,  float NoL, sampler2D shadowMapTexture){
 // 	vec4 light_space = spotLight.perspective * vec4(fragPosition, 1.0);
 // 	vec3 projected = light_space.xyz / light_space.w;
 // 	vec2 uv = projected.xy * 0.5 + vec2(0.5);
 
-// 	float bias = 0.001;
+//     // float bias = 0.0005;
+//     // float closest_depth = texture(shadowMapTexture, uv).r;
+
+//     // return (projected.z + bias > closest_depth) ? 1.0 : 0.0;
+
+// 	float bias = 0.0005;
 // 	float texel_size = 1.05 / float(spotLight.shadow);
 // 	float sum = 0.0;
 
@@ -252,29 +257,6 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
 }
 
 vec3 debugSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFragPosition, sampler2DArray shadowMapTexture) {
-	// int cascadeIndex = 3;
-	// for (int i = 0; i < 4; ++i) {
-	// 	// viewSpaceFragPosition.z is negative in front of the camera
-	// 	if (-viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
-	// 		cascadeIndex = i;
-	// 		break;
-	// 	}
-	// }
-
-	// vec3 debugColor;
-	// switch (cascadeIndex) {
-	// 	case 0:
-	// 		return vec3(1.0, 0.0, 0.0); // red
-	// 	case 1:
-	// 		return vec3(0.0, 1.0, 0.0); // green
-	// 	case 2:
-	// 		return vec3(0.0, 0.0, 1.0); // blue
-	// 	case 3:
-	// 		return vec3(1.0, 1.0, 0.0); // yellow
-	// 	default:
-	// 		return vec3(0.0);
-	// }
-
 	int cascadeIndex = 3;
 	for (int i = 0; i < 4; ++i) {
 		// viewSpaceFragPosition.z is negative in front of the camera
@@ -284,11 +266,35 @@ vec3 debugSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFra
 		}
 	}
 
-	vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+	vec3 debugColor;
+	switch (cascadeIndex) {
+		case 0:
+			return vec3(1.0, 0.0, 0.0); // red
+		case 1:
+			return vec3(0.0, 1.0, 0.0); // green
+		case 2:
+			return vec3(0.0, 0.0, 1.0); // blue
+		case 3:
+			return vec3(1.0, 1.0, 0.0); // yellow
+		default:
+			return vec3(0.0);
+	}
 
-	vec3 projected = lightSpace.xyz / lightSpace.w;
+	// int cascadeIndex = 3;
+	// for (int i = 0; i < 4; ++i) {
+	// 	// viewSpaceFragPosition.z is negative in front of the camera
+	// 	if (-viewSpaceFragPosition.z < sunLight.cascadeSplits[i]) {
+	// 		cascadeIndex = i;
+	// 		break;
+	// 	}
+	// }
 
-	return vec3(projected.z);
+	// vec4 lightSpace = sunLight.orthographic[cascadeIndex] * vec4(fragPosition, 1.0);
+
+	// vec3 projected = lightSpace.xyz / lightSpace.w;
+
+	// return vec3(projected.z);
+
 	// vec2 uv = projected.xy * 0.5 + vec2(0.5);
 
 	// float bias = 0.001;

@@ -390,7 +390,7 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 void A1::update(float dt) {
-	time = fmod(time + dt, 2.0f);
+	time = fmod(time + dt, 8.0f);
 
 	line_vertices.clear();
 	object_instances.clear();

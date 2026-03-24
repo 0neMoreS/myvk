@@ -207,7 +207,13 @@ glm::mat4 CameraManager::get_view() const{
 
 CameraManager::Frustum CameraManager::get_frustum() const {
 	Frustum frustum;
-	glm::mat4 vp = get_perspective() * get_view();
+
+	const Camera& scene_camera = cameras[active_camera_index];
+	glm::mat4 view = glm::lookAtRH(scene_camera.camera_position, scene_camera.camera_position + scene_camera.camera_forward, scene_camera.camera_up);
+	glm::mat4 perspective = glm::perspectiveRH_ZO(scene_camera.camera_fov, scene_camera.aspect, scene_camera.camera_near, scene_camera.camera_far);
+    perspective[1][1] *= -1.0f;
+
+	glm::mat4 vp = perspective * view;
 	
 	// Extract frustum planes from view-projection matrix
 	// Left plane

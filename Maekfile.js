@@ -14,7 +14,7 @@
 
 //maek is configured using properties and methods of the `maek` object:
 const maek = init_maek();
-const ENABLE_TILED_LIGHTING = false;
+const ENABLE_TILED_LIGHTING = true;
 // (it's a quirk of javascript that function definitions anywhere in scope get 'hoisted'
 //   -- you can see the definition of init_maek by scrolling down.)
 
@@ -137,6 +137,42 @@ const a3_cascade_debug_shaders = [
 	maek.GLSLC('./src/shaders/A3/A3-sphere-debug-lambertian.frag'),
 ];
 
+const ssao_background_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-background.vert'),
+	maek.GLSLC('./src/shaders/SSAO/SSAO-background.frag'),
+];
+
+const ssao_lambertian_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-lambertian.vert'),
+	maek.GLSLC('./src/shaders/SSAO/SSAO-lambertian.frag'),
+];
+
+const ssao_pbr_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-pbr.vert'),
+	maek.GLSLC('./src/shaders/SSAO/SSAO-pbr.frag'),
+];
+
+const ssao_spot_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-spot-shadow.vert'),
+];
+
+const ssao_sphere_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-sphere-shadow.vert'),
+];
+
+const ssao_sun_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-sun-shadow.vert'),
+];
+
+const ssao_tiled_lighting_compute_shaders = [
+	ENABLE_TILED_LIGHTING ? maek.GLSLC('./src/shaders/SSAO/SSAO-tiled-lighting.comp') : [],
+];
+
+const ssao_tonemap_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-tonemap.vert'),
+	maek.GLSLC('./src/shaders/SSAO/SSAO-tonemap.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
@@ -171,14 +207,18 @@ const common_objs = [
 	maek.CPP('./src/core/A3/A3SunShadowPipeline.cpp', undefined, { depends: [...a3_sun_shadow_shaders, ...a3_cascade_debug_shaders] }),
 	maek.CPP('./src/core/A3/A3TiledLightingComputePipeline.cpp', undefined, { depends: [...a3_tiled_lighting_compute_shaders] }),
 	maek.CPP('./src/core/A3/A3TonemappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
+	// SSAO files
+	maek.CPP('./src/core/SSAO/SSAO.cpp'),
+	maek.CPP('./src/core/SSAO/SSAOBackgroundPipeline.cpp', undefined, { depends: [...ssao_background_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOLambertianPipeline.cpp', undefined, { depends: [...ssao_lambertian_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOPBRPipeline.cpp', undefined, { depends: [...ssao_pbr_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOSpotShadowPipeline.cpp', undefined, { depends: [...ssao_spot_shadow_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOSphereShadowPipeline.cpp', undefined, { depends: [...ssao_sphere_shadow_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOSunShadowPipeline.cpp', undefined, { depends: [...ssao_sun_shadow_shaders ] }),
+	maek.CPP('./src/core/SSAO/SSAOTiledLightingComputePipeline.cpp', undefined, { depends: [...ssao_tiled_lighting_compute_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOToneMappingPipeline.cpp', undefined, { depends: [...ssao_tonemap_shaders] }),
 	// Cube integrator
 	maek.CPP('./src/core/Cube/CubeIntegrator.cpp', undefined, { depends: [...cube_lambertian_shader, ...cube_ggx_shader, ...cube_brdf_lut_shader] }),
-	// A3 files
-	// maek.CPP('./src/core/A3/A3.cpp'),
-	// maek.CPP('./src/core/A3/A3BackgroundPipeline.cpp', undefined, { depends: [...a3_background_shaders] }),
-	// maek.CPP('./src/core/A3/A3LambertianPipeline.cpp', undefined, { depends: [...a3_lambertian_shaders] }),
-	// maek.CPP('./src/core/A3/A3PBRPipeline.cpp', undefined, { depends: [...a3_pbr_shaders] }),
-	// maek.CPP('./src/core/A3/A3ReflectionPipeline.cpp', undefined, { depends: [...a3_reflection_shaders] }),
 	// utility files
 	maek.CPP('./src/utils/general/SceneTree.cpp'),
 	maek.CPP('./src/utils/general/sejp.cpp'),

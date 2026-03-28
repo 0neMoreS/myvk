@@ -66,7 +66,6 @@ public:
 	};
 	static_assert(sizeof(SphereShadowMatrices) == 384, "SphereShadowMatrices must match std430 layout.");
 
-#ifdef USE_TILED_LIGHTING
 	// Storage buffer capacities for the Compute Shader.
 	// Buffer layout: [tiles_x: u32][tiles_y: u32][TileInfo × (tiles_x*tiles_y)]
 	inline VkDeviceSize tile_data_buffer_size(uint32_t tile_count) const {
@@ -76,7 +75,6 @@ public:
 	inline VkDeviceSize light_idx_buffer_size(uint32_t max_indices) const {
 		return sizeof(uint32_t) * (max_indices > 0 ? max_indices : 1);
 	}
-#endif // USE_TILED_LIGHTING
 
     inline VkDeviceSize sun_lights_buffer_size(uint32_t count) {
         return sizeof(LightsHeader) + sizeof(SunLight) * count;
@@ -134,7 +132,6 @@ public:
 	VkDeviceSize get_shadow_spot_lights_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_spot_lights_bytes.size()); }
 	VkDeviceSize get_shadow_sphere_matrices_buffer_capacity() const { return static_cast<VkDeviceSize>(shadow_sphere_matrices_bytes.size()); }
 
-#ifdef USE_TILED_LIGHTING
 	VkDeviceSize get_sphere_tile_data_buffer_capacity() const { return sphere_tile_data_capacity; }
 	VkDeviceSize get_sphere_light_idx_buffer_capacity() const { return sphere_light_idx_capacity; }
 	VkDeviceSize get_spot_tile_data_buffer_capacity()   const { return spot_tile_data_capacity; }
@@ -143,7 +140,6 @@ public:
 	VkDeviceSize get_shadow_sphere_light_idx_buffer_capacity() const { return shadow_sphere_light_idx_capacity; }
 	VkDeviceSize get_shadow_spot_tile_data_buffer_capacity()   const { return shadow_spot_tile_data_capacity; }
 	VkDeviceSize get_shadow_spot_light_idx_buffer_capacity()   const { return shadow_spot_light_idx_capacity; }
-#endif // USE_TILED_LIGHTING
 
 private:
 	std::vector<SunLight> sun_lights;
@@ -162,7 +158,6 @@ private:
 	std::vector<uint8_t> shadow_spot_lights_bytes;
 	std::vector<uint8_t> shadow_sphere_matrices_bytes;
 
-#ifdef USE_TILED_LIGHTING
 	VkDeviceSize sphere_tile_data_capacity = 0;
 	VkDeviceSize sphere_light_idx_capacity = 0;
 	VkDeviceSize spot_tile_data_capacity = 0;
@@ -171,5 +166,4 @@ private:
 	VkDeviceSize shadow_sphere_light_idx_capacity = 0;
 	VkDeviceSize shadow_spot_tile_data_capacity = 0;
 	VkDeviceSize shadow_spot_light_idx_capacity = 0;
-#endif // USE_TILED_LIGHTING
 };

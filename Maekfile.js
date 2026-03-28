@@ -165,7 +165,7 @@ const ssao_sun_shadow_shaders = [
 ];
 
 const ssao_tiled_lighting_compute_shaders = [
-	ENABLE_TILED_LIGHTING ? maek.GLSLC('./src/shaders/SSAO/SSAO-tiled-lighting.comp') : [],
+	maek.GLSLC('./src/shaders/SSAO/SSAO-tiled-lighting.comp'),
 ];
 
 const ssao_tonemap_shaders = [
@@ -338,6 +338,7 @@ function custom_flags_and_rules() {
 			`/I./src/core/A2`,
 			`/I./src/core/A3`,
 			`/I./src/core/Cube`,
+			`/I./src/core/SSAO`,
 			`/I./src/utils/general`,
 			`/I./src/utils/loader`,
 			`/I./src/utils/manager`,

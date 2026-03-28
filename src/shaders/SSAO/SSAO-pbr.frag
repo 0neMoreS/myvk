@@ -161,7 +161,6 @@ void main() {
 	{ // direct lighting 
 		float alpha = roughness * roughness;
 
-	#ifdef USE_TILED_LIGHTING
 		uint sphereTileIndex = 0u;
 		uint spotTileIndex = 0u;
 		uint shadowSphereTileIndex = 0u;
@@ -190,7 +189,6 @@ void main() {
 			tile.y = min(tile.y, shadowSpotTileDataBuf.tiles_y - 1u);
 			shadowSpotTileIndex = tile.y * shadowSpotTileDataBuf.tiles_x + tile.x;
 		}
-	#endif
 
 		// --- 1. SUN LIGHTS ---
 		for (uint i = 0u; i < sunLightsBuf.count; ++i) {
@@ -221,15 +219,11 @@ void main() {
 		}
 
 		// --- 2. SPHERE LIGHTS ---
-	#ifdef USE_TILED_LIGHTING
 		TileInfo sphereTileInfo = sphereTileDataBuf.tiles[sphereTileIndex];
 		for (uint i = 0u; i < sphereTileInfo.count; ++i) {
 			uint lightIndex = sphereLightIdxBuf.indices[sphereTileInfo.offset + i];
 			SphereLight light = sphereLightsBuf.lights[lightIndex];
-	#else
-		for (uint i = 0u; i < sphereLightsBuf.count; ++i) {
-			SphereLight light = sphereLightsBuf.lights[i];
-	#endif
+
 			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
@@ -252,15 +246,11 @@ void main() {
 		}
 
 		// --- 2.1 SHADOW SPHERE LIGHTS ---
-	#ifdef USE_TILED_LIGHTING
 		TileInfo shadowSphereTileInfo = shadowSphereTileDataBuf.tiles[shadowSphereTileIndex];
 		for (uint i = 0u; i < shadowSphereTileInfo.count; ++i) {
 			uint lightIndex = shadowSphereLightIdxBuf.indices[shadowSphereTileInfo.offset + i];
 			SphereLight light = shadowSphereLightsBuf.shadowLights[lightIndex];
-	#else
-		for (uint i = 0u; i < shadowSphereLightsBuf.count; ++i) {
-			SphereLight light = shadowSphereLightsBuf.shadowLights[i];
-	#endif
+
 			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
@@ -277,24 +267,16 @@ void main() {
 
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-	#ifdef USE_TILED_LIGHTING
 			float shadow = computeSphereLightShadow(light, fragPos, NoL_diff, sphereShadowMap[lightIndex]);
-	#else
-			float shadow = computeSphereLightShadow(light, fragPos, NoL_diff, sphereShadowMap[i]);
-	#endif
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 
 		// --- 3. SPOT LIGHTS ---
-	#ifdef USE_TILED_LIGHTING
 		TileInfo spotTileInfo = spotTileDataBuf.tiles[spotTileIndex];
 		for (uint i = 0u; i < spotTileInfo.count; ++i) {
 			uint lightIndex = spotLightIdxBuf.indices[spotTileInfo.offset + i];
 			SpotLight light = spotLightsBuf.lights[lightIndex];
-	#else
-		for (uint i = 0u; i < spotLightsBuf.count; ++i) {
-			SpotLight light = spotLightsBuf.lights[i];
-	#endif
+
 			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
@@ -316,15 +298,11 @@ void main() {
 		}
 
 		// --- 3.1. SHADOW SPOT LIGHTS ---
-	#ifdef USE_TILED_LIGHTING
 		TileInfo shadowSpotTileInfo = shadowSpotTileDataBuf.tiles[shadowSpotTileIndex];
 		for (uint i = 0u; i < shadowSpotTileInfo.count; ++i) {
 			uint lightIndex = shadowSpotLightIdxBuf.indices[shadowSpotTileInfo.offset + i];
 			SpotLight light = shadowSpotLightsBuf.shadowLights[lightIndex];
-	#else
-		for (uint i = 0u; i < shadowSpotLightsBuf.count; ++i) {
-			SpotLight light = shadowSpotLightsBuf.shadowLights[i];
-	#endif
+
 			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
 
 			vec3 toLight = light.position - fragPos;
@@ -341,11 +319,7 @@ void main() {
 
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-	#ifdef USE_TILED_LIGHTING
 			float shadow = computeSpotLightShadow(light, fragPos, NoL_diff, spotShadowMap[lightIndex]);
-	#else
-			float shadow = computeSpotLightShadow(light, fragPos, NoL_diff, spotShadowMap[i]);
-	#endif
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 	}

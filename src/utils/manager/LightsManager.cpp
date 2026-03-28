@@ -20,9 +20,7 @@ namespace {
 	constexpr uint32_t SunCascadeCount = 4;
 	constexpr float SunCascadeLambda = 0.75f;
 	constexpr uint32_t SphereShadowFaceCount = 6;
-#ifdef USE_TILED_LIGHTING
 	constexpr uint32_t TileSizePx = 16;
-#endif
 
 	template< typename LightsT >
 	void init_lights_bytes(const LightsT& lights, std::vector<uint8_t>& bytes) {
@@ -117,10 +115,7 @@ namespace {
 		return face_pv;
 	}
 
-#ifdef USE_TILED_LIGHTING
-	// Compute shader integration replacing CPU tile generation.
-#endif
-
+	// Use Box to compute the cascade orthographic bounds
 	// glm::mat4 lightspace_PV(const CameraManager& camera_manager, const float near_plane, const float far_plane, const glm::vec3& light_dir) {
 		
 	// 	// ------------------------------------------------------------------
@@ -377,7 +372,6 @@ void LightsManager::create(
 	shadow_sphere_matrices_bytes.assign(static_cast<size_t>(sphere_shadow_matrices_buffer_size(static_cast<uint32_t>(shadow_sphere_matrices.size()))), 0);
 	init_lights_bytes(shadow_sphere_matrices, shadow_sphere_matrices_bytes);
 
-#ifdef USE_TILED_LIGHTING
 	// Allocate capacities for worst-case per-frame write: every tile references every light of that type.
 	const uint32_t tiles_x = std::max(1u, (render_extent.width + TileSizePx - 1u) / TileSizePx);
 	const uint32_t tiles_y = std::max(1u, (render_extent.height + TileSizePx - 1u) / TileSizePx);
@@ -395,7 +389,6 @@ void LightsManager::create(
 	shadow_sphere_light_idx_capacity = static_cast<VkDeviceSize>(light_idx_buffer_size(tile_count * shadow_sphere_count));
 	shadow_spot_tile_data_capacity = static_cast<VkDeviceSize>(tile_data_buffer_size(tile_count));
 	shadow_spot_light_idx_capacity = static_cast<VkDeviceSize>(light_idx_buffer_size(tile_count * shadow_spot_count));
-#endif
 }
 
 void LightsManager::update(

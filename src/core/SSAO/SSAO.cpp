@@ -76,9 +76,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
 	sphere_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
-#ifdef USE_TILED_LIGHTING
+
 	tiled_compute_pipeline.create(rtg, VK_NULL_HANDLE, 0, pipeline_context);
-#endif
 
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
@@ -90,9 +89,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSphereShadowPipeline"]] = sphere_shadow_pipeline.block_descriptor_configs;
-#ifdef USE_TILED_LIGHTING
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOTiledLightingComputePipeline"]] = tiled_compute_pipeline.block_descriptor_configs;
-#endif
 
 	// const uint32_t max_light_instances = static_cast<uint32_t>(light_tree_data.empty() ? 1 : light_tree_data.size());
 	VkDeviceSize sun_lights_buffer_capacity = lights_manager.get_sun_lights_buffer_capacity();
@@ -102,7 +99,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	VkDeviceSize shadow_sphere_lights_buffer_capacity = lights_manager.get_shadow_sphere_lights_buffer_capacity();
 	VkDeviceSize shadow_sphere_matrices_buffer_capacity = lights_manager.get_shadow_sphere_matrices_buffer_capacity();
 	VkDeviceSize shadow_spot_lights_buffer_capacity = lights_manager.get_shadow_spot_lights_buffer_capacity();
-#ifdef USE_TILED_LIGHTING
 	VkDeviceSize sphere_tile_data_buffer_capacity = lights_manager.get_sphere_tile_data_buffer_capacity();
 	VkDeviceSize sphere_light_idx_buffer_capacity = lights_manager.get_sphere_light_idx_buffer_capacity();
 	VkDeviceSize spot_tile_data_buffer_capacity = lights_manager.get_spot_tile_data_buffer_capacity();
@@ -111,7 +107,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	VkDeviceSize shadow_sphere_light_idx_buffer_capacity = lights_manager.get_shadow_sphere_light_idx_buffer_capacity();
 	VkDeviceSize shadow_spot_tile_data_buffer_capacity = lights_manager.get_shadow_spot_tile_data_buffer_capacity();
 	VkDeviceSize shadow_spot_light_idx_buffer_capacity = lights_manager.get_shadow_spot_light_idx_buffer_capacity();
-#endif
 
 	std::vector< WorkspaceManager::GlobalBufferConfig > global_buffer_configs{
 		WorkspaceManager::GlobalBufferConfig{
@@ -154,7 +149,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 			.size = shadow_spot_lights_buffer_capacity,
 			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
-	#ifdef USE_TILED_LIGHTING
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "SphereTileData",
 			.size = sphere_tile_data_buffer_capacity,
@@ -195,7 +189,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 			.size = shadow_spot_light_idx_buffer_capacity,
 			.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 		},
-	#endif
 	};
 
 	workspace_manager.create(rtg, std::move(block_descriptor_configs_by_pipeline), std::move(global_buffer_configs), {}, 2);
@@ -234,10 +227,9 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	std::vector<const char *> lambertian_bindings = lit_global_bindings;
 	std::vector<const char *> pbr_bindings = lit_global_bindings;
-#ifdef USE_TILED_LIGHTING
+
 	lambertian_bindings.insert(lambertian_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 	pbr_bindings.insert(pbr_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
-#endif
 
 	update_pipeline_descriptors("SSAOBackgroundPipeline", background_pipeline, "PV", {"PV"});
 	update_pipeline_descriptors("SSAOLambertianPipeline", lambertian_pipeline, "Global", lambertian_bindings);
@@ -246,11 +238,9 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	update_pipeline_descriptors("SSAOSpotShadowPipeline", spot_shadow_pipeline, "Global", {"ShadowSpotLights"});
 	update_pipeline_descriptors("SSAOSphereShadowPipeline", sphere_shadow_pipeline, "Global", {"ShadowSphereLights", "ShadowSphereMatrices"});
 
-	#ifdef USE_TILED_LIGHTING
 	std::vector<const char *> compute_bindings = lit_global_bindings;
 	compute_bindings.insert(compute_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 	update_pipeline_descriptors("SSAOTiledLightingComputePipeline", tiled_compute_pipeline, "Global", compute_bindings);
-#endif
 
 	scene_manager.create(rtg, doc);
 }
@@ -283,9 +273,7 @@ SSAO::~SSAO() {
 
 	tonemapping_pipeline.destroy(rtg);
 
-#ifdef USE_TILED_LIGHTING
     tiled_compute_pipeline.destroy(rtg);
-#endif
 
 	workspace_manager.destroy(rtg);
 
@@ -381,9 +369,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			workspace.write_global_buffer(rtg, "ShadowSpotLights", (void*)shadow_spot_lights_bytes.data(), shadow_spot_lights_bytes.size());
 			assert(workspace.global_buffer_pairs["ShadowSpotLights"]->host.size == workspace.global_buffer_pairs["ShadowSpotLights"]->device.size);
 
-		#ifdef USE_TILED_LIGHTING
 			// Tile data will be generated by compute shader, so we skip host writes.
-		#endif
 		}
 
 		{ //upload transforms for all pipelines
@@ -439,8 +425,10 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			);
 		}
 
-#ifdef USE_TILED_LIGHTING
-		{ // compute pass to generate tiled light indices
+		// =====================================================================
+		// Compute pass to generate tiled light indices
+		// =====================================================================
+		{
 			vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, tiled_compute_pipeline.pipeline);
 
 			auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOTiledLightingComputePipeline"]][tiled_compute_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
@@ -482,7 +470,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				0, nullptr
 			);
 		}
-#endif
 
 		// =====================================================================
 		// Sun cascade shadow pass: render depth per shadow sun light and cascade

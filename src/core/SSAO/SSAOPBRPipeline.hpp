@@ -35,6 +35,10 @@ struct SSAOPBRPipeline : Pipeline {
         SunShadowMap
         SphereShadowMap 
         SpotShadowMap
+        write_gbuffer_position_depth
+        write_gbuffer_normal
+        write_gbuffer_albedo
+        write_gbuffer_pbr
     */
 
     struct Push{
@@ -48,6 +52,16 @@ struct SSAOPBRPipeline : Pipeline {
 		uint32_t subpass,
         const ManagerContext& context
 	) override;
+
+    void update_gbuffer_descriptors(
+        VkDevice device,
+        VkSampler sampler,
+        VkImageView position_depth,
+        VkImageView normal,
+        VkImageView albedo,
+        VkImageView pbr
+    );
+
     void destroy(RTG &rtg) override;
 
     SSAOPBRPipeline() = default;

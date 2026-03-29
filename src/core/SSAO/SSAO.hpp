@@ -14,6 +14,7 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "SSAOBackgroundPipeline.hpp"
+#include "SSAODeferredWritePipeline.hpp"
 #include "SSAOPBRPipeline.hpp"
 #include "SSAOSunShadowPipeline.hpp"
 #include "SSAOSpotShadowPipeline.hpp"
@@ -52,6 +53,7 @@ struct SSAO : RTG::Application {
 	// Pipelines used in this application:
 
 	SSAOBackgroundPipeline background_pipeline;
+	SSAODeferredWritePipeline deferred_write_pipeline;
 	SSAOPBRPipeline pbr_pipeline;
 	SSAOSunShadowPipeline sun_shadow_pipeline;
 	SSAOSpotShadowPipeline spot_shadow_pipeline;
@@ -91,6 +93,13 @@ struct SSAO : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< LambertianInstance > lambertian_object_instances;
+
+	struct DeferredInstance {
+		S72Loader::Mesh::ObjectRange object_ranges;
+		SSAOCommonData::Transform object_transform;
+		size_t material_index;
+	};
+	std::vector< DeferredInstance > deferred_object_instances;
 
 	struct PBRInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

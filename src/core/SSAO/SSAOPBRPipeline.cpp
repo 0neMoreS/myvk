@@ -23,6 +23,83 @@ SSAOPBRPipeline::~SSAOPBRPipeline(){
     assert(sun_shadow_array_view == VK_NULL_HANDLE);
 }
 
+void SSAOPBRPipeline::update_gbuffer_descriptors(
+    VkDevice device,
+    VkSampler sampler,
+    VkImageView position_depth,
+    VkImageView normal,
+    VkImageView albedo,
+    VkImageView pbr
+) {
+    if (set2_Textures_instance == VK_NULL_HANDLE) {
+        return;
+    }
+
+    std::array<VkDescriptorImageInfo, 4> gbuffer_infos{
+        VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = position_depth,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = normal,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = albedo,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = pbr,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+    };
+
+    std::array<VkWriteDescriptorSet, 4> gbuffer_writes{
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = set2_Textures_instance,
+            .dstBinding = 5,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &gbuffer_infos[0],
+        },
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = set2_Textures_instance,
+            .dstBinding = 6,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &gbuffer_infos[1],
+        },
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = set2_Textures_instance,
+            .dstBinding = 7,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &gbuffer_infos[2],
+        },
+        VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = set2_Textures_instance,
+            .dstBinding = 8,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &gbuffer_infos[3],
+        },
+    };
+
+    vkUpdateDescriptorSets(device, uint32_t(gbuffer_writes.size()), gbuffer_writes.data(), 0, nullptr);
+}
+
 void SSAOPBRPipeline::create(
     RTG &rtg, 
     VkRenderPass render_pass, 
@@ -41,7 +118,7 @@ void SSAOPBRPipeline::create(
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1, // PV matrix
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
         });
 
         for (uint32_t i = 1; i <= 14; ++i) {
@@ -98,7 +175,7 @@ void SSAOPBRPipeline::create(
         }
 
         { // the set2_Textures
-            std::array< VkDescriptorSetLayoutBinding, 5 > bindings{
+            std::array< VkDescriptorSetLayoutBinding, 9 > bindings{
                 VkDescriptorSetLayoutBinding{
                     .binding = 0,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -128,12 +205,40 @@ void SSAOPBRPipeline::create(
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     .descriptorCount = spot_shadow_count, // SpotShadowMap (sampler2D)
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 5,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 1, // gBufferPositionDepth
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 6,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 1, // gBufferNormal
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 7,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 1, // gBufferAlbedo
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                },
+                VkDescriptorSetLayoutBinding{
+                    .binding = 8,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 1, // gBufferPbr
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                 }
             };
 
-            std::array<VkDescriptorBindingFlags, 5> binding_flags{
+            std::array<VkDescriptorBindingFlags, 9> binding_flags{
                 0,  // binding 0: fixed size
 				0,  // binding 1: fixed size
+				0,
+				0,
+				0,
+				0,
 				0,
 				0,
 				0,
@@ -346,6 +451,8 @@ void SSAOPBRPipeline::create(
                 };
                 vkUpdateDescriptorSets(rtg.device, uint32_t(writes.size()), writes.data(), 0, nullptr);
             }
+
+            // Deferred GBuffer inputs are updated from SSAO::on_swapchain once framebuffer-backed images exist.
         }
     }
 
@@ -373,7 +480,7 @@ void SSAOPBRPipeline::create(
 		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
 	}
 
-    create_pipeline(rtg, render_pass, subpass, true);
+    create_pipeline(rtg, render_pass, subpass, false, false);
 
     vkDestroyShaderModule(rtg.device, frag_module, nullptr);
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);

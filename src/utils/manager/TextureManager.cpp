@@ -1,6 +1,7 @@
 #include "TextureManager.hpp"
 
 #include <cassert>
+#include <algorithm>
 
 void TextureManager::destroy(RTG &rtg) {
     for (auto &material_slots : raw_2d_textures_by_material) {
@@ -280,7 +281,7 @@ void TextureManager::create(
             uint32_t total_2d_descriptors = 2; // BRDF LUT + Tone mapping target (swapchain image)
             uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
             uint32_t shadow_descriptors_per_pipeline = sun_shadow_descriptor_count + sphere_shadow_descriptor_count + spot_shadow_descriptor_count;
-            uint32_t total_shadow_descriptors = 2 * shadow_descriptors_per_pipeline; // Lambertian + PBR
+            uint32_t gbuffer_descriptors_per_pipeline = 4;
 
             for (const auto &material_slots : raw_2d_textures_by_material) {
                 for (const auto &texture_opt : material_slots) {
@@ -293,7 +294,7 @@ void TextureManager::create(
             std::array<VkDescriptorPoolSize, 1> pool_sizes{
                 VkDescriptorPoolSize{
                     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_2d_descriptors + total_cubemap_descriptors + total_shadow_descriptors,
+                    .descriptorCount = (total_2d_descriptors + total_cubemap_descriptors + shadow_descriptors_per_pipeline + gbuffer_descriptors_per_pipeline) * std::max(1u, pipeline_count),
                 },
             };
 

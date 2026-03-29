@@ -1,8 +1,6 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "SSAO-deferred-write-common.glsl"
-
 layout(set=2,binding=1) uniform sampler2D Textures[];
 
 layout(push_constant) uniform Push {

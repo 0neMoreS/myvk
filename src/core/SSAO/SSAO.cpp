@@ -5,6 +5,9 @@
 
 #include "SSAO.hpp"
 
+
+
+
 #include <GLFW/glfw3.h>
 
 #include <array>
@@ -24,6 +27,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	render_pass_manager{},
 	texture_manager{}, 
 	background_pipeline{},
+	deferred_write_pipeline{},
 	pbr_pipeline{},
 	sun_shadow_pipeline{},
 	spot_shadow_pipeline{},
@@ -56,7 +60,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 		lights_manager.get_shadow_spot_lights()
 	);
 
-	texture_manager.create(rtg, doc, 5, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())); // 5 pipelines: background, lambertian, pbr, reflection, tonemapping
+	texture_manager.create(rtg, doc, 6, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size()));
 
 	Pipeline::ManagerContext pipeline_context{
 		.texture_manager = &texture_manager,
@@ -65,6 +69,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	// Scene pipelines render to HDR framebuffer
 	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
+
+	deferred_write_pipeline.create(rtg, render_pass_manager.gbuffer_render_pass, 0, pipeline_context);
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
@@ -81,6 +87,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{7};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOBackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAODeferredWritePipeline"]] = deferred_write_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOPBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
@@ -221,13 +228,12 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 		"ShadowSpotLightIdx",
 	};
 
-	std::vector<const char *> lambertian_bindings = lit_global_bindings;
 	std::vector<const char *> pbr_bindings = lit_global_bindings;
 
-	lambertian_bindings.insert(lambertian_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 	pbr_bindings.insert(pbr_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 
 	update_pipeline_descriptors("SSAOBackgroundPipeline", background_pipeline, "PV", {"PV"});
+	update_pipeline_descriptors("SSAODeferredWritePipeline", deferred_write_pipeline, "PV", {"PV"});
 	update_pipeline_descriptors("SSAOPBRPipeline", pbr_pipeline, "Global", pbr_bindings);
 	update_pipeline_descriptors("SSAOSunShadowPipeline", sun_shadow_pipeline, "Global", {"ShadowSunLights"});
 	update_pipeline_descriptors("SSAOSpotShadowPipeline", spot_shadow_pipeline, "Global", {"ShadowSpotLights"});
@@ -256,6 +262,8 @@ SSAO::~SSAO() {
 
 	background_pipeline.destroy(rtg);
 
+	deferred_write_pipeline.destroy(rtg);
+
 	pbr_pipeline.destroy(rtg);
 
 	sun_shadow_pipeline.destroy(rtg);
@@ -280,6 +288,15 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, true);
 
 	{
+		pbr_pipeline.update_gbuffer_descriptors(
+			rtg_.device,
+			framebuffer_manager.gbuffer_sampler,
+			framebuffer_manager.gbuffer_position_depth_view,
+			framebuffer_manager.gbuffer_normal_view,
+			framebuffer_manager.gbuffer_albedo_view,
+			framebuffer_manager.gbuffer_pbr_view
+		);
+
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
 			.sampler = framebuffer_manager.hdr_sampler,
@@ -394,7 +411,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				workspace.write_buffer(rtg, pipeline_idx, set_idx, binding_idx, transform_data.data(), needed_bytes);
 			};
 
-			upload_transforms("SSAOPBRPipeline", pbr_object_instances, pbr_pipeline);
+			upload_transforms("SSAODeferredWritePipeline", deferred_object_instances, deferred_write_pipeline);
 			upload_transforms("SSAOSunShadowPipeline", shadow_object_instances, sun_shadow_pipeline);
 			upload_transforms("SSAOSpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
 			upload_transforms("SSAOSphereShadowPipeline", shadow_object_instances, sphere_shadow_pipeline);
@@ -705,6 +722,151 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 
 		// =====================================================================
+		// Deferred write pass: Render scene geometry to GBuffer
+		// =====================================================================
+		{
+			VkRenderPassBeginInfo begin_info{
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				.renderPass = render_pass_manager.gbuffer_render_pass,
+				.framebuffer = framebuffer_manager.gbuffer_framebuffer,
+				.renderArea{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				},
+				.clearValueCount = uint32_t(render_pass_manager.gbuffer_clears.size()),
+				.pClearValues = render_pass_manager.gbuffer_clears.data(),
+			};
+
+			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+
+				if (!deferred_object_instances.empty()) {
+					vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deferred_write_pipeline.pipeline);
+
+					std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
+					std::array< VkDeviceSize, 1 > offsets{ 0 };
+					vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
+
+					auto &pv_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAODeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+					auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAODeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+
+					std::array< VkDescriptorSet, 3 > descriptor_sets{
+						pv_descriptor_set,
+						transform_descriptor_set,
+						deferred_write_pipeline.set2_Textures_instance,
+					};
+
+					vkCmdBindDescriptorSets(
+						workspace.command_buffer,
+						VK_PIPELINE_BIND_POINT_GRAPHICS,
+						deferred_write_pipeline.layout,
+						0,
+						uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+						0, nullptr
+					);
+
+					for (uint32_t i = 0; i < deferred_object_instances.size(); ++i) {
+						SSAODeferredWritePipeline::Push push{
+							.MATERIAL_INDEX = uint32_t(deferred_object_instances[i].material_index),
+						};
+
+						vkCmdPushConstants(workspace.command_buffer, deferred_write_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+						vkCmdDraw(workspace.command_buffer, deferred_object_instances[i].object_ranges.count, 1, deferred_object_instances[i].object_ranges.first, i);
+					}
+				}
+			}
+			vkCmdEndRenderPass(workspace.command_buffer);
+		}
+
+		// =====================================================================
+		// GBuffer barrier: make deferred targets visible to lighting shader reads
+		// =====================================================================
+		{
+			std::array<VkImageMemoryBarrier, 4> gbuffer_barriers{
+				VkImageMemoryBarrier{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image = framebuffer_manager.gbuffer_position_depth_image.handle,
+					.subresourceRange{
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1,
+					},
+				},
+				VkImageMemoryBarrier{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image = framebuffer_manager.gbuffer_normal_image.handle,
+					.subresourceRange{
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1,
+					},
+				},
+				VkImageMemoryBarrier{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image = framebuffer_manager.gbuffer_albedo_image.handle,
+					.subresourceRange{
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1,
+					},
+				},
+				VkImageMemoryBarrier{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image = framebuffer_manager.gbuffer_pbr_image.handle,
+					.subresourceRange{
+						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1,
+					},
+				},
+			};
+
+			vkCmdPipelineBarrier(
+				workspace.command_buffer,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0,
+				0, nullptr,
+				0, nullptr,
+				uint32_t(gbuffer_barriers.size()), gbuffer_barriers.data()
+			);
+		}
+
+		// =====================================================================
 		// First pass: Render scene to HDR framebuffer
 		// =====================================================================
 		{
@@ -758,45 +920,30 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					}
 				}
 
-				{ // draw with the PBR pipeline:
-					if (!pbr_object_instances.empty()) { //draw with the objects pipeline:
-						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbr_pipeline.pipeline);
+				{ // deferred lighting fullscreen pass
+					vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pbr_pipeline.pipeline);
 
-						{ //use object_vertices (offset 0) as vertex buffer binding 0:
-							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
-							std::array< VkDeviceSize, 1 > offsets{ 0 };
-							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
-						}
+					{ // bind Global and Textures descriptor sets (Transforms stays bound for compatibility)
+						auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
+						auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+						auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
 
-						{ //bind Global and Transforms descriptor_set sets:
-							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
-							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
-							auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
-
-							std::array< VkDescriptorSet, 3 > descriptor_sets{
-								global_descriptor_set, //0: Global (PV, Light)
-								transform_descriptor_set, //1: Transforms
-								textures_descriptor_set, //2: Textures
-							};
-							vkCmdBindDescriptorSets(
-								workspace.command_buffer, //command buffer
-								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								pbr_pipeline.layout, //pipeline layout
-								0, //first set
-								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
-								0, nullptr //dynamic offsets count, ptr
-							);
-						}
-
-						for(uint32_t i = 0; i < pbr_object_instances.size(); ++i) {
-							//draw all instances:
-							SSAOPBRPipeline::Push push{
-								.MATERIAL_INDEX = static_cast<uint32_t>(1 + pbr_object_instances[i].material_index * 5)
-							};
-							vkCmdPushConstants(workspace.command_buffer, pbr_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
-							vkCmdDraw(workspace.command_buffer, pbr_object_instances[i].object_ranges.count, 1, pbr_object_instances[i].object_ranges.first, i);
-						}
+						std::array< VkDescriptorSet, 3 > descriptor_sets{
+							global_descriptor_set,
+							transform_descriptor_set,
+							textures_descriptor_set,
+						};
+						vkCmdBindDescriptorSets(
+							workspace.command_buffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							pbr_pipeline.layout,
+							0,
+							uint32_t(descriptor_sets.size()), descriptor_sets.data(),
+							0, nullptr
+						);
 					}
+
+					vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
 				}
 			}
 
@@ -951,6 +1098,7 @@ void SSAO::update(float dt) {
 	{ // update object instances with frustum culling
 		pbr_object_instances.clear();
 		lambertian_object_instances.clear();
+		deferred_object_instances.clear();
 		shadow_object_instances.clear();
 		// Get frustum for culling
 		auto frustum = camera_manager.get_frustum();
@@ -1004,6 +1152,16 @@ void SSAO::update(float dt) {
 				};
 
 				lambertian_object_instances.emplace_back(std::move(lambertian_inst));
+
+				DeferredInstance deferred_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
+				deferred_object_instances.emplace_back(std::move(deferred_inst));
 			}
 
 			// PBR material instance
@@ -1018,6 +1176,16 @@ void SSAO::update(float dt) {
 				};
 
 				pbr_object_instances.emplace_back(std::move(pbr_inst));
+
+				DeferredInstance deferred_inst{
+					.object_ranges = object_range,
+					.object_transform{
+						.MODEL = MODEL,
+						.MODEL_NORMAL = MODEL_NORMAL,
+					},
+					.material_index = material_index,
+				};
+				deferred_object_instances.emplace_back(std::move(deferred_inst));
 			}
 		}
 	}

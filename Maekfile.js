@@ -210,6 +210,7 @@ const common_objs = [
 	// SSAO files
 	maek.CPP('./src/core/SSAO/SSAO.cpp'),
 	maek.CPP('./src/core/SSAO/SSAOBackgroundPipeline.cpp', undefined, { depends: [...ssao_background_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAODeferredWritePipeline.cpp', undefined, { depends: [...ssao_deferred_write_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOPBRPipeline.cpp', undefined, { depends: [...ssao_pbr_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSpotShadowPipeline.cpp', undefined, { depends: [...ssao_spot_shadow_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSphereShadowPipeline.cpp', undefined, { depends: [...ssao_sphere_shadow_shaders] }),

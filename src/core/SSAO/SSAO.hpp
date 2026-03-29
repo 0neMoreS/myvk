@@ -87,13 +87,6 @@ struct SSAO : RTG::Application {
 	uint64_t gpu_frame_counter = 0;
 	double last_gpu_frame_ms = 0.0;
 
-	struct LambertianInstance {
-		S72Loader::Mesh::ObjectRange object_ranges;
-		SSAOCommonData::Transform object_transform;
-		size_t material_index;
-	};
-	std::vector< LambertianInstance > lambertian_object_instances;
-
 	struct DeferredInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
 		SSAOCommonData::Transform object_transform;
@@ -104,7 +97,6 @@ struct SSAO : RTG::Application {
 	struct PBRInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
 		SSAOCommonData::Transform object_transform;
-		size_t material_index;
 	};
 	std::vector< PBRInstance > pbr_object_instances;
 

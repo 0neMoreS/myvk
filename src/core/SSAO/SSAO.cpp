@@ -60,7 +60,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 		lights_manager.get_shadow_spot_lights()
 	);
 
-	texture_manager.create(rtg, doc, 6, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size()));
+	texture_manager.create(rtg, doc, 5, static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size()), static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size()));
 
 	Pipeline::ManagerContext pipeline_context{
 		.texture_manager = &texture_manager,
@@ -769,7 +769,8 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 					for (uint32_t i = 0; i < deferred_object_instances.size(); ++i) {
 						SSAODeferredWritePipeline::Push push{
-							.MATERIAL_INDEX = uint32_t(deferred_object_instances[i].material_index),
+							// Textures[0] is BRDF LUT; each material occupies 5 consecutive slots.
+							.MATERIAL_INDEX = uint32_t(1 + deferred_object_instances[i].material_index * 5),
 						};
 
 						vkCmdPushConstants(workspace.command_buffer, deferred_write_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
@@ -1097,7 +1098,6 @@ void SSAO::update(float dt) {
 
 	{ // update object instances with frustum culling
 		pbr_object_instances.clear();
-		lambertian_object_instances.clear();
 		deferred_object_instances.clear();
 		shadow_object_instances.clear();
 		// Get frustum for culling
@@ -1141,38 +1141,26 @@ void SSAO::update(float dt) {
 			}
 
 			// Lambertian material instance
-			if(material.has_value() && material->lambertian) {
-				LambertianInstance lambertian_inst{
-					.object_ranges = object_range,
-					.object_transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					},
-					.material_index = material_index,
-				};
-
-				lambertian_object_instances.emplace_back(std::move(lambertian_inst));
-
-				DeferredInstance deferred_inst{
-					.object_ranges = object_range,
-					.object_transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					},
-					.material_index = material_index,
-				};
-				deferred_object_instances.emplace_back(std::move(deferred_inst));
-			}
+			// if(material.has_value() && material->lambertian) {
+			// 	DeferredInstance deferred_inst{
+			// 		.object_ranges = object_range,
+			// 		.object_transform{
+			// 			.MODEL = MODEL,
+			// 			.MODEL_NORMAL = MODEL_NORMAL,
+			// 		},
+			// 		.material_index = material_index,
+			// 	};
+			// 	deferred_object_instances.emplace_back(std::move(deferred_inst));
+			// }
 
 			// PBR material instance
-			if(material.has_value() && material->pbr) {
+			if(material.has_value() && material->lambertian || material.has_value() && material->pbr) {
 				PBRInstance pbr_inst{
 					.object_ranges = object_range,
 					.object_transform{
 						.MODEL = MODEL,
 						.MODEL_NORMAL = MODEL_NORMAL,
-					},
-					.material_index = material_index,
+					}
 				};
 
 				pbr_object_instances.emplace_back(std::move(pbr_inst));

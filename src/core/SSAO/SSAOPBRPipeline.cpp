@@ -480,7 +480,7 @@ void SSAOPBRPipeline::create(
 		VK( vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout) );
 	}
 
-    create_pipeline(rtg, render_pass, subpass, false, false);
+    create_pipeline(rtg, render_pass, subpass, false, false, false, 1, true, false);
 
     vkDestroyShaderModule(rtg.device, frag_module, nullptr);
     vkDestroyShaderModule(rtg.device, vert_module, nullptr);

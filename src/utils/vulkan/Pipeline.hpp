@@ -46,7 +46,7 @@ struct Pipeline
 	) = 0;
     virtual void destroy(RTG &) = 0;
     
-	void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false, uint32_t color_attachment_count = 1, bool enable_fragment_stage = true) {
+	void create_pipeline(RTG& rtg, VkRenderPass render_pass, uint32_t subpass, bool enable_depth = true, bool enable_cull = true, bool lines_draw = false, uint32_t color_attachment_count = 1, bool enable_fragment_stage = true, bool enable_vertex_attributes = true) {
         //shader code for vertex and fragment pipeline stages:
 		std::vector< VkPipelineShaderStageCreateInfo > stages;
 		stages.emplace_back(VkPipelineShaderStageCreateInfo{
@@ -126,20 +126,31 @@ struct Pipeline
 			.blendEnable = VK_FALSE,
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 		};
+		std::vector<VkPipelineColorBlendAttachmentState> attachment_states(color_attachment_count, attachment_state);
 		VkPipelineColorBlendStateCreateInfo color_blend_state{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 			.logicOpEnable = VK_FALSE,
 			.attachmentCount = color_attachment_count,
-			.pAttachments = color_attachment_count > 0 ? &attachment_state : nullptr,
+			.pAttachments = color_attachment_count > 0 ? attachment_states.data() : nullptr,
 			.blendConstants{0.0f, 0.0f, 0.0f, 0.0f},
 		};
 
 		//all of the above structures get bundled together into one very large create_info:
+		VkPipelineVertexInputStateCreateInfo empty_vertex_input_state{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+			.vertexBindingDescriptionCount = 0,
+			.pVertexBindingDescriptions = nullptr,
+			.vertexAttributeDescriptionCount = 0,
+			.pVertexAttributeDescriptions = nullptr,
+		};
+
 		VkGraphicsPipelineCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 			.stageCount = uint32_t(stages.size()),
 			.pStages = stages.data(),
-			.pVertexInputState = lines_draw ? &PosColVertex::array_input_state : &Vertex::array_input_state,
+			.pVertexInputState = enable_vertex_attributes
+				? (lines_draw ? &PosColVertex::array_input_state : &Vertex::array_input_state)
+				: &empty_vertex_input_state,
 			.pInputAssemblyState = &input_assembly_state,
 			.pViewportState = &viewport_state,
 			.pRasterizationState = &rasterization_state,

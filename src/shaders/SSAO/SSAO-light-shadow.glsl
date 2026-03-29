@@ -207,13 +207,12 @@ float sampleShadowPCF(sampler2DArray shadowMap, int cascadeIndex, vec3 projected
 	return 1.0 - pcfSum / 9.0;
 }
 
-
-float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpaceFragPosition, sampler2DArray shadowMapTexture) {
+// Use positive viewSpaceDepth
+float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, float viewSpaceDepth, sampler2DArray shadowMapTexture) {
     // Choose cascade level based on view-space depth of the fragment
 	int cascadeIndex = 3;
-    float viewZ = -viewSpaceFragPosition.z;
     for (int i = 0; i < 4; ++i) {
-        if (viewZ < sunLight.cascadeSplits[i]) {
+        if (viewSpaceDepth < sunLight.cascadeSplits[i]) {
             cascadeIndex = i;
             break;
         }
@@ -235,7 +234,7 @@ float computeSunLightShadow(SunLight sunLight, vec3 fragPosition, vec3 viewSpace
         float currentSplit = sunLight.cascadeSplits[cascadeIndex];
         
         float blendDistance = 2.0; 
-        float distanceToSplit = currentSplit - viewZ;
+        float distanceToSplit = currentSplit - viewSpaceDepth;
 
         // if the fragment is within the blend distance to the next cascade split, blend the shadow results
         if (distanceToSplit < blendDistance) {

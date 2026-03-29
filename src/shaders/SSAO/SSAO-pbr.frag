@@ -113,7 +113,8 @@ vec3 computeSpecularTerm(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, float Ndot
 void main() {
 	GBufferSurface g = sampleGBuffer(gl_FragCoord.xy);
 	vec3 shadedFragPos = g.position;
-	vec3 shadedViewFragPos = vec3(0.0, 0.0, -g.depth);
+	// postive view-space depth
+	float viewSpaceDepth = g.depth;
 	vec3 albedo = g.albedo;
 	float roughness = g.roughness;
 	float metallic = g.metallic;
@@ -192,7 +193,7 @@ void main() {
 			float NoL = sunLightNoLFactor(light, N);
 			vec3 specularTerm = computeSpecularTerm(N, V, L_center, NoL, NdotV, F0, roughness, alpha, alpha);
 
-			float shadow = computeSunLightShadow(light, shadedFragPos, shadedViewFragPos, sunShadowMap[i]);
+			float shadow = computeSunLightShadow(light, shadedFragPos, viewSpaceDepth, sunShadowMap[i]);
 			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity * NoL;
 		}
 

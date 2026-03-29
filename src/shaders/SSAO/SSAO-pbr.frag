@@ -5,70 +5,52 @@
 #include "SSAO-light-intensity.glsl"
 #include "SSAO-light-shadow.glsl"
 
+layout(set = 2, binding = 5) uniform sampler2D gBufferPositionDepth; // R32G32B32A32Sfloat: Position + Depth
+layout(set = 2, binding = 6) uniform sampler2D gBufferNormal;        // R8G8B8A8Unorm: Normal
+layout(set = 2, binding = 7) uniform sampler2D gBufferAlbedo;        // R8G8B8A8Unorm: Albedo
+layout(set = 2, binding = 8) uniform sampler2D gBufferPbr;           // R8G8B8A8Unorm: AO + Roughness + Metalness
+
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
 layout(set=2,binding=1) uniform sampler2D Textures[];
 
-layout(push_constant) uniform Push {
-    uint MATERIAL_INDEX;
-} push;
-
-layout(location=0) in vec3 fragPos;
-layout(location=1) in vec2 texCoord;
-layout(location=2) flat in vec3 cameraPos;
-layout(location=3) in vec3 viewFragPos;
-layout(location=4) in mat3 TBN;
+layout(set=0,binding=0,std140) uniform PV {
+	mat4 PERSPECTIVE;
+	mat4 VIEW;
+	vec4 CAMERA_POSITION;
+};
 
 layout(location=0) out vec4 outColor;
 
 const float PI = 3.14159265359;
 
-vec2 ParallaxMapping(vec3 viewDir)
-{ 
-    // number of depth layers
-    const float minLayers = 8;
-    const float maxLayers = 16;
-    float numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 0.0, 1.0), viewDir))); 
-    // calculate the size of each layer
-    float layerDepth = 1.0 / numLayers;
-    // depth of current layer
-    float currentLayerDepth = 0.0;
-    // the amount to shift the texture coordinates per layer (from vector P)
-    vec2 P = viewDir.xy / viewDir.z * 0.001; // scale height
-    vec2 deltaTexCoords = P / numLayers;
-	float scale = 1.0; // scale height
-  
-    // get initial values
-    vec2  currentTexCoords = texCoord;
-    float currentDepthMapValue = scale * texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], currentTexCoords).r;
-      
-    while(currentLayerDepth < currentDepthMapValue)
-    {
-        // shift texture coordinates along direction of P
-        currentTexCoords -= deltaTexCoords;
-        // get depthmap value at current texture coordinates
-        currentDepthMapValue = scale * texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], currentTexCoords).r;  
-        // get depth of next layer
-        currentLayerDepth += layerDepth;  
-    }
-    
-    // get texture coordinates before collision (reverse operations)
-    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+struct GBufferSurface {
+	vec3 position;
+	float depth;
+	vec3 normal;
+	vec3 albedo;
+	float ao;
+	float roughness;
+	float metallic;
+};
 
-    // get depth after and before collision for linear interpolation
-    float afterDepth  = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = scale * texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 1)], prevTexCoords).r - currentLayerDepth + layerDepth;
- 
-    // interpolation of texture coordinates
-    float weight = afterDepth / (afterDepth - beforeDepth);
-    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
+GBufferSurface sampleGBuffer(vec2 fragCoord) {
+	vec2 texSize = vec2(textureSize(gBufferPositionDepth, 0));
+	vec2 uv = fragCoord / texSize;
 
-    return finalTexCoords;
-}
+	vec4 posDepth = texture(gBufferPositionDepth, uv);
+	vec3 packedNormal = texture(gBufferNormal, uv).xyz;
+	vec3 albedo = texture(gBufferAlbedo, uv).xyz;
+	vec3 pbr = texture(gBufferPbr, uv).xyz;
 
-vec3 getNormalFromMap(vec2 mappedTexCoord)
-{
-    vec3 tangentNormal = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], mappedTexCoord).xyz * 2.0 - 1.0;
-    return normalize(TBN * tangentNormal);
+	GBufferSurface surface;
+	surface.position = posDepth.xyz;
+	surface.depth = posDepth.w;
+	surface.normal = normalize(packedNormal * 2.0 - 1.0);
+	surface.albedo = albedo;
+	surface.ao = pbr.x;
+	surface.roughness = pbr.y;
+	surface.metallic = pbr.z;
+	return surface;
 }
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
@@ -129,20 +111,16 @@ vec3 computeSpecularTerm(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, float Ndot
 }
 
 void main() {
-	vec3 viewDir = normalize(transpose(TBN) * (cameraPos -  fragPos));
-	vec2 mappedTexCoord = ParallaxMapping(viewDir);       
-	// if(mappedTexCoord.x > 1.0 || mappedTexCoord.y > 1.0 || mappedTexCoord.x < 0.0 || mappedTexCoord.y < 0.0){
-	// 	discard; 
-	// }
+	GBufferSurface g = sampleGBuffer(gl_FragCoord.xy);
+	vec3 shadedFragPos = g.position;
+	vec3 shadedViewFragPos = vec3(0.0, 0.0, -g.depth);
+	vec3 albedo = g.albedo;
+	float roughness = g.roughness;
+	float metallic = g.metallic;
+	float ao = g.ao;
+	vec3 N = g.normal;
 
-	// material properties
-	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], mappedTexCoord).xyz;
-	float roughness = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 3)], mappedTexCoord).x;
-	float metallic = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 4)], mappedTexCoord).x;
-
-	// input lighting data
-	vec3 N = getNormalFromMap(mappedTexCoord);
-	vec3 V = normalize(cameraPos - fragPos);
+	vec3 V = normalize(CAMERA_POSITION.xyz - shadedFragPos);
 	vec3 R = reflect(-V, N); 
 
 	// calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
@@ -214,7 +192,7 @@ void main() {
 			float NoL = sunLightNoLFactor(light, N);
 			vec3 specularTerm = computeSpecularTerm(N, V, L_center, NoL, NdotV, F0, roughness, alpha, alpha);
 
-			float shadow = computeSunLightShadow(light, fragPos, viewFragPos, sunShadowMap[i]);
+			float shadow = computeSunLightShadow(light, shadedFragPos, shadedViewFragPos, sunShadowMap[i]);
 			Lo += shadow * (diffuseTerm + specularTerm) * lightIntensity * NoL;
 		}
 
@@ -224,9 +202,9 @@ void main() {
 			uint lightIndex = sphereLightIdxBuf.indices[sphereTileInfo.offset + i];
 			SphereLight light = sphereLightsBuf.lights[lightIndex];
 
-			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSphereLightIntensity(light, shadedFragPos, N);
 
-			vec3 toLight = light.position - fragPos;
+			vec3 toLight = light.position - shadedFragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
@@ -251,9 +229,9 @@ void main() {
 			uint lightIndex = shadowSphereLightIdxBuf.indices[shadowSphereTileInfo.offset + i];
 			SphereLight light = shadowSphereLightsBuf.shadowLights[lightIndex];
 
-			vec3 lightIntensity = sampleSphereLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSphereLightIntensity(light, shadedFragPos, N);
 
-			vec3 toLight = light.position - fragPos;
+			vec3 toLight = light.position - shadedFragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
@@ -267,7 +245,7 @@ void main() {
 
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-			float shadow = computeSphereLightShadow(light, fragPos, NoL_diff, sphereShadowMap[lightIndex]);
+			float shadow = computeSphereLightShadow(light, shadedFragPos, NoL_diff, sphereShadowMap[lightIndex]);
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 
@@ -277,9 +255,9 @@ void main() {
 			uint lightIndex = spotLightIdxBuf.indices[spotTileInfo.offset + i];
 			SpotLight light = spotLightsBuf.lights[lightIndex];
 
-			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSpotLightIntensity(light, shadedFragPos, N);
 
-			vec3 toLight = light.position - fragPos;
+			vec3 toLight = light.position - shadedFragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
@@ -303,9 +281,9 @@ void main() {
 			uint lightIndex = shadowSpotLightIdxBuf.indices[shadowSpotTileInfo.offset + i];
 			SpotLight light = shadowSpotLightsBuf.shadowLights[lightIndex];
 
-			vec3 lightIntensity = sampleSpotLightIntensity(light, fragPos, N);
+			vec3 lightIntensity = sampleSpotLightIntensity(light, shadedFragPos, N);
 
-			vec3 toLight = light.position - fragPos;
+			vec3 toLight = light.position - shadedFragPos;
 			float distToLight = length(toLight);
 			vec3 L_center = toLight / max(distToLight, 1e-5);
 
@@ -319,7 +297,7 @@ void main() {
 
 			float NoL_diff = areaLightNoLFactor(light.radius, toLight, N);
 
-			float shadow = computeSpotLightShadow(light, fragPos, NoL_diff, spotShadowMap[lightIndex]);
+			float shadow = computeSpotLightShadow(light, shadedFragPos, NoL_diff, spotShadowMap[lightIndex]);
 			Lo += shadow * (diffuseTerm * NoL_diff + specularTerm * NoL_spec) * lightIntensity;
 		}
 	}
@@ -343,7 +321,7 @@ void main() {
 		vec2 brdf = texture(Textures[nonuniformEXT(0)], vec2(NdotV, roughness)).xy;
 		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-		vec3 ambient = kD * diffuse + specular;
+		vec3 ambient = (kD * diffuse + specular) * ao;
 
 		color = ambient + Lo;
 	}

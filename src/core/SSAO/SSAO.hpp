@@ -14,7 +14,6 @@
 #include "WorkspaceManager.hpp"
 #include "RenderPassManager.hpp"
 #include "SSAOBackgroundPipeline.hpp"
-#include "SSAOLambertianPipeline.hpp"
 #include "SSAOPBRPipeline.hpp"
 #include "SSAOSunShadowPipeline.hpp"
 #include "SSAOSpotShadowPipeline.hpp"
@@ -53,7 +52,6 @@ struct SSAO : RTG::Application {
 	// Pipelines used in this application:
 
 	SSAOBackgroundPipeline background_pipeline;
-	SSAOLambertianPipeline lambertian_pipeline;
 	SSAOPBRPipeline pbr_pipeline;
 	SSAOSunShadowPipeline sun_shadow_pipeline;
 	SSAOSpotShadowPipeline spot_shadow_pipeline;

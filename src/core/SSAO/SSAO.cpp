@@ -24,7 +24,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	render_pass_manager{},
 	texture_manager{}, 
 	background_pipeline{},
-	lambertian_pipeline{},
 	pbr_pipeline{},
 	sun_shadow_pipeline{},
 	spot_shadow_pipeline{},
@@ -67,8 +66,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	// Scene pipelines render to HDR framebuffer
 	background_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	lambertian_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
-
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
 	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
@@ -84,7 +81,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{7};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOBackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOLambertianPipeline"]] = lambertian_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOPBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOSpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
@@ -232,7 +228,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	pbr_bindings.insert(pbr_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 
 	update_pipeline_descriptors("SSAOBackgroundPipeline", background_pipeline, "PV", {"PV"});
-	update_pipeline_descriptors("SSAOLambertianPipeline", lambertian_pipeline, "Global", lambertian_bindings);
 	update_pipeline_descriptors("SSAOPBRPipeline", pbr_pipeline, "Global", pbr_bindings);
 	update_pipeline_descriptors("SSAOSunShadowPipeline", sun_shadow_pipeline, "Global", {"ShadowSunLights"});
 	update_pipeline_descriptors("SSAOSpotShadowPipeline", spot_shadow_pipeline, "Global", {"ShadowSpotLights"});
@@ -260,8 +255,6 @@ SSAO::~SSAO() {
 	shadow_map_manager.destroy(rtg);
 
 	background_pipeline.destroy(rtg);
-
-	lambertian_pipeline.destroy(rtg);
 
 	pbr_pipeline.destroy(rtg);
 
@@ -401,7 +394,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				workspace.write_buffer(rtg, pipeline_idx, set_idx, binding_idx, transform_data.data(), needed_bytes);
 			};
 
-			upload_transforms("SSAOLambertianPipeline", lambertian_object_instances, lambertian_pipeline);
 			upload_transforms("SSAOPBRPipeline", pbr_object_instances, pbr_pipeline);
 			upload_transforms("SSAOSunShadowPipeline", shadow_object_instances, sun_shadow_pipeline);
 			upload_transforms("SSAOSpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
@@ -763,47 +755,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						}
 
 						vkCmdDraw(workspace.command_buffer, 36, 1, 0, 0); // hard coded for a cube
-					}
-				}
-
-				{ // draw with the lambertian pipeline:
-					if (!lambertian_object_instances.empty()) { //draw with the objects pipeline:
-						vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, lambertian_pipeline.pipeline);
-
-						{ //use object_vertices (offset 0) as vertex buffer binding 0:
-							std::array< VkBuffer, 1 > vertex_buffers{ scene_manager.vertex_buffer.handle };
-							std::array< VkDeviceSize, 1 > offsets{ 0 };
-							vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
-						}
-
-						{ //bind Global and Transforms descriptor_set sets:
-							auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOLambertianPipeline"]][lambertian_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
-							auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOLambertianPipeline"]][lambertian_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
-							auto &textures_descriptor_set = lambertian_pipeline.set2_Textures_instance;
-
-							std::array< VkDescriptorSet, 3 > descriptor_sets{
-								global_descriptor_set, //0: Global (PV, Light)
-								transform_descriptor_set, //1: Transforms
-								textures_descriptor_set, //2: Textures
-							};
-							vkCmdBindDescriptorSets(
-								workspace.command_buffer, //command buffer
-								VK_PIPELINE_BIND_POINT_GRAPHICS, //pipeline bind point
-								lambertian_pipeline.layout, //pipeline layout
-								0, //first set
-								uint32_t(descriptor_sets.size()), descriptor_sets.data(), //descriptor_set sets count, ptr
-								0, nullptr //dynamic offsets count, ptr
-							);
-						}
-
-						for(uint32_t i = 0; i < lambertian_object_instances.size(); ++i) {
-							//draw all instances:
-							SSAOLambertianPipeline::Push push{
-								.MATERIAL_INDEX = static_cast<uint32_t>(lambertian_object_instances[i].material_index * 5)
-							};
-							vkCmdPushConstants(workspace.command_buffer, lambertian_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
-							vkCmdDraw(workspace.command_buffer, lambertian_object_instances[i].object_ranges.count, 1, lambertian_object_instances[i].object_ranges.first, i);
-						}
 					}
 				}
 

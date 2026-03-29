@@ -142,11 +142,6 @@ const ssao_background_shaders = [
 	maek.GLSLC('./src/shaders/SSAO/SSAO-background.frag'),
 ];
 
-const ssao_lambertian_shaders = [
-	maek.GLSLC('./src/shaders/SSAO/SSAO-lambertian.vert'),
-	maek.GLSLC('./src/shaders/SSAO/SSAO-lambertian.frag'),
-];
-
 const ssao_pbr_shaders = [
 	maek.GLSLC('./src/shaders/SSAO/SSAO-pbr.vert'),
 	maek.GLSLC('./src/shaders/SSAO/SSAO-pbr.frag'),
@@ -172,6 +167,11 @@ const ssao_tonemap_shaders = [
 	maek.GLSLC('./src/shaders/SSAO/SSAO-tonemap.vert'),
 	maek.GLSLC('./src/shaders/SSAO/SSAO-tonemap.frag'),
 ];
+
+const ssao_deferred_write_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-deferred-write.vert'),
+	maek.GLSLC('./src/shaders/SSAO/SSAO-deferred-write.frag'),
+]
 
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
@@ -210,7 +210,6 @@ const common_objs = [
 	// SSAO files
 	maek.CPP('./src/core/SSAO/SSAO.cpp'),
 	maek.CPP('./src/core/SSAO/SSAOBackgroundPipeline.cpp', undefined, { depends: [...ssao_background_shaders] }),
-	maek.CPP('./src/core/SSAO/SSAOLambertianPipeline.cpp', undefined, { depends: [...ssao_lambertian_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOPBRPipeline.cpp', undefined, { depends: [...ssao_pbr_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSpotShadowPipeline.cpp', undefined, { depends: [...ssao_spot_shadow_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSphereShadowPipeline.cpp', undefined, { depends: [...ssao_sphere_shadow_shaders] }),

@@ -4,7 +4,6 @@
 // HDR texture from the first render pass
 layout(set = 0, binding = 0) uniform sampler2D hdrTexture;
 
-layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform Push {
@@ -14,7 +13,7 @@ layout(push_constant) uniform Push {
 
 void main() {
     // Sample HDR color from the offscreen render target
-    vec3 hdrColor = texture(hdrTexture, inUV).rgb;
+    vec3 hdrColor = texture(hdrTexture, gl_FragCoord.xy / vec2(textureSize(hdrTexture, 0))).rgb;
 
     // Apply tone mapping based on METHOD
     vec3 ldrColor;

@@ -5,28 +5,50 @@
 #include "SSAO-light-intensity.glsl"
 #include "SSAO-light-shadow.glsl"
 
+layout(set = 2, binding = 5) uniform sampler2D gBufferPositionDepth; // R32G32B32A32Sfloat: Position + Depth
+layout(set = 2, binding = 6) uniform sampler2D gBufferNormal;        // R8G8B8A8Unorm: Normal
+layout(set = 2, binding = 7) uniform sampler2D gBufferAlbedo;        // R8G8B8A8Unorm: Albedo
+layout(set = 2, binding = 8) uniform sampler2D gBufferPbr;           // R8G8B8A8Unorm: AO + Roughness + Metalness
+
 layout(set=2,binding=0) uniform samplerCube irradiance_map;
-layout(set=2,binding=1) uniform sampler2D Textures[];
-
-layout(push_constant) uniform Push {
-    uint MATERIAL_INDEX;
-} push;
-
-layout(location=0) in vec3 position;
-layout(location=1) in vec3 normal;
-layout(location=2) in vec2 texCoord;
-layout(location=3) in vec3 viewPosition;
 
 layout(location=0) out vec4 outColor;
 
 const float PI = 3.14159265359;
 
-void main() {
-	// material properties
-	vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
+struct GBufferSurface {
+	vec3 position;
+	float depth;
+	vec3 normal;
+	vec3 albedo;
+	float ao;
+};
 
-	// input lighting data
-	vec3 N = normalize(normal);
+GBufferSurface sampleGBuffer(vec2 fragCoord) {
+	vec2 texSize = vec2(textureSize(gBufferPositionDepth, 0));
+	vec2 uv = fragCoord / texSize;
+
+	vec4 posDepth = texture(gBufferPositionDepth, uv);
+	vec3 packedNormal = texture(gBufferNormal, uv).xyz;
+	vec3 albedo = texture(gBufferAlbedo, uv).xyz;
+	vec3 pbr = texture(gBufferPbr, uv).xyz;
+
+	GBufferSurface surface;
+	surface.position = posDepth.xyz;
+	surface.depth = posDepth.w;
+	surface.normal = normalize(packedNormal * 2.0 - 1.0);
+	surface.albedo = albedo;
+	surface.ao = pbr.x;
+	return surface;
+}
+
+void main() {
+	GBufferSurface g = sampleGBuffer(gl_FragCoord.xy);
+	vec3 shadedPosition = g.position;
+	vec3 shadedViewPosition = vec3(0.0, 0.0, -g.depth);
+	vec3 albedo = g.albedo;
+	vec3 N = g.normal;
+	float ao = g.ao;
 
 	// reflectance equation
 	vec3 Lo = vec3(0.0);
@@ -72,7 +94,7 @@ void main() {
 			SunLight light = shadowSunLightsBuf.shadowLights[i];
 			vec3 lightIntensity = sampleSunLightIntensity(light);
 			float NoL = sunLightNoLFactor(light, N);
-			float shadow = computeSunLightShadow(light, position, viewPosition, sunShadowMap[i]);
+			float shadow = computeSunLightShadow(light, shadedPosition, shadedViewPosition, sunShadowMap[i]);
 			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 
@@ -80,8 +102,8 @@ void main() {
 		TileInfo sphereTileInfo = sphereTileDataBuf.tiles[sphereTileIndex];
 		for (uint i = 0u; i < sphereTileInfo.count; ++i) {
 			uint lightIndex = sphereLightIdxBuf.indices[sphereTileInfo.offset + i];
-			vec3 lightIntensity = sampleSphereLightIntensity(sphereLightsBuf.lights[lightIndex], position, N);
-			vec3 toLight = sphereLightsBuf.lights[lightIndex].position - position;
+			vec3 lightIntensity = sampleSphereLightIntensity(sphereLightsBuf.lights[lightIndex], shadedPosition, N);
+			vec3 toLight = sphereLightsBuf.lights[lightIndex].position - shadedPosition;
 			float NoL = areaLightNoLFactor(sphereLightsBuf.lights[lightIndex].radius, toLight, N);
 			Lo += lightIntensity * albedo * NoL;
 		}
@@ -90,10 +112,10 @@ void main() {
 		for (uint i = 0u; i < shadowSphereTileInfo.count; ++i) {
 			uint lightIndex = shadowSphereLightIdxBuf.indices[shadowSphereTileInfo.offset + i];
 			SphereLight light = shadowSphereLightsBuf.shadowLights[lightIndex];
-			vec3 lightIntensity = sampleSphereLightIntensity(light, position, N);
-			vec3 toLight = light.position - position;
+			vec3 lightIntensity = sampleSphereLightIntensity(light, shadedPosition, N);
+			vec3 toLight = light.position - shadedPosition;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSphereLightShadow(light, position, NoL, sphereShadowMap[lightIndex]);
+			float shadow = computeSphereLightShadow(light, shadedPosition, NoL, sphereShadowMap[lightIndex]);
 			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 
@@ -101,8 +123,8 @@ void main() {
 		TileInfo spotTileInfo = spotTileDataBuf.tiles[spotTileIndex];
 		for (uint i = 0u; i < spotTileInfo.count; ++i) {
 			uint lightIndex = spotLightIdxBuf.indices[spotTileInfo.offset + i];
-			vec3 lightIntensity = sampleSpotLightIntensity(spotLightsBuf.lights[lightIndex], position, N);
-			vec3 toLight = spotLightsBuf.lights[lightIndex].position - position;
+			vec3 lightIntensity = sampleSpotLightIntensity(spotLightsBuf.lights[lightIndex], shadedPosition, N);
+			vec3 toLight = spotLightsBuf.lights[lightIndex].position - shadedPosition;
 			float NoL = areaLightNoLFactor(spotLightsBuf.lights[lightIndex].radius, toLight, N);
 			Lo += lightIntensity * albedo * NoL;
 		}
@@ -111,10 +133,10 @@ void main() {
 		for (uint i = 0u; i < shadowSpotTileInfo.count; ++i) {
 			uint lightIndex = shadowSpotLightIdxBuf.indices[shadowSpotTileInfo.offset + i];
 			SpotLight light = shadowSpotLightsBuf.shadowLights[lightIndex];
-			vec3 lightIntensity = sampleSpotLightIntensity(light, position, N);
-			vec3 toLight = light.position - position;
+			vec3 lightIntensity = sampleSpotLightIntensity(light, shadedPosition, N);
+			vec3 toLight = light.position - shadedPosition;
 			float NoL = areaLightNoLFactor(light.radius, toLight, N);
-			float shadow = computeSpotLightShadow(light, position, NoL, spotShadowMap[lightIndex]);
+			float shadow = computeSpotLightShadow(light, shadedPosition, NoL, spotShadowMap[lightIndex]);
 			Lo += shadow * lightIntensity * albedo * NoL;
 		}
 	}
@@ -124,7 +146,7 @@ void main() {
 		vec3 irradiance = texture(irradiance_map, N).xyz;
 		vec3 diffuse = irradiance * albedo;
 
-		color = Lo / PI + diffuse;
+		color = Lo / PI + diffuse * ao;
 	}
 	
 	outColor = vec4(color, 1.0);

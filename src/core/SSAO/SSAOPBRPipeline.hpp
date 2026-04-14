@@ -11,13 +11,15 @@
 #include <iostream>
 
 struct SSAOPBRPipeline : Pipeline {
-    // Global PV matrix, light, update once, write per frame
+    // Global PV matrix, light, update pointer once, write buffer per frame
     VkDescriptorSetLayout set0_Global = VK_NULL_HANDLE;
 
-    // Per-instance transforms matrix, update and write per frame
+    // Per-instance transforms matrix, update pointer and write buffer per frame
     VkDescriptorSetLayout set1_Transforms = VK_NULL_HANDLE;
 
-    // Global IBL and 2D (including all 2d textures, an instance will use the material_index to get the corresponding descriptor for it) texture descriptor sets, update once, shadow map will be wrote per frame
+    // Global IBL and 2D texture descriptor sets, update pointer once, no buffer writing
+    // Shadow map, update pointer once, write buffer per frame
+    // G-buffer update pointer per frame, write buffer per frame
     VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
     VkImageView sun_shadow_array_view = VK_NULL_HANDLE;

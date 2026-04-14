@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 
 		//initializes global (whole-life-of-application) resources:
 		// BatchCache application(rtg, configuration.index);
-		SSAO application(rtg, configuration.s72_filename);
+		A2 application(rtg, configuration.s72_filename);
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

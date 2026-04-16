@@ -74,6 +74,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
+	gbuffer_manager.create(rtg, texture_manager.texture_descriptor_pool, pbr_pipeline.set3_GBuffer);
+
 	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
 	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
@@ -266,6 +268,8 @@ SSAO::~SSAO() {
 
 	pbr_pipeline.destroy(rtg);
 
+	gbuffer_manager.destroy(rtg);
+
 	sun_shadow_pipeline.destroy(rtg);
 
 	spot_shadow_pipeline.destroy(rtg);
@@ -286,16 +290,10 @@ SSAO::~SSAO() {
 void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, true);
+	gbuffer_manager.create_targets(rtg_, swapchain.extent, render_pass_manager.gbuffer_render_pass);
 
 	{
-		pbr_pipeline.update_gbuffer_descriptors(
-			rtg_.device,
-			framebuffer_manager.gbuffer_sampler,
-			framebuffer_manager.gbuffer_position_depth_view,
-			framebuffer_manager.gbuffer_normal_view,
-			framebuffer_manager.gbuffer_albedo_view,
-			framebuffer_manager.gbuffer_pbr_view
-		);
+		gbuffer_manager.update(rtg_.device);
 
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
@@ -728,7 +726,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.gbuffer_render_pass,
-				.framebuffer = framebuffer_manager.gbuffer_framebuffer,
+				.framebuffer = gbuffer_manager.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -788,13 +786,30 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			std::array<VkImageMemoryBarrier, 4> gbuffer_barriers{
 				VkImageMemoryBarrier{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+					.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image = gbuffer_manager.depth_image.handle,
+					.subresourceRange{
+						.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+						.baseMipLevel = 0,
+						.levelCount = 1,
+						.baseArrayLayer = 0,
+						.layerCount = 1,
+					},
+				},
+				VkImageMemoryBarrier{
+					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
 					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = framebuffer_manager.gbuffer_position_depth_image.handle,
+					.image = gbuffer_manager.normal_image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
@@ -811,7 +826,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = framebuffer_manager.gbuffer_normal_image.handle,
+					.image = gbuffer_manager.albedo_image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
@@ -828,24 +843,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = framebuffer_manager.gbuffer_albedo_image.handle,
-					.subresourceRange{
-						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-						.baseMipLevel = 0,
-						.levelCount = 1,
-						.baseArrayLayer = 0,
-						.layerCount = 1,
-					},
-				},
-				VkImageMemoryBarrier{
-					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = framebuffer_manager.gbuffer_pbr_image.handle,
+					.image = gbuffer_manager.pbr_image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
@@ -858,7 +856,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 			vkCmdPipelineBarrier(
 				workspace.command_buffer,
-				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 				0,
 				0, nullptr,
@@ -929,10 +927,11 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
 						auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
 
-						std::array< VkDescriptorSet, 3 > descriptor_sets{
+						std::array< VkDescriptorSet, 4 > descriptor_sets{
 							global_descriptor_set,
 							transform_descriptor_set,
 							textures_descriptor_set,
+							gbuffer_manager.descriptor_set,
 						};
 						vkCmdBindDescriptorSets(
 							workspace.command_buffer,

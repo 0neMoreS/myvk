@@ -19,85 +19,9 @@ SSAOPBRPipeline::~SSAOPBRPipeline(){
     assert(set0_Global == VK_NULL_HANDLE);
     assert(set1_Transforms == VK_NULL_HANDLE);
     assert(set2_Textures == VK_NULL_HANDLE);
+    assert(set3_GBuffer == VK_NULL_HANDLE);
     assert(set2_Textures_instance == VK_NULL_HANDLE);
     assert(sun_shadow_array_view == VK_NULL_HANDLE);
-}
-
-void SSAOPBRPipeline::update_gbuffer_descriptors(
-    VkDevice device,
-    VkSampler sampler,
-    VkImageView position_depth,
-    VkImageView normal,
-    VkImageView albedo,
-    VkImageView pbr
-) {
-    if (set2_Textures_instance == VK_NULL_HANDLE) {
-        return;
-    }
-
-    std::array<VkDescriptorImageInfo, 4> gbuffer_infos{
-        VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = position_depth,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = normal,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = albedo,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = pbr,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-    };
-
-    std::array<VkWriteDescriptorSet, 4> gbuffer_writes{
-        VkWriteDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = set2_Textures_instance,
-            .dstBinding = 5,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &gbuffer_infos[0],
-        },
-        VkWriteDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = set2_Textures_instance,
-            .dstBinding = 6,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &gbuffer_infos[1],
-        },
-        VkWriteDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = set2_Textures_instance,
-            .dstBinding = 7,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &gbuffer_infos[2],
-        },
-        VkWriteDescriptorSet{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = set2_Textures_instance,
-            .dstBinding = 8,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &gbuffer_infos[3],
-        },
-    };
-
-    vkUpdateDescriptorSets(device, uint32_t(gbuffer_writes.size()), gbuffer_writes.data(), 0, nullptr);
 }
 
 void SSAOPBRPipeline::create(
@@ -139,6 +63,43 @@ void SSAOPBRPipeline::create(
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_Global) );
     }
 
+    { // the set3_GBuffer layout (depth + albedo + normal + pbr)
+        std::array<VkDescriptorSetLayoutBinding, 4> bindings{
+            VkDescriptorSetLayoutBinding{
+                .binding = 0,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 2,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 3,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = uint32_t(bindings.size()),
+            .pBindings = bindings.data(),
+        };
+
+        VK(vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set3_GBuffer));
+    }
+
     { // the set1_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
         std::array< VkDescriptorSetLayoutBinding, 1 > bindings{
             VkDescriptorSetLayoutBinding{
@@ -175,75 +136,50 @@ void SSAOPBRPipeline::create(
         }
 
         { // the set2_Textures
-            std::array< VkDescriptorSetLayoutBinding, 9 > bindings{
-                VkDescriptorSetLayoutBinding{
-                    .binding = 0,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_cubemap_descriptors, // IrradianceMap + PrefilterMap
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 1,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = total_2d_descriptors, // runtime-defined number of 2D textures
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 2,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = sun_shadow_count, // SunShadowMap (sampler2DArray)
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 3,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = sphere_shadow_count, // SphereShadowMap (samplerCube)
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 4,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = spot_shadow_count, // SpotShadowMap (sampler2D)
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 5,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 1, // gBufferPositionDepth
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 6,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 1, // gBufferNormal
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 7,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 1, // gBufferAlbedo
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                },
-                VkDescriptorSetLayoutBinding{
-                    .binding = 8,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 1, // gBufferPbr
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                }
-            };
+            std::vector<VkDescriptorSetLayoutBinding> bindings;
+            bindings.reserve(5);
+            VkDescriptorSetLayoutBinding b0{};
+            b0.binding = 0;
+            b0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b0.descriptorCount = total_cubemap_descriptors; // IrradianceMap + PrefilterMap
+            b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings.push_back(b0);
 
-            std::array<VkDescriptorBindingFlags, 9> binding_flags{
+            VkDescriptorSetLayoutBinding b1{};
+            b1.binding = 1;
+            b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b1.descriptorCount = total_2d_descriptors; // runtime-defined number of 2D textures
+            b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings.push_back(b1);
+
+            VkDescriptorSetLayoutBinding b2{};
+            b2.binding = 2;
+            b2.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b2.descriptorCount = sun_shadow_count; // SunShadowMap (sampler2DArray)
+            b2.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings.push_back(b2);
+
+            VkDescriptorSetLayoutBinding b3{};
+            b3.binding = 3;
+            b3.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b3.descriptorCount = sphere_shadow_count; // SphereShadowMap (samplerCube)
+            b3.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings.push_back(b3);
+
+            VkDescriptorSetLayoutBinding b4{};
+            b4.binding = 4;
+            b4.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b4.descriptorCount = spot_shadow_count; // SpotShadowMap (sampler2D)
+            b4.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            bindings.push_back(b4);
+
+            std::array<VkDescriptorBindingFlags, 5> binding_flags{
                 0,  // binding 0: fixed size
-				0,  // binding 1: fixed size
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-				0,
-			};
-
+                0,  // binding 1: fixed size
+                0,
+                0,
+                0,
+            };
             VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = uint32_t(binding_flags.size()),
@@ -457,10 +393,11 @@ void SSAOPBRPipeline::create(
     }
 
     { //create pipeline layout:
-		std::array< VkDescriptorSetLayout, 3 > layouts{
+        std::array< VkDescriptorSetLayout, 4 > layouts{
 			set0_Global,
             set1_Transforms,
-            set2_Textures
+            set2_Textures,
+            set3_GBuffer
 		};
 
         VkPushConstantRange range{
@@ -557,6 +494,11 @@ void SSAOPBRPipeline::destroy(RTG &rtg) {
     if(set2_Textures != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(rtg.device, set2_Textures, nullptr);
         set2_Textures = VK_NULL_HANDLE;
+    }
+
+    if(set3_GBuffer != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(rtg.device, set3_GBuffer, nullptr);
+        set3_GBuffer = VK_NULL_HANDLE;
     }
 
     if(set2_Textures_instance != VK_NULL_HANDLE) {

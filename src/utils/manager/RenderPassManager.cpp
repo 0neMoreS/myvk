@@ -169,9 +169,9 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	}
 
 	{ // Create GBuffer render pass (for deferred geometry writes)
-		std::array< VkAttachmentDescription, 5 > gbuffer_attachments{
-			VkAttachmentDescription{ // 0 - position+depth
-				.format = gbuffer_position_depth_format,
+		std::array< VkAttachmentDescription, 4 > gbuffer_attachments{
+			VkAttachmentDescription{ // 0 - albedo
+				.format = albedo_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -181,7 +181,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
 			VkAttachmentDescription{ // 1 - normal
-				.format = gbuffer_normal_format,
+				.format = normal_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -190,8 +190,8 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
-			VkAttachmentDescription{ // 2 - albedo
-				.format = gbuffer_albedo_format,
+			VkAttachmentDescription{ // 2 - pbr (metallic / AO / roughness)
+				.format = pbr_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -200,17 +200,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
-			VkAttachmentDescription{ // 3 - pbr(ao/roughness/metallic)
-				.format = gbuffer_pbr_format,
-				.samples = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			},
-			VkAttachmentDescription{ // 4 - depth
+			VkAttachmentDescription{ // 3 - depth
 				.format = depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -218,19 +208,18 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+				.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
 			},
 		};
 
-		std::array<VkAttachmentReference, 4> gbuffer_color_refs{
+		std::array<VkAttachmentReference, 3> gbuffer_color_refs{
 			VkAttachmentReference{ .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 			VkAttachmentReference{ .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 			VkAttachmentReference{ .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-			VkAttachmentReference{ .attachment = 3, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		};
 
 		VkAttachmentReference gbuffer_depth_ref{
-			.attachment = 4,
+			.attachment = 3,
 			.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
@@ -401,10 +390,9 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		};
 
 		gbuffer_clears = {
-			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 0.0f} } },
-			VkClearValue{ .color{ .float32{0.5f, 0.5f, 1.0f, 1.0f} } },
 			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
-			VkClearValue{ .color{ .float32{1.0f, 1.0f, 0.0f, 1.0f} } },
+			VkClearValue{ .color{ .float32{0.0f, 0.0f, 1.0f, 1.0f} } },
+			VkClearValue{ .color{ .float32{0.0f, 1.0f, 0.0f, 1.0f} } },
 			VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
 		};
 	}

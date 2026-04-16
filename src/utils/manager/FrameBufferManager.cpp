@@ -1,7 +1,7 @@
 #include "FrameBufferManager.hpp"
 
 void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager, bool use_hdr_tonemap){
-	// Clean up swapchain/HDR resources only (spot shadow targets are persistent)
+	// Clean up swapchain/HDR resources only (shadow targets are managed elsewhere)
 	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
 		if (framebuffer != VK_NULL_HANDLE) {
 			vkDestroyFramebuffer(rtg.device, framebuffer, nullptr);
@@ -15,46 +15,12 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		hdr_framebuffer = VK_NULL_HANDLE;
 	}
 
-	if (gbuffer_framebuffer != VK_NULL_HANDLE) {
-		vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
-		gbuffer_framebuffer = VK_NULL_HANDLE;
-	}
-
 	if (hdr_color_image_view != VK_NULL_HANDLE) {
 		vkDestroyImageView(rtg.device, hdr_color_image_view, nullptr);
 		hdr_color_image_view = VK_NULL_HANDLE;
 	}
-	if (gbuffer_position_depth_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_position_depth_view, nullptr);
-		gbuffer_position_depth_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_normal_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_normal_view, nullptr);
-		gbuffer_normal_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_albedo_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_albedo_view, nullptr);
-		gbuffer_albedo_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_pbr_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_pbr_view, nullptr);
-		gbuffer_pbr_view = VK_NULL_HANDLE;
-	}
-
 	if (hdr_color_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(hdr_color_image));
-	}
-	if (gbuffer_position_depth_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_position_depth_image));
-	}
-	if (gbuffer_normal_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_normal_image));
-	}
-	if (gbuffer_albedo_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_albedo_image));
-	}
-	if (gbuffer_pbr_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_pbr_image));
 	}
 
 	if (depth_image_view != VK_NULL_HANDLE) {
@@ -70,17 +36,12 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 		hdr_sampler = VK_NULL_HANDLE;
 	}
 
-	if (gbuffer_sampler != VK_NULL_HANDLE) {
-		vkDestroySampler(rtg.device, gbuffer_sampler, nullptr);
-		gbuffer_sampler = VK_NULL_HANDLE;
-	}
-
 	// Create depth image
 	depth_image = rtg.helpers.create_image(
 		swapchain.extent,
 		render_pass_manager.depth_format,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		Helpers::Unmapped,
 		0,
@@ -107,122 +68,6 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 	}
 
 	if (use_hdr_tonemap) {
-		// Create GBuffer images
-		gbuffer_position_depth_image = rtg.helpers.create_image(
-			swapchain.extent,
-			render_pass_manager.gbuffer_position_depth_format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped,
-			0,
-			1,
-			1
-		);
-
-		gbuffer_normal_image = rtg.helpers.create_image(
-			swapchain.extent,
-			render_pass_manager.gbuffer_normal_format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped,
-			0,
-			1,
-			1
-		);
-
-		gbuffer_albedo_image = rtg.helpers.create_image(
-			swapchain.extent,
-			render_pass_manager.gbuffer_albedo_format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped,
-			0,
-			1,
-			1
-		);
-
-		gbuffer_pbr_image = rtg.helpers.create_image(
-			swapchain.extent,
-			render_pass_manager.gbuffer_pbr_format,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			Helpers::Unmapped,
-			0,
-			1,
-			1
-		);
-
-		auto create_color_view = [&](VkImage image, VkFormat format, VkImageView &out_view) {
-			VkImageViewCreateInfo create_info{
-				.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				.image = image,
-				.viewType = VK_IMAGE_VIEW_TYPE_2D,
-				.format = format,
-				.subresourceRange{
-					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-					.baseMipLevel = 0,
-					.levelCount = 1,
-					.baseArrayLayer = 0,
-					.layerCount = 1
-				},
-			};
-
-			VK(vkCreateImageView(rtg.device, &create_info, nullptr, &out_view));
-		};
-
-		create_color_view(gbuffer_position_depth_image.handle, render_pass_manager.gbuffer_position_depth_format, gbuffer_position_depth_view);
-		create_color_view(gbuffer_normal_image.handle, render_pass_manager.gbuffer_normal_format, gbuffer_normal_view);
-		create_color_view(gbuffer_albedo_image.handle, render_pass_manager.gbuffer_albedo_format, gbuffer_albedo_view);
-		create_color_view(gbuffer_pbr_image.handle, render_pass_manager.gbuffer_pbr_format, gbuffer_pbr_view);
-
-		{ // Create GBuffer framebuffer
-			std::array< VkImageView, 5 > gbuffer_attachments{
-				gbuffer_position_depth_view,
-				gbuffer_normal_view,
-				gbuffer_albedo_view,
-				gbuffer_pbr_view,
-				depth_image_view,
-			};
-
-			VkFramebufferCreateInfo create_info{
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-				.renderPass = render_pass_manager.gbuffer_render_pass,
-				.attachmentCount = uint32_t(gbuffer_attachments.size()),
-				.pAttachments = gbuffer_attachments.data(),
-				.width = swapchain.extent.width,
-				.height = swapchain.extent.height,
-				.layers = 1,
-			};
-
-			VK(vkCreateFramebuffer(rtg.device, &create_info, nullptr, &gbuffer_framebuffer));
-		}
-
-		{ // Create GBuffer sampler for deferred lighting reads
-			VkSamplerCreateInfo sampler_info{
-				.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-				.magFilter = VK_FILTER_NEAREST,
-				.minFilter = VK_FILTER_NEAREST,
-				.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-				.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-				.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-				.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-				.mipLodBias = 0.0f,
-				.anisotropyEnable = VK_FALSE,
-				.maxAnisotropy = 1.0f,
-				.compareEnable = VK_FALSE,
-				.minLod = 0.0f,
-				.maxLod = 0.0f,
-				.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
-				.unnormalizedCoordinates = VK_FALSE,
-			};
-
-			VK(vkCreateSampler(rtg.device, &sampler_info, nullptr, &gbuffer_sampler));
-		}
-
 		// Create HDR color image
 		hdr_color_image = rtg.helpers.create_image(
 			swapchain.extent,
@@ -339,7 +184,6 @@ void FrameBufferManager::create(RTG &rtg, RTG::SwapchainEvent const &swapchain, 
 }
 
 void  FrameBufferManager::destroy(RTG &rtg){
-	// Destroy swapchain framebuffers
 	for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
 		assert(framebuffer != VK_NULL_HANDLE);
 		vkDestroyFramebuffer(rtg.device, framebuffer, nullptr);
@@ -347,55 +191,19 @@ void  FrameBufferManager::destroy(RTG &rtg){
 	}
 	swapchain_framebuffers.clear();
 
-	// Destroy HDR framebuffer
 	if (hdr_framebuffer != VK_NULL_HANDLE) {
 		vkDestroyFramebuffer(rtg.device, hdr_framebuffer, nullptr);
 		hdr_framebuffer = VK_NULL_HANDLE;
 	}
 
-	if (gbuffer_framebuffer != VK_NULL_HANDLE) {
-		vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
-		gbuffer_framebuffer = VK_NULL_HANDLE;
-	}
-
-	// Destroy HDR color image and view
 	if (hdr_color_image_view != VK_NULL_HANDLE) {
 		vkDestroyImageView(rtg.device, hdr_color_image_view, nullptr);
 		hdr_color_image_view = VK_NULL_HANDLE;
 	}
-	if (gbuffer_position_depth_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_position_depth_view, nullptr);
-		gbuffer_position_depth_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_normal_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_normal_view, nullptr);
-		gbuffer_normal_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_albedo_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_albedo_view, nullptr);
-		gbuffer_albedo_view = VK_NULL_HANDLE;
-	}
-	if (gbuffer_pbr_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, gbuffer_pbr_view, nullptr);
-		gbuffer_pbr_view = VK_NULL_HANDLE;
-	}
 	if (hdr_color_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(hdr_color_image));
 	}
-	if (gbuffer_position_depth_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_position_depth_image));
-	}
-	if (gbuffer_normal_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_normal_image));
-	}
-	if (gbuffer_albedo_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_albedo_image));
-	}
-	if (gbuffer_pbr_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(gbuffer_pbr_image));
-	}
 
-	// Destroy HDR depth image and view
 	if (depth_image_view != VK_NULL_HANDLE) {
 		vkDestroyImageView(rtg.device, depth_image_view, nullptr);
 		depth_image_view = VK_NULL_HANDLE;
@@ -404,16 +212,12 @@ void  FrameBufferManager::destroy(RTG &rtg){
 		rtg.helpers.destroy_image(std::move(depth_image));
 	}
 
-	// Destroy HDR sampler
 	if (hdr_sampler != VK_NULL_HANDLE) {
 		vkDestroySampler(rtg.device, hdr_sampler, nullptr);
 		hdr_sampler = VK_NULL_HANDLE;
 	}
-	if (gbuffer_sampler != VK_NULL_HANDLE) {
-		vkDestroySampler(rtg.device, gbuffer_sampler, nullptr);
-		gbuffer_sampler = VK_NULL_HANDLE;
-	}
 }
+
 FrameBufferManager::~FrameBufferManager(){
     for(VkFramebuffer &framebuffer : swapchain_framebuffers){
         if(framebuffer != VK_NULL_HANDLE){
@@ -423,31 +227,13 @@ FrameBufferManager::~FrameBufferManager(){
     if(hdr_framebuffer != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_framebuffer not destroyed" << std::endl;
     }
-	if(gbuffer_framebuffer != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_framebuffer not destroyed" << std::endl;
-	}
     if(hdr_color_image_view != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_color_image_view not destroyed" << std::endl;
     }
-	if(gbuffer_position_depth_view != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_position_depth_view not destroyed" << std::endl;
-	}
-	if(gbuffer_normal_view != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_normal_view not destroyed" << std::endl;
-	}
-	if(gbuffer_albedo_view != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_albedo_view not destroyed" << std::endl;
-	}
-	if(gbuffer_pbr_view != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_pbr_view not destroyed" << std::endl;
-	}
     if(depth_image_view != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: depth_image_view not destroyed" << std::endl;
     }
     if(hdr_sampler != VK_NULL_HANDLE){
         std::cerr << "FrameBufferManager: hdr_sampler not destroyed" << std::endl;
     }
-	if(gbuffer_sampler != VK_NULL_HANDLE){
-		std::cerr << "FrameBufferManager: gbuffer_sampler not destroyed" << std::endl;
-	}
 }

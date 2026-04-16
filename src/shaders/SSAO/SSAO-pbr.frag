@@ -5,10 +5,10 @@
 #include "SSAO-light-intensity.glsl"
 #include "SSAO-light-shadow.glsl"
 
-layout(set = 2, binding = 5) uniform sampler2D gBufferPositionDepth; // R32G32B32A32Sfloat: Position + Depth
-layout(set = 2, binding = 6) uniform sampler2D gBufferNormal;        // R8G8B8A8Unorm: Normal
-layout(set = 2, binding = 7) uniform sampler2D gBufferAlbedo;        // R8G8B8A8Unorm: Albedo
-layout(set = 2, binding = 8) uniform sampler2D gBufferPbr;           // R8G8B8A8Unorm: AO + Roughness + Metalness
+layout(set = 3, binding = 0) uniform sampler2D gBufferDepth;
+layout(set = 3, binding = 1) uniform sampler2D gBufferAlbedo;
+layout(set = 3, binding = 2) uniform sampler2D gBufferNormal;
+layout(set = 3, binding = 3) uniform sampler2D gBufferPbr;
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
 layout(set=2,binding=1) uniform sampler2D Textures[];
@@ -34,22 +34,25 @@ struct GBufferSurface {
 };
 
 GBufferSurface sampleGBuffer(vec2 fragCoord) {
-	vec2 texSize = vec2(textureSize(gBufferPositionDepth, 0));
+	vec2 texSize = vec2(textureSize(gBufferDepth, 0));
 	vec2 uv = fragCoord / texSize;
 
-	vec4 posDepth = texture(gBufferPositionDepth, uv);
-	vec3 packedNormal = texture(gBufferNormal, uv).xyz;
 	vec3 albedo = texture(gBufferAlbedo, uv).xyz;
-	vec3 pbr = texture(gBufferPbr, uv).xyz;
+	vec3 normal = texture(gBufferNormal, uv).xyz;
+	vec4 pbr = texture(gBufferPbr, uv);
+	float depth = texture(gBufferDepth, uv).r;
+	mat4 invPV = inverse(PERSPECTIVE * VIEW);
+	vec4 world = invPV * vec4(uv * 2.0 - 1.0, depth, 1.0);
+	world /= max(world.w, 1e-5);
 
 	GBufferSurface surface;
-	surface.position = posDepth.xyz;
-	surface.depth = posDepth.w;
-	surface.normal = normalize(packedNormal * 2.0 - 1.0);
+	surface.position = world.xyz;
+	surface.depth = -(VIEW * vec4(surface.position, 1.0)).z;
+	surface.normal = normalize(normal);
 	surface.albedo = albedo;
-	surface.ao = pbr.x;
-	surface.roughness = pbr.y;
-	surface.metallic = pbr.z;
+	surface.ao = pbr.g;
+	surface.roughness = pbr.a;
+	surface.metallic = pbr.r;
 	return surface;
 }
 

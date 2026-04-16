@@ -36,17 +36,16 @@ public:
 
     VkFormat hdr_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
-    VkFormat gbuffer_position_depth_format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    VkFormat gbuffer_normal_format = VK_FORMAT_R8G8B8A8_UNORM;
-    VkFormat gbuffer_albedo_format = VK_FORMAT_R8G8B8A8_UNORM;
-    VkFormat gbuffer_pbr_format = VK_FORMAT_R8G8B8A8_UNORM;
+    VkFormat albedo_format = VK_FORMAT_R8G8B8A8_UNORM;
+    VkFormat normal_format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    VkFormat pbr_format = VK_FORMAT_R8G8B8A8_UNORM;
 
     std::array<VkClearValue, 2> clears;
     VkClearAttachment clear_center_attachment;
     VkClearRect clear_center_rect;
 
     std::array< VkClearValue, 1 > tonemap_clears;
-    std::array< VkClearValue, 5 > gbuffer_clears;
+    std::array< VkClearValue, 4 > gbuffer_clears;
 
     VkRect2D scissor;
     VkViewport viewport;

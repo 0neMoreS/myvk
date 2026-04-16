@@ -322,7 +322,9 @@ void main() {
 		vec2 brdf = texture(Textures[nonuniformEXT(0)], vec2(NdotV, roughness)).xy;
 		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-		vec3 ambient = (kD * diffuse + specular) * ao;
+		vec3 fakeAmbient = vec3(0.02, 0.02, 0.02);
+
+		vec3 ambient = (kD * diffuse + specular );
 
 		color = ambient + Lo;
 	}

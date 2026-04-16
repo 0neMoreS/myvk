@@ -69,7 +69,6 @@ layout(set=0, binding=6, std430) readonly buffer ShadowSpotLightsBuf {
 #define TILE_DATA_BUFFER_ACCESS readonly
 #endif
 
-#ifdef USE_TILED_LIGHTING
 // Per-tile light list entry: start offset + count in the flat index buffer.
 struct TileInfo {
     uint offset; // index into indices[]
@@ -119,7 +118,6 @@ layout(set=0, binding=13, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSpotTileD
 layout(set=0, binding=14, std430) TILE_DATA_BUFFER_ACCESS buffer ShadowSpotLightIdxBuf {
 	uint indices[];
 } shadowSpotLightIdxBuf;
-#endif // USE_TILED_LIGHTING
 
 layout(set=2,binding=2) uniform sampler2DArray sunShadowMap[];
 layout(set=2,binding=3) uniform samplerCube sphereShadowMap[];

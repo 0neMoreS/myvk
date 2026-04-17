@@ -20,8 +20,10 @@ SSAOPBRPipeline::~SSAOPBRPipeline(){
     assert(set1_Transforms == VK_NULL_HANDLE);
     assert(set2_Textures == VK_NULL_HANDLE);
     assert(set3_GBuffer == VK_NULL_HANDLE);
+    assert(set4_AO == VK_NULL_HANDLE);
     assert(set2_Textures_instance == VK_NULL_HANDLE);
     assert(set3_GBuffer_instance == VK_NULL_HANDLE);
+    assert(set4_AO_instance == VK_NULL_HANDLE);
 }
 
 void SSAOPBRPipeline::create(
@@ -63,8 +65,8 @@ void SSAOPBRPipeline::create(
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_Global) );
     }
 
-    { // the set3_GBuffer layout (depth + albedo + normal + pbr)
-        std::array<VkDescriptorSetLayoutBinding, 4> bindings{
+    { // the set3_GBuffer layout (depth + albedo + normal)
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{
             VkDescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -79,12 +81,6 @@ void SSAOPBRPipeline::create(
             },
             VkDescriptorSetLayoutBinding{
                 .binding = 2,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            VkDescriptorSetLayoutBinding{
-                .binding = 3,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -125,6 +121,34 @@ void SSAOPBRPipeline::create(
         };
 
         VK( vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_Transforms) );
+    }
+
+    { // the set4_AO layout
+        std::array<VkDescriptorSetLayoutBinding, 1> bindings{
+            VkDescriptorSetLayoutBinding{
+                .binding = 0,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = uint32_t(bindings.size()),
+            .pBindings = bindings.data(),
+        };
+
+        VK(vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set4_AO));
+
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = texture_manager.texture_descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &set4_AO,
+        };
+
+        VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set4_AO_instance));
     }
 
     { // bind texture descriptors: cubemaps and 2D textures
@@ -401,11 +425,12 @@ void SSAOPBRPipeline::create(
     }
 
     { //create pipeline layout:
-        std::array< VkDescriptorSetLayout, 4 > layouts{
+        std::array< VkDescriptorSetLayout, 5 > layouts{
 			set0_Global,
             set1_Transforms,
             set2_Textures,
-            set3_GBuffer
+			set3_GBuffer,
+            set4_AO,
 		};
 
         VkPushConstantRange range{
@@ -509,11 +534,20 @@ void SSAOPBRPipeline::destroy(RTG &rtg) {
         set3_GBuffer = VK_NULL_HANDLE;
     }
 
+    if(set4_AO != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(rtg.device, set4_AO, nullptr);
+        set4_AO = VK_NULL_HANDLE;
+    }
+
     if(set2_Textures_instance != VK_NULL_HANDLE) {
         set2_Textures_instance = VK_NULL_HANDLE;
     }
 
     if(set3_GBuffer_instance != VK_NULL_HANDLE) {
         set3_GBuffer_instance = VK_NULL_HANDLE;
+    }
+
+    if(set4_AO_instance != VK_NULL_HANDLE) {
+        set4_AO_instance = VK_NULL_HANDLE;
     }
 }

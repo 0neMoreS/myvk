@@ -8,7 +8,7 @@
 layout(set = 3, binding = 0) uniform sampler2D gBufferDepth;
 layout(set = 3, binding = 1) uniform sampler2D gBufferAlbedo;
 layout(set = 3, binding = 2) uniform sampler2D gBufferNormal;
-layout(set = 3, binding = 3) uniform sampler2D gBufferPbr;
+layout(set = 4, binding = 0) uniform sampler2D aoTexture;
 
 layout(set=2,binding=0) uniform samplerCube ibl_cubemaps[2];
 layout(set=2,binding=1) uniform sampler2D Textures[];
@@ -37,9 +37,8 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 	vec2 texSize = vec2(textureSize(gBufferDepth, 0));
 	vec2 uv = fragCoord / texSize;
 
-	vec3 albedo = texture(gBufferAlbedo, uv).xyz;
-	vec3 normal = texture(gBufferNormal, uv).xyz;
-	vec4 pbr = texture(gBufferPbr, uv);
+	vec4 albedoMetallic = texture(gBufferAlbedo, uv);
+	vec4 normalRoughness = texture(gBufferNormal, uv);
 	float depth = texture(gBufferDepth, uv).r;
 	mat4 invPV = inverse(PERSPECTIVE * VIEW);
 	vec4 world = invPV * vec4(uv * 2.0 - 1.0, depth, 1.0);
@@ -48,11 +47,11 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 	GBufferSurface surface;
 	surface.position = world.xyz;
 	surface.depth = -(VIEW * vec4(surface.position, 1.0)).z;
-	surface.normal = normalize(normal);
-	surface.albedo = albedo;
-	surface.ao = pbr.g;
-	surface.roughness = pbr.a;
-	surface.metallic = pbr.r;
+	surface.normal = normalize(normalRoughness.xyz);
+	surface.albedo = albedoMetallic.xyz;
+	surface.metallic = albedoMetallic.a;
+	surface.ao = texture(aoTexture, uv).r;
+	surface.roughness = normalRoughness.a;
 	return surface;
 }
 
@@ -327,7 +326,7 @@ void main() {
 
 		vec3 fakeAmbient = vec3(0.02, 0.02, 0.02);
 
-		vec3 ambient = (kD * diffuse + specular );
+		vec3 ambient = (kD * diffuse + specular ) * ao;
 
 		color = ambient + Lo;
 	}

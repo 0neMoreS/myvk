@@ -169,7 +169,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	}
 
 	{ // Create GBuffer render pass (for deferred geometry writes)
-		std::array< VkAttachmentDescription, 4 > gbuffer_attachments{
+		std::array< VkAttachmentDescription, 3 > gbuffer_attachments{
 			VkAttachmentDescription{ // 0 - albedo
 				.format = albedo_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -190,17 +190,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
-			VkAttachmentDescription{ // 2 - pbr (metallic / AO / roughness)
-				.format = pbr_format,
-				.samples = VK_SAMPLE_COUNT_1_BIT,
-				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			},
-			VkAttachmentDescription{ // 3 - depth
+			VkAttachmentDescription{ // 2 - depth
 				.format = depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -212,14 +202,13 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 			},
 		};
 
-		std::array<VkAttachmentReference, 3> gbuffer_color_refs{
+		std::array<VkAttachmentReference, 2> gbuffer_color_refs{
 			VkAttachmentReference{ .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 			VkAttachmentReference{ .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-			VkAttachmentReference{ .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		};
 
 		VkAttachmentReference gbuffer_depth_ref{
-			.attachment = 3,
+			.attachment = 2,
 			.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
@@ -262,6 +251,58 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		};
 
 		VK( vkCreateRenderPass(rtg.device, &gbuffer_create_info, nullptr, &gbuffer_render_pass) );
+	}
+
+	{ // Create AO render pass (fullscreen AO output)
+		std::array< VkAttachmentDescription, 1 > ao_attachments{
+			VkAttachmentDescription{ // 0 - AO color attachment
+				.format = VK_FORMAT_R8_UNORM,
+				.samples = VK_SAMPLE_COUNT_1_BIT,
+				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+				.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+				.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+				.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			},
+		};
+
+		VkAttachmentReference ao_color_ref{
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		};
+
+		VkSubpassDescription ao_subpass{
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount = 0,
+			.pInputAttachments = nullptr,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &ao_color_ref,
+			.pDepthStencilAttachment = nullptr,
+		};
+
+		std::array< VkSubpassDependency, 1 > ao_dependencies{
+			VkSubpassDependency{
+				.srcSubpass = VK_SUBPASS_EXTERNAL,
+				.dstSubpass = 0,
+				.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				.srcAccessMask = 0,
+				.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			}
+		};
+
+		VkRenderPassCreateInfo ao_create_info{
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.attachmentCount = uint32_t(ao_attachments.size()),
+			.pAttachments = ao_attachments.data(),
+			.subpassCount = 1,
+			.pSubpasses = &ao_subpass,
+			.dependencyCount = uint32_t(ao_dependencies.size()),
+			.pDependencies = ao_dependencies.data(),
+		};
+
+		VK( vkCreateRenderPass(rtg.device, &ao_create_info, nullptr, &ao_render_pass) );
 	}
 
     { // Create tone mapping render pass (for rendering to swapchain)
@@ -390,10 +431,13 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		};
 
 		gbuffer_clears = {
-			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 0.0f} } },
 			VkClearValue{ .color{ .float32{0.0f, 0.0f, 1.0f, 1.0f} } },
-			VkClearValue{ .color{ .float32{0.0f, 1.0f, 0.0f, 1.0f} } },
 			VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
+		};
+
+		ao_clears = {
+			VkClearValue{ .color{ .float32{1.0f, 0.0f, 0.0f, 0.0f} } },
 		};
 	}
 
@@ -428,6 +472,11 @@ void RenderPassManager::destroy(RTG& rtg) {
 	if (gbuffer_render_pass != VK_NULL_HANDLE) {
 		vkDestroyRenderPass(rtg.device, gbuffer_render_pass, nullptr);
 		gbuffer_render_pass = VK_NULL_HANDLE;
+	}
+
+	if (ao_render_pass != VK_NULL_HANDLE) {
+		vkDestroyRenderPass(rtg.device, ao_render_pass, nullptr);
+		ao_render_pass = VK_NULL_HANDLE;
 	}
 
     if (tonemap_render_pass != VK_NULL_HANDLE) {
@@ -527,6 +576,9 @@ RenderPassManager::~RenderPassManager() {
     if(tonemap_render_pass != VK_NULL_HANDLE) {
         std::cerr << "[RenderPassManager] tonemap_render_pass not properly destroyed" << std::endl;
     }
+	if(ao_render_pass != VK_NULL_HANDLE) {
+		std::cerr << "[RenderPassManager] ao_render_pass not properly destroyed" << std::endl;
+	}
 	if(spot_shadow_render_pass != VK_NULL_HANDLE) {
 		std::cerr << "[RenderPassManager] spot_shadow_render_pass not properly destroyed" << std::endl;
 	}

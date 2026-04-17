@@ -15,6 +15,7 @@
 #include "RenderPassManager.hpp"
 #include "SSAOBackgroundPipeline.hpp"
 #include "SSAODeferredWritePipeline.hpp"
+#include "SSAOAmbientOcclusionPipeline.hpp"
 #include "GBufferManager.hpp"
 #include "SSAOPBRPipeline.hpp"
 #include "SSAOSunShadowPipeline.hpp"
@@ -55,6 +56,7 @@ struct SSAO : RTG::Application {
 
 	SSAOBackgroundPipeline background_pipeline;
 	SSAODeferredWritePipeline deferred_write_pipeline;
+	SSAOAmbientOcclusionPipeline ao_pipeline;
 	GBufferManager gbuffer_manager;
 	SSAOPBRPipeline pbr_pipeline;
 	SSAOSunShadowPipeline sun_shadow_pipeline;

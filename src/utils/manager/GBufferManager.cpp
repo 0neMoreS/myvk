@@ -9,6 +9,7 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 
 	assert(extent.width > 0 && extent.height > 0);
 	assert(render_pass_manager.gbuffer_render_pass != VK_NULL_HANDLE);
+	assert(render_pass_manager.ao_render_pass != VK_NULL_HANDLE);
 	assert(render_pass_manager.depth_format != VK_FORMAT_UNDEFINED);
 
 	depth_image = rtg.helpers.create_image(
@@ -47,9 +48,9 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 		1
 	);
 
-	pbr_image = rtg.helpers.create_image(
+	ao_image = rtg.helpers.create_image(
 		extent,
-		render_pass_manager.pbr_format,
+		VK_FORMAT_R8_UNORM,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -113,9 +114,9 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 	{
 		VkImageViewCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = pbr_image.handle,
+			.image = ao_image.handle,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = render_pass_manager.pbr_format,
+			.format = VK_FORMAT_R8_UNORM,
 			.subresourceRange{
 				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 				.baseMipLevel = 0,
@@ -124,7 +125,7 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 				.layerCount = 1,
 			},
 		};
-		VK(vkCreateImageView(rtg.device, &create_info, nullptr, &pbr_view));
+		VK(vkCreateImageView(rtg.device, &create_info, nullptr, &ao_view));
 	}
 
 	{
@@ -150,10 +151,9 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 	}
 
 	{
-		std::array<VkImageView, 4> attachments{
+		std::array<VkImageView, 3> attachments{
 			albedo_view,
 			normal_view,
-			pbr_view,
 			depth_view,
 		};
 
@@ -169,9 +169,32 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 
 		VK(vkCreateFramebuffer(rtg.device, &create_info, nullptr, &gbuffer_framebuffer));
 	}
+
+	{
+		std::array<VkImageView, 1> attachments{
+			ao_view,
+		};
+
+		VkFramebufferCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = render_pass_manager.ao_render_pass,
+			.attachmentCount = uint32_t(attachments.size()),
+			.pAttachments = attachments.data(),
+			.width = extent.width,
+			.height = extent.height,
+			.layers = 1,
+		};
+
+		VK(vkCreateFramebuffer(rtg.device, &create_info, nullptr, &ao_framebuffer));
+	}
 }
 
 void GBufferManager::destroy(RTG &rtg) {
+	if (ao_framebuffer != VK_NULL_HANDLE) {
+		vkDestroyFramebuffer(rtg.device, ao_framebuffer, nullptr);
+		ao_framebuffer = VK_NULL_HANDLE;
+	}
+
 	if (gbuffer_framebuffer != VK_NULL_HANDLE) {
 		vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
 		gbuffer_framebuffer = VK_NULL_HANDLE;
@@ -189,11 +212,10 @@ void GBufferManager::destroy(RTG &rtg) {
 		vkDestroyImageView(rtg.device, normal_view, nullptr);
 		normal_view = VK_NULL_HANDLE;
 	}
-	if (pbr_view != VK_NULL_HANDLE) {
-		vkDestroyImageView(rtg.device, pbr_view, nullptr);
-		pbr_view = VK_NULL_HANDLE;
+	if (ao_view != VK_NULL_HANDLE) {
+		vkDestroyImageView(rtg.device, ao_view, nullptr);
+		ao_view = VK_NULL_HANDLE;
 	}
-
 	if (depth_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(depth_image));
 	}
@@ -203,17 +225,16 @@ void GBufferManager::destroy(RTG &rtg) {
 	if (normal_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(normal_image));
 	}
-	if (pbr_image.handle != VK_NULL_HANDLE) {
-		rtg.helpers.destroy_image(std::move(pbr_image));
+	if (ao_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(ao_image));
 	}
-
 	if (gbuffer_sampler != VK_NULL_HANDLE) {
 		vkDestroySampler(rtg.device, gbuffer_sampler, nullptr);
 		gbuffer_sampler = VK_NULL_HANDLE;
 	}
 }
 
-std::array<VkDescriptorImageInfo, 4> GBufferManager::get_descriptor_image_infos() const {
+std::array<VkDescriptorImageInfo, 3> GBufferManager::get_descriptor_image_infos() const {
 	return {
 		VkDescriptorImageInfo{
 			.sampler = gbuffer_sampler,
@@ -230,15 +251,21 @@ std::array<VkDescriptorImageInfo, 4> GBufferManager::get_descriptor_image_infos(
 			.imageView = normal_view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		},
-		VkDescriptorImageInfo{
-			.sampler = gbuffer_sampler,
-			.imageView = pbr_view,
-			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		},
+	};
+}
+
+VkDescriptorImageInfo GBufferManager::get_ao_descriptor_image_info() const {
+	return VkDescriptorImageInfo{
+		.sampler = gbuffer_sampler,
+		.imageView = ao_view,
+		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	};
 }
 
 GBufferManager::~GBufferManager() {
+	if (ao_framebuffer != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_framebuffer not destroyed" << std::endl;
+	}
 	if (gbuffer_framebuffer != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: gbuffer_framebuffer not destroyed" << std::endl;
 	}
@@ -251,8 +278,8 @@ GBufferManager::~GBufferManager() {
 	if (normal_view != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: normal_view not destroyed" << std::endl;
 	}
-	if (pbr_view != VK_NULL_HANDLE) {
-		std::cerr << "GBufferManager: pbr_view not destroyed" << std::endl;
+	if (ao_view != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_view not destroyed" << std::endl;
 	}
 	if (depth_image.handle != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: depth_image not destroyed" << std::endl;
@@ -263,8 +290,8 @@ GBufferManager::~GBufferManager() {
 	if (normal_image.handle != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: normal_image not destroyed" << std::endl;
 	}
-	if (pbr_image.handle != VK_NULL_HANDLE) {
-		std::cerr << "GBufferManager: pbr_image not destroyed" << std::endl;
+	if (ao_image.handle != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_image not destroyed" << std::endl;
 	}
 	if (gbuffer_sampler != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: gbuffer_sampler not destroyed" << std::endl;

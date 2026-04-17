@@ -28,6 +28,9 @@ public:
     // GBuffer render pass: scene geometry -> deferred textures (with depth)
     VkRenderPass gbuffer_render_pass = VK_NULL_HANDLE;
 
+    // AO render pass: fullscreen AO resolve -> AO texture (no depth)
+    VkRenderPass ao_render_pass = VK_NULL_HANDLE;
+
     // Tone mapping render pass: HDR texture -> swapchain (no depth)
     VkRenderPass tonemap_render_pass = VK_NULL_HANDLE;
 
@@ -38,14 +41,14 @@ public:
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
     VkFormat albedo_format = VK_FORMAT_R8G8B8A8_UNORM;
     VkFormat normal_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    VkFormat pbr_format = VK_FORMAT_R8G8B8A8_UNORM;
 
     std::array<VkClearValue, 2> clears;
     VkClearAttachment clear_center_attachment;
     VkClearRect clear_center_rect;
 
     std::array< VkClearValue, 1 > tonemap_clears;
-    std::array< VkClearValue, 4 > gbuffer_clears;
+    std::array< VkClearValue, 3 > gbuffer_clears;
+    std::array< VkClearValue, 1 > ao_clears;
 
     VkRect2D scissor;
     VkViewport viewport;

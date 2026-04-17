@@ -42,6 +42,10 @@ struct SSAOPBRPipeline : Pipeline {
     VkDescriptorSetLayout set3_GBuffer = VK_NULL_HANDLE;
     VkDescriptorSet set3_GBuffer_instance = VK_NULL_HANDLE;
 
+    // AO texture sampled in deferred lighting pass
+    VkDescriptorSetLayout set4_AO = VK_NULL_HANDLE;
+    VkDescriptorSet set4_AO_instance = VK_NULL_HANDLE;
+
     struct Push{
         uint32_t MATERIAL_INDEX;
     };

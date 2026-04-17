@@ -69,6 +69,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	deferred_write_pipeline.create(rtg, render_pass_manager.gbuffer_render_pass, 0, pipeline_context);
 
+	ao_pipeline.create(rtg, render_pass_manager.ao_render_pass, 0, pipeline_context);
+
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
 	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
@@ -263,6 +265,8 @@ SSAO::~SSAO() {
 
 	deferred_write_pipeline.destroy(rtg);
 
+	ao_pipeline.destroy(rtg);
+
 	pbr_pipeline.destroy(rtg);
 
 	gbuffer_manager.destroy(rtg);
@@ -291,7 +295,29 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 
 	{
 		auto gbuffer_infos = gbuffer_manager.get_descriptor_image_infos();
-		std::array<VkWriteDescriptorSet, 4> gbuffer_writes{
+		std::array<VkWriteDescriptorSet, 2> ao_writes{
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_pipeline.set0_GBuffer_instance,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[0],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_pipeline.set0_GBuffer_instance,
+				.dstBinding = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[2],
+			},
+		};
+		vkUpdateDescriptorSets(rtg_.device, uint32_t(ao_writes.size()), ao_writes.data(), 0, nullptr);
+
+		std::array<VkWriteDescriptorSet, 3> gbuffer_writes{
 			VkWriteDescriptorSet{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstSet = pbr_pipeline.set3_GBuffer_instance,
@@ -319,17 +345,20 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 				.pImageInfo = &gbuffer_infos[2],
 			},
-			VkWriteDescriptorSet{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = pbr_pipeline.set3_GBuffer_instance,
-				.dstBinding = 3,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				.pImageInfo = &gbuffer_infos[3],
-			},
 		};
 		vkUpdateDescriptorSets(rtg_.device, uint32_t(gbuffer_writes.size()), gbuffer_writes.data(), 0, nullptr);
+
+		VkDescriptorImageInfo ao_info = gbuffer_manager.get_ao_descriptor_image_info();
+		VkWriteDescriptorSet ao_read_write{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = pbr_pipeline.set4_AO_instance,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &ao_info,
+		};
+		vkUpdateDescriptorSets(rtg_.device, 1, &ao_read_write, 0, nullptr);
 
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
@@ -819,7 +848,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// GBuffer barrier: make deferred targets visible to lighting shader reads
 		// =====================================================================
 		{
-			std::array<VkImageMemoryBarrier, 4> gbuffer_barriers{
+			std::array<VkImageMemoryBarrier, 3> gbuffer_barriers{
 				VkImageMemoryBarrier{
 					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 					.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
@@ -871,23 +900,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						.layerCount = 1,
 					},
 				},
-				VkImageMemoryBarrier{
-					.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-					.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-					.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = gbuffer_manager.pbr_image.handle,
-					.subresourceRange{
-						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-						.baseMipLevel = 0,
-						.levelCount = 1,
-						.baseArrayLayer = 0,
-						.layerCount = 1,
-					},
-				},
 			};
 
 			vkCmdPipelineBarrier(
@@ -898,6 +910,89 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				0, nullptr,
 				0, nullptr,
 				uint32_t(gbuffer_barriers.size()), gbuffer_barriers.data()
+			);
+		}
+
+		// =====================================================================
+		// AO pass: sample depth/normal and output AO texture
+		// =====================================================================
+		{
+			VkRenderPassBeginInfo begin_info{
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				.renderPass = render_pass_manager.ao_render_pass,
+				.framebuffer = gbuffer_manager.ao_framebuffer,
+				.renderArea{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				},
+				.clearValueCount = uint32_t(render_pass_manager.ao_clears.size()),
+				.pClearValues = render_pass_manager.ao_clears.data(),
+			};
+
+			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+
+				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_pipeline.pipeline);
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					ao_pipeline.layout,
+					0,
+					1, &ao_pipeline.set0_GBuffer_instance,
+					0, nullptr
+				);
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					ao_pipeline.layout,
+					1,
+					1, &ao_pipeline.set1_Noise_instance,
+					0, nullptr
+				);
+
+				SSAOAmbientOcclusionPipeline::Push push{
+					.RADIUS_PIXELS = 6.0f,
+					.DEPTH_BIAS = 0.00075f,
+					.POWER = 1.0f,
+				};
+				vkCmdPushConstants(workspace.command_buffer, ao_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+
+				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
+			}
+			vkCmdEndRenderPass(workspace.command_buffer);
+		}
+
+		{
+			VkImageMemoryBarrier ao_barrier{
+				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+				.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.image = gbuffer_manager.ao_image.handle,
+				.subresourceRange{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				},
+			};
+
+			vkCmdPipelineBarrier(
+				workspace.command_buffer,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0,
+				0, nullptr,
+				0, nullptr,
+				1, &ao_barrier
 			);
 		}
 
@@ -964,11 +1059,12 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
 						auto &gbuffer_descriptor_set = pbr_pipeline.set3_GBuffer_instance;
 
-						std::array< VkDescriptorSet, 4 > descriptor_sets{
+						std::array< VkDescriptorSet, 5 > descriptor_sets{
 							global_descriptor_set,
 							transform_descriptor_set,
 							textures_descriptor_set,
 							gbuffer_descriptor_set,
+							pbr_pipeline.set4_AO_instance,
 						};
 						vkCmdBindDescriptorSets(
 							workspace.command_buffer,

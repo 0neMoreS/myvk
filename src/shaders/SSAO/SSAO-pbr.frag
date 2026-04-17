@@ -326,7 +326,7 @@ void main() {
 
 		vec3 fakeAmbient = vec3(0.02, 0.02, 0.02);
 
-		vec3 ambient = (kD * diffuse + specular ) * ao;
+		vec3 ambient = (kD * diffuse + specular + fakeAmbient) * ao;
 
 		color = ambient + Lo;
 	}

@@ -281,7 +281,7 @@ void TextureManager::create(
             uint32_t total_2d_descriptors = 2; // BRDF LUT + Tone mapping target (swapchain image)
             uint32_t total_cubemap_descriptors = 2; // IrradianceMap + PrefilterMap
             uint32_t shadow_descriptors_per_pipeline = sun_shadow_descriptor_count + sphere_shadow_descriptor_count + spot_shadow_descriptor_count;
-            uint32_t gbuffer_descriptors_per_pipeline = 4;
+            uint32_t gbuffer_descriptors_per_pipeline = 5; // depth/albedo/normal + AO + AO-pass gbuffer reads
 
             for (const auto &material_slots : raw_2d_textures_by_material) {
                 for (const auto &texture_opt : material_slots) {
@@ -291,17 +291,21 @@ void TextureManager::create(
                 }
             }
 
+            // Texture descriptor set usage in SSAO now exceeds pipeline_count because
+            // several pipelines allocate multiple texture sets (e.g. PBR, AO, tone mapping).
+            const uint32_t max_texture_sets = std::max(16u, pipeline_count * 4u);
+
             std::array<VkDescriptorPoolSize, 1> pool_sizes{
                 VkDescriptorPoolSize{
                     .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = (total_2d_descriptors + total_cubemap_descriptors + shadow_descriptors_per_pipeline + gbuffer_descriptors_per_pipeline) * std::max(1u, pipeline_count),
+                    .descriptorCount = (total_2d_descriptors + total_cubemap_descriptors + shadow_descriptors_per_pipeline + gbuffer_descriptors_per_pipeline) * max_texture_sets,
                 },
             };
 
             VkDescriptorPoolCreateInfo pool_create_info{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-                .maxSets = pipeline_count,
+                .maxSets = max_texture_sets,
                 .poolSizeCount = uint32_t(pool_sizes.size()),
                 .pPoolSizes = pool_sizes.data(),
             };

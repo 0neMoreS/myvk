@@ -295,10 +295,10 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 
 	{
 		auto gbuffer_infos = gbuffer_manager.get_descriptor_image_infos();
-		std::array<VkWriteDescriptorSet, 2> ao_writes{
+		std::array<VkWriteDescriptorSet, 2> ao_gbuffer_writes{
 			VkWriteDescriptorSet{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = ao_pipeline.set0_GBuffer_instance,
+				.dstSet = ao_pipeline.set1_GBuffer_instance,
 				.dstBinding = 0,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
@@ -307,7 +307,7 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 			},
 			VkWriteDescriptorSet{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = ao_pipeline.set0_GBuffer_instance,
+				.dstSet = ao_pipeline.set1_GBuffer_instance,
 				.dstBinding = 1,
 				.dstArrayElement = 0,
 				.descriptorCount = 1,
@@ -315,7 +315,33 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 				.pImageInfo = &gbuffer_infos[2],
 			},
 		};
-		vkUpdateDescriptorSets(rtg_.device, uint32_t(ao_writes.size()), ao_writes.data(), 0, nullptr);
+		vkUpdateDescriptorSets(rtg_.device, uint32_t(ao_gbuffer_writes.size()), ao_gbuffer_writes.data(), 0, nullptr);
+
+		std::vector<VkDescriptorBufferInfo> pv_buffer_infos;
+		pv_buffer_infos.reserve(workspace_manager.workspaces.size());
+		std::vector<VkWriteDescriptorSet> pv_writes;
+		pv_writes.reserve(workspace_manager.workspaces.size());
+		for (size_t workspace_index = 0; workspace_index < workspace_manager.workspaces.size(); ++workspace_index) {
+			auto const &workspace = workspace_manager.workspaces[workspace_index];
+			auto const &buffer_pair = workspace.global_buffer_pairs.at("PV");
+
+			pv_buffer_infos.push_back(VkDescriptorBufferInfo{
+				.buffer = buffer_pair->device.handle,
+				.offset = 0,
+				.range = buffer_pair->device.size,
+			});
+
+			pv_writes.push_back(VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_pipeline.set0_PV_instances[workspace_index],
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.pBufferInfo = &pv_buffer_infos.back(),
+			});
+		}
+		vkUpdateDescriptorSets(rtg_.device, uint32_t(pv_writes.size()), pv_writes.data(), 0, nullptr);
 
 		std::array<VkWriteDescriptorSet, 3> gbuffer_writes{
 			VkWriteDescriptorSet{
@@ -941,7 +967,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					ao_pipeline.layout,
 					0,
-					1, &ao_pipeline.set0_GBuffer_instance,
+					1, &ao_pipeline.set0_PV_instances[render_params.workspace_index],
 					0, nullptr
 				);
 
@@ -950,13 +976,22 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					ao_pipeline.layout,
 					1,
-					1, &ao_pipeline.set1_Noise_instance,
+					1, &ao_pipeline.set1_GBuffer_instance,
+					0, nullptr
+				);
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					ao_pipeline.layout,
+					2,
+					1, &ao_pipeline.set2_Noise_instance,
 					0, nullptr
 				);
 
 				SSAOAmbientOcclusionPipeline::Push push{
-					.RADIUS_PIXELS = 6.0f,
-					.DEPTH_BIAS = 0.00075f,
+					.RADIUS_PIXELS = 0.5f,
+					.DEPTH_BIAS = 0.025f,
 					.POWER = 1.0f,
 				};
 				vkCmdPushConstants(workspace.command_buffer, ao_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);

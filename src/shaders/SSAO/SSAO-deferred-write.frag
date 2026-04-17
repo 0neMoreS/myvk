@@ -17,7 +17,7 @@ layout(location=1) out vec4 outGBufferNormal;
 layout(location=2) out vec4 outGBufferPbr;
 
 void main() {
-    vec3 N = normalize(TBN * texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).xyz * 2.0 - 1.0);
+    vec3 N = normalize(TBN * (texture(Textures[nonuniformEXT(push.MATERIAL_INDEX)], texCoord).xyz * 2.0 - 1.0));
     vec3 albedo = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 2)], texCoord).xyz;
     float roughness = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 3)], texCoord).x;
     float metallic = texture(Textures[nonuniformEXT(push.MATERIAL_INDEX + 4)], texCoord).x;

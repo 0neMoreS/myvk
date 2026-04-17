@@ -38,6 +38,7 @@ struct SSAOPBRPipeline : Pipeline {
         GBufferManager::descriptor_set
     */
 
+    // update pointer per frame, write buffer per frame
     VkDescriptorSetLayout set3_GBuffer = VK_NULL_HANDLE;
     VkDescriptorSet set3_GBuffer_instance = VK_NULL_HANDLE;
 

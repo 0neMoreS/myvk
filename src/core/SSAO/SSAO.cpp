@@ -5,9 +5,6 @@
 
 #include "SSAO.hpp"
 
-
-
-
 #include <GLFW/glfw3.h>
 
 #include <array>
@@ -74,8 +71,6 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	gbuffer_manager.create(rtg, render_pass_manager, rtg.swapchain_extent);
-
 	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
 	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
@@ -86,6 +81,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	// Tone mapping pipeline renders to swapchain
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
+
+	gbuffer_manager.create(rtg, render_pass_manager, rtg.swapchain_extent);
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{7};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["SSAOBackgroundPipeline"]] = background_pipeline.block_descriptor_configs;

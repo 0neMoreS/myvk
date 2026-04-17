@@ -74,7 +74,7 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	gbuffer_manager.create(rtg, texture_manager.texture_descriptor_pool, pbr_pipeline.set3_GBuffer);
+	gbuffer_manager.create(rtg, render_pass_manager, rtg.swapchain_extent);
 
 	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
 
@@ -290,10 +290,49 @@ SSAO::~SSAO() {
 void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
 	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, true);
-	gbuffer_manager.create_targets(rtg_, swapchain.extent, render_pass_manager.gbuffer_render_pass);
+	gbuffer_manager.create(rtg_, render_pass_manager, swapchain.extent);
 
 	{
-		gbuffer_manager.update(rtg_.device);
+		auto gbuffer_infos = gbuffer_manager.get_descriptor_image_infos();
+		std::array<VkWriteDescriptorSet, 4> gbuffer_writes{
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = pbr_pipeline.set3_GBuffer_instance,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[0],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = pbr_pipeline.set3_GBuffer_instance,
+				.dstBinding = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[1],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = pbr_pipeline.set3_GBuffer_instance,
+				.dstBinding = 2,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[2],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = pbr_pipeline.set3_GBuffer_instance,
+				.dstBinding = 3,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[3],
+			},
+		};
+		vkUpdateDescriptorSets(rtg_.device, uint32_t(gbuffer_writes.size()), gbuffer_writes.data(), 0, nullptr);
 
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
@@ -726,7 +765,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.gbuffer_render_pass,
-				.framebuffer = gbuffer_manager.framebuffer,
+				.framebuffer = gbuffer_manager.gbuffer_framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -926,12 +965,13 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						auto &global_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Global"]].descriptor_set;
 						auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["SSAOPBRPipeline"]][pbr_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
 						auto &textures_descriptor_set = pbr_pipeline.set2_Textures_instance;
+						auto &gbuffer_descriptor_set = pbr_pipeline.set3_GBuffer_instance;
 
 						std::array< VkDescriptorSet, 4 > descriptor_sets{
 							global_descriptor_set,
 							transform_descriptor_set,
 							textures_descriptor_set,
-							gbuffer_manager.descriptor_set,
+							gbuffer_descriptor_set,
 						};
 						vkCmdBindDescriptorSets(
 							workspace.command_buffer,

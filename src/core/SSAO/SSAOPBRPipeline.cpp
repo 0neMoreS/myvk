@@ -21,7 +21,7 @@ SSAOPBRPipeline::~SSAOPBRPipeline(){
     assert(set2_Textures == VK_NULL_HANDLE);
     assert(set3_GBuffer == VK_NULL_HANDLE);
     assert(set2_Textures_instance == VK_NULL_HANDLE);
-    assert(sun_shadow_array_view == VK_NULL_HANDLE);
+    assert(set3_GBuffer_instance == VK_NULL_HANDLE);
 }
 
 void SSAOPBRPipeline::create(
@@ -98,6 +98,14 @@ void SSAOPBRPipeline::create(
         };
 
         VK(vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set3_GBuffer));
+
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = texture_manager.texture_descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &set3_GBuffer,
+        };
+        VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set3_GBuffer_instance));
     }
 
     { // the set1_Transforms layout holds an array of Transform structures in a storage buffer used in the vertex shader:
@@ -505,8 +513,7 @@ void SSAOPBRPipeline::destroy(RTG &rtg) {
         set2_Textures_instance = VK_NULL_HANDLE;
     }
 
-    if(sun_shadow_array_view != VK_NULL_HANDLE) {
-        vkDestroyImageView(rtg.device, sun_shadow_array_view, nullptr);
-        sun_shadow_array_view = VK_NULL_HANDLE;
+    if(set3_GBuffer_instance != VK_NULL_HANDLE) {
+        set3_GBuffer_instance = VK_NULL_HANDLE;
     }
 }

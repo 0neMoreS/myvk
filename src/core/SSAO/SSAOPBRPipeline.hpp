@@ -20,9 +20,7 @@ struct SSAOPBRPipeline : Pipeline {
     // Global IBL and 2D texture descriptor sets, update pointer once, no buffer writing
     // Shadow map, update pointer once, write buffer per frame
     VkDescriptorSetLayout set2_Textures = VK_NULL_HANDLE;
-    VkDescriptorSetLayout set3_GBuffer = VK_NULL_HANDLE;
     VkDescriptorSet set2_Textures_instance = VK_NULL_HANDLE;
-    VkImageView sun_shadow_array_view = VK_NULL_HANDLE;
     /*
         IrradianceMap
         PrefilterMap
@@ -39,6 +37,9 @@ struct SSAOPBRPipeline : Pipeline {
         SpotShadowMap
         GBufferManager::descriptor_set
     */
+
+    VkDescriptorSetLayout set3_GBuffer = VK_NULL_HANDLE;
+    VkDescriptorSet set3_GBuffer_instance = VK_NULL_HANDLE;
 
     struct Push{
         uint32_t MATERIAL_INDEX;

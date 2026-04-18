@@ -55,6 +55,12 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 	return surface;
 }
 
+bool isBackgroundDepth(float depth) {
+	// Detect normal-z vs reverse-z from projection matrix sign.
+	float clearDepth = (PERSPECTIVE[2][2] > 0.0) ? 0.0 : 1.0;
+	return abs(depth - clearDepth) < 1e-6;
+}
+
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a = roughness*roughness;
@@ -114,6 +120,10 @@ vec3 computeSpecularTerm(vec3 N, vec3 V, vec3 L_spec, float NoL_spec, float Ndot
 
 void main() {
 	GBufferSurface g = sampleGBuffer(gl_FragCoord.xy);
+	if (isBackgroundDepth(texture(gBufferDepth, gl_FragCoord.xy / vec2(textureSize(gBufferDepth, 0))).r)) {
+		discard;
+	}
+
 	vec3 shadedFragPos = g.position;
 	// postive view-space depth
 	float viewSpaceDepth = g.depth;
@@ -324,9 +334,7 @@ void main() {
 		vec2 brdf = texture(Textures[nonuniformEXT(0)], vec2(NdotV, roughness)).xy;
 		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-		vec3 fakeAmbient = vec3(0.02, 0.02, 0.02);
-
-		vec3 ambient = (kD * diffuse + specular + fakeAmbient) * ao;
+		vec3 ambient = (kD * diffuse + specular) * ao;
 
 		color = ambient + Lo;
 	}

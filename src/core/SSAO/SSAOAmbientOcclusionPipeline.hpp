@@ -18,12 +18,6 @@ struct SSAOAmbientOcclusionPipeline : Pipeline {
     VkImageView noise_image_view = VK_NULL_HANDLE;
     VkSampler noise_sampler = VK_NULL_HANDLE;
 
-    struct Push {
-        float RADIUS_PIXELS;
-        float DEPTH_BIAS;
-        float POWER;
-    };
-
     VkDescriptorImageInfo get_noise_descriptor_image_info() const;
 
     void create(

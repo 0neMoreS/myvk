@@ -7,10 +7,8 @@ layout(push_constant) uniform Push {
     uint MATERIAL_INDEX;
 } push;
 
-layout(location=0) in vec3 fragPos;
-layout(location=1) in vec2 texCoord;
-layout(location=2) in vec3 viewFragPos;
-layout(location=3) in mat3 TBN;
+layout(location=0) in vec2 texCoord;
+layout(location=1) in mat3 TBN;
 
 layout(location=0) out vec4 outGBufferAlbedo;
 layout(location=1) out vec4 outGBufferNormal;

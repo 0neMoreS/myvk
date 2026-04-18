@@ -989,13 +989,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					0, nullptr
 				);
 
-				SSAOAmbientOcclusionPipeline::Push push{
-					.RADIUS_PIXELS = 0.5f,
-					.DEPTH_BIAS = 0.025f,
-					.POWER = 1.0f,
-				};
-				vkCmdPushConstants(workspace.command_buffer, ao_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
-
 				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
 			}
 			vkCmdEndRenderPass(workspace.command_buffer);

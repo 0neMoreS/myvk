@@ -10,11 +10,9 @@ layout(set = 1, binding = 0) uniform sampler2D gBufferDepth;
 layout(set = 1, binding = 1) uniform sampler2D gBufferNormal;
 layout(set = 2, binding = 0) uniform sampler2D noiseTexture;
 
-layout(push_constant) uniform Push {
-    float RADIUS_PIXELS;
-    float DEPTH_BIAS;
-    float POWER;
-} push;
+const float RADIUS_PIXELS = 0.5;
+const float DEPTH_BIAS = 0.025;
+const float POWER = 1.0;
 
 layout(location = 0) out float outAO;
 
@@ -49,11 +47,6 @@ void main() {
     vec3 frag_pos = reconstructViewPosition(uv, center_depth, inv_projection);
     vec3 normal = normalize(mat3(pv.VIEW) * texture(gBufferNormal, uv).xyz);
 
-    if (length(normal) < 1e-4) {
-        outAO = 1.0;
-        return;
-    }
-
     vec2 noise_scale = tex_size / vec2(textureSize(noiseTexture, 0));
     vec3 random_vec = normalize(texture(noiseTexture, uv * noise_scale).xyz);
     vec3 tangent = normalize(random_vec - normal * dot(random_vec, normal));
@@ -62,7 +55,7 @@ void main() {
 
     float occlusion = 0.0;
     for (int i = 0; i < kernelSize; ++i) {
-        vec3 sample_pos = frag_pos + (tbn * sampleKernel(i)) * push.RADIUS_PIXELS;
+        vec3 sample_pos = frag_pos + (tbn * sampleKernel(i)) * RADIUS_PIXELS;
 
         vec4 offset = pv.PERSPECTIVE * vec4(sample_pos, 1.0);
         offset.xyz /= max(offset.w, 1e-5);
@@ -75,10 +68,10 @@ void main() {
         float sample_depth = texture(gBufferDepth, sample_uv).r;
         vec3 sample_view_pos = reconstructViewPosition(sample_uv, sample_depth, inv_projection);
 
-        float range_check = smoothstep(0.0, 1.0, push.RADIUS_PIXELS / max(abs(frag_pos.z - sample_view_pos.z), 1e-5));
-        occlusion += (sample_view_pos.z >= sample_pos.z + push.DEPTH_BIAS ? 1.0 : 0.0) * range_check;
+        float range_check = smoothstep(0.0, 1.0, RADIUS_PIXELS / max(abs(frag_pos.z - sample_view_pos.z), 1e-5));
+        occlusion += (sample_view_pos.z >= sample_pos.z + DEPTH_BIAS ? 1.0 : 0.0) * range_check;
     }
 
     float ao = 1.0 - occlusion / float(kernelSize);
-    outAO = clamp(pow(ao, push.POWER), 0.0, 1.0);
+    outAO = clamp(pow(ao, POWER), 0.0, 1.0);
 }

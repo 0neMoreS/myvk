@@ -25,6 +25,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	texture_manager{}, 
 	background_pipeline{},
 	deferred_write_pipeline{},
+	ao_pipeline{},
+	ao_blur_pipeline{},
 	pbr_pipeline{},
 	sun_shadow_pipeline{},
 	spot_shadow_pipeline{},
@@ -70,6 +72,8 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 	deferred_write_pipeline.create(rtg, render_pass_manager.gbuffer_render_pass, 0, pipeline_context);
 
 	ao_pipeline.create(rtg, render_pass_manager.ao_render_pass, 0, pipeline_context);
+
+	ao_blur_pipeline.create(rtg, render_pass_manager.ao_render_pass, 0, pipeline_context);
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
@@ -266,6 +270,7 @@ SSAO::~SSAO() {
 	deferred_write_pipeline.destroy(rtg);
 
 	ao_pipeline.destroy(rtg);
+	ao_blur_pipeline.destroy(rtg);
 
 	pbr_pipeline.destroy(rtg);
 
@@ -374,7 +379,23 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 		};
 		vkUpdateDescriptorSets(rtg_.device, uint32_t(gbuffer_writes.size()), gbuffer_writes.data(), 0, nullptr);
 
-		VkDescriptorImageInfo ao_info = gbuffer_manager.get_ao_descriptor_image_info();
+		VkDescriptorImageInfo ao_raw_info = gbuffer_manager.get_ao_descriptor_image_info();
+		VkWriteDescriptorSet ao_blur_read_write{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = ao_blur_pipeline.set0_AOInput_instance,
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo = &ao_raw_info,
+		};
+		vkUpdateDescriptorSets(rtg_.device, 1, &ao_blur_read_write, 0, nullptr);
+
+		VkDescriptorImageInfo ao_info{
+			.sampler = gbuffer_manager.gbuffer_sampler,
+			.imageView = gbuffer_manager.ao_blur_view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
 		VkWriteDescriptorSet ao_read_write{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = pbr_pipeline.set4_AO_instance,
@@ -1021,6 +1042,73 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				0, nullptr,
 				0, nullptr,
 				1, &ao_barrier
+			);
+		}
+
+		// =====================================================================
+		// AO blur pass: sample raw AO and output blurred AO texture
+		// =====================================================================
+		{
+			VkRenderPassBeginInfo begin_info{
+				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+				.renderPass = render_pass_manager.ao_render_pass,
+				.framebuffer = gbuffer_manager.ao_blur_framebuffer,
+				.renderArea{
+					.offset = {.x = 0, .y = 0},
+					.extent = rtg.swapchain_extent,
+				},
+				.clearValueCount = uint32_t(render_pass_manager.ao_clears.size()),
+				.pClearValues = render_pass_manager.ao_clears.data(),
+			};
+
+			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+
+				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_blur_pipeline.pipeline);
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					ao_blur_pipeline.layout,
+					0,
+					1, &ao_blur_pipeline.set0_AOInput_instance,
+					0, nullptr
+				);
+
+				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);
+			}
+			vkCmdEndRenderPass(workspace.command_buffer);
+		}
+
+		{
+			VkImageMemoryBarrier ao_blur_barrier{
+				.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+				.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+				.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				.image = gbuffer_manager.ao_blur_image.handle,
+				.subresourceRange{
+					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel = 0,
+					.levelCount = 1,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				},
+			};
+
+			vkCmdPipelineBarrier(
+				workspace.command_buffer,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				0,
+				0, nullptr,
+				0, nullptr,
+				1, &ao_blur_barrier
 			);
 		}
 

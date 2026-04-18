@@ -12,15 +12,18 @@ struct GBufferManager {
     VkImageView albedo_view = VK_NULL_HANDLE;
     VkImageView normal_view = VK_NULL_HANDLE;
     VkImageView ao_view = VK_NULL_HANDLE;
+    VkImageView ao_blur_view = VK_NULL_HANDLE;
 
     Helpers::AllocatedImage depth_image;
     Helpers::AllocatedImage albedo_image;
     Helpers::AllocatedImage normal_image;
     Helpers::AllocatedImage ao_image;
+    Helpers::AllocatedImage ao_blur_image;
 
     VkSampler gbuffer_sampler = VK_NULL_HANDLE;
     VkFramebuffer gbuffer_framebuffer = VK_NULL_HANDLE;
     VkFramebuffer ao_framebuffer = VK_NULL_HANDLE;
+    VkFramebuffer ao_blur_framebuffer = VK_NULL_HANDLE;
 
     void create(RTG &rtg, RenderPassManager &render_pass_manager, VkExtent2D const &extent);
     void destroy(RTG &rtg);

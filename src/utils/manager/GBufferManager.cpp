@@ -60,6 +60,18 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 		1
 	);
 
+	ao_blur_image = rtg.helpers.create_image(
+		extent,
+		VK_FORMAT_R8_UNORM,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		Helpers::Unmapped,
+		0,
+		1,
+		1
+	);
+
 	{
 		VkImageViewCreateInfo create_info{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -129,6 +141,23 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 	}
 
 	{
+		VkImageViewCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = ao_blur_image.handle,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = VK_FORMAT_R8_UNORM,
+			.subresourceRange{
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1,
+			},
+		};
+		VK(vkCreateImageView(rtg.device, &create_info, nullptr, &ao_blur_view));
+	}
+
+	{
 		VkSamplerCreateInfo sampler_info{
 			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
 			.magFilter = VK_FILTER_NEAREST,
@@ -187,9 +216,32 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &render_pass_manager, Vk
 
 		VK(vkCreateFramebuffer(rtg.device, &create_info, nullptr, &ao_framebuffer));
 	}
+
+	{
+		std::array<VkImageView, 1> attachments{
+			ao_blur_view,
+		};
+
+		VkFramebufferCreateInfo create_info{
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = render_pass_manager.ao_render_pass,
+			.attachmentCount = uint32_t(attachments.size()),
+			.pAttachments = attachments.data(),
+			.width = extent.width,
+			.height = extent.height,
+			.layers = 1,
+		};
+
+		VK(vkCreateFramebuffer(rtg.device, &create_info, nullptr, &ao_blur_framebuffer));
+	}
 }
 
 void GBufferManager::destroy(RTG &rtg) {
+	if (ao_blur_framebuffer != VK_NULL_HANDLE) {
+		vkDestroyFramebuffer(rtg.device, ao_blur_framebuffer, nullptr);
+		ao_blur_framebuffer = VK_NULL_HANDLE;
+	}
+
 	if (ao_framebuffer != VK_NULL_HANDLE) {
 		vkDestroyFramebuffer(rtg.device, ao_framebuffer, nullptr);
 		ao_framebuffer = VK_NULL_HANDLE;
@@ -216,6 +268,10 @@ void GBufferManager::destroy(RTG &rtg) {
 		vkDestroyImageView(rtg.device, ao_view, nullptr);
 		ao_view = VK_NULL_HANDLE;
 	}
+	if (ao_blur_view != VK_NULL_HANDLE) {
+		vkDestroyImageView(rtg.device, ao_blur_view, nullptr);
+		ao_blur_view = VK_NULL_HANDLE;
+	}
 	if (depth_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(depth_image));
 	}
@@ -227,6 +283,9 @@ void GBufferManager::destroy(RTG &rtg) {
 	}
 	if (ao_image.handle != VK_NULL_HANDLE) {
 		rtg.helpers.destroy_image(std::move(ao_image));
+	}
+	if (ao_blur_image.handle != VK_NULL_HANDLE) {
+		rtg.helpers.destroy_image(std::move(ao_blur_image));
 	}
 	if (gbuffer_sampler != VK_NULL_HANDLE) {
 		vkDestroySampler(rtg.device, gbuffer_sampler, nullptr);
@@ -263,6 +322,9 @@ VkDescriptorImageInfo GBufferManager::get_ao_descriptor_image_info() const {
 }
 
 GBufferManager::~GBufferManager() {
+	if (ao_blur_framebuffer != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_blur_framebuffer not destroyed" << std::endl;
+	}
 	if (ao_framebuffer != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: ao_framebuffer not destroyed" << std::endl;
 	}
@@ -281,6 +343,9 @@ GBufferManager::~GBufferManager() {
 	if (ao_view != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: ao_view not destroyed" << std::endl;
 	}
+	if (ao_blur_view != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_blur_view not destroyed" << std::endl;
+	}
 	if (depth_image.handle != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: depth_image not destroyed" << std::endl;
 	}
@@ -292,6 +357,9 @@ GBufferManager::~GBufferManager() {
 	}
 	if (ao_image.handle != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: ao_image not destroyed" << std::endl;
+	}
+	if (ao_blur_image.handle != VK_NULL_HANDLE) {
+		std::cerr << "GBufferManager: ao_blur_image not destroyed" << std::endl;
 	}
 	if (gbuffer_sampler != VK_NULL_HANDLE) {
 		std::cerr << "GBufferManager: gbuffer_sampler not destroyed" << std::endl;

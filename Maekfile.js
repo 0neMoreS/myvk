@@ -178,6 +178,10 @@ const ssao_ao_shaders = [
 	maek.GLSLC('./src/shaders/SSAO/SSAO-ao.frag'),
 ];
 
+const ssao_ao_blur_shaders = [
+	maek.GLSLC('./src/shaders/SSAO/SSAO-ao-blur.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
@@ -217,6 +221,7 @@ const common_objs = [
 	maek.CPP('./src/core/SSAO/SSAOBackgroundPipeline.cpp', undefined, { depends: [...ssao_background_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAODeferredWritePipeline.cpp', undefined, { depends: [...ssao_deferred_write_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOAmbientOcclusionPipeline.cpp', undefined, { depends: [...ssao_ao_shaders] }),
+	maek.CPP('./src/core/SSAO/SSAOAOBlurPipeline.cpp', undefined, { depends: [...ssao_ao_blur_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOPBRPipeline.cpp', undefined, { depends: [...ssao_pbr_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSpotShadowPipeline.cpp', undefined, { depends: [...ssao_spot_shadow_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOSphereShadowPipeline.cpp', undefined, { depends: [...ssao_sphere_shadow_shaders] }),

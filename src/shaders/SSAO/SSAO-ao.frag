@@ -2,6 +2,7 @@
 
 layout(set = 0, binding = 0, std140) uniform PV {
     mat4 PERSPECTIVE;
+    mat4 INV_PERSPECTIVE;
     mat4 VIEW;
     vec4 CAMERA_POSITION;
 } pv;
@@ -33,7 +34,7 @@ void main() {
     vec2 uv = gl_FragCoord.xy / tex_size;
 
     float center_depth = texture(gBufferDepth, uv).r;
-    mat4 inv_projection = inverse(pv.PERSPECTIVE);
+    mat4 inv_projection = pv.INV_PERSPECTIVE;
     vec3 frag_pos = reconstructViewPosition(uv, center_depth, inv_projection);
     vec3 normal = normalize(mat3(pv.VIEW) * texture(gBufferNormal, uv).xyz);
 

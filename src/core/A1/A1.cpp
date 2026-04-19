@@ -412,8 +412,11 @@ void A1::update(float dt) {
 	CameraManager::Frustum frustum = camera_manager.get_frustum();
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-		pv_matrix.VIEW = camera_manager.get_view();
+		auto const &camera_pv = camera_manager.get_camera_pv();
+		pv_matrix.PERSPECTIVE = camera_pv.PERSPECTIVE;
+		pv_matrix.INV_PERSPECTIVE = camera_pv.INV_PERSPECTIVE;
+		pv_matrix.VIEW = camera_pv.VIEW;
+		pv_matrix.CAMERA_POSITION = camera_pv.CAMERA_POSITION;
 
 		// Defaults first, then override per available light.
 		world_lighting.SKY_DIRECTION.x = 0.0f;

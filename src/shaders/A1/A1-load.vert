@@ -16,7 +16,9 @@ layout(set=1, binding=0, std430) readonly buffer Transforms {
 
 layout(set=0,binding=0,std140) uniform PV {
     mat4 PERSPECTIVE;
+	mat4 INV_PERSPECTIVE;
     mat4 VIEW;
+	vec4 CAMERA_POSITION;
 };
 
 layout(location=0) out vec3 position;

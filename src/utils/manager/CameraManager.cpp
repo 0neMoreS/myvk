@@ -60,8 +60,9 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 
 	this->camera_pv = CameraPV{
 		.PERSPECTIVE = get_perspective(),
+		.INV_PERSPECTIVE = glm::mat4(1.0f),
 		.VIEW = get_view(),
-		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f)
+		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f),
 	};
 
 	if(configuration.reverse_z){
@@ -70,6 +71,8 @@ void CameraManager::create(const std::shared_ptr<S72Loader::Document> doc,
 		camera_pv.PERSPECTIVE[2][2] = camera_pv.PERSPECTIVE[2][3] - camera_pv.PERSPECTIVE[2][2];
 		camera_pv.PERSPECTIVE[3][2] = camera_pv.PERSPECTIVE[3][3] - camera_pv.PERSPECTIVE[3][2];
 	}
+
+	camera_pv.INV_PERSPECTIVE = glm::inverse(camera_pv.PERSPECTIVE);
 }
 
 void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData>& camera_tree_data, const RTG::Configuration &configuration) {
@@ -79,10 +82,11 @@ void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData
 
 	update_user_camera(dt, open_debug_camera ? debug_camera : cameras[0]);
 
-		this->camera_pv = CameraPV{
+	this->camera_pv = CameraPV{
 		.PERSPECTIVE = get_perspective(),
+		.INV_PERSPECTIVE = glm::mat4(1.0f),
 		.VIEW = get_view(),
-		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f)
+		.CAMERA_POSITION = glm::vec4(get_active_camera().camera_position, 1.0f),
 	};
 
 	if(configuration.reverse_z){
@@ -91,6 +95,8 @@ void CameraManager::update(float dt, const std::vector<SceneTree::CameraTreeData
 		camera_pv.PERSPECTIVE[2][2] = camera_pv.PERSPECTIVE[2][3] - camera_pv.PERSPECTIVE[2][2];
 		camera_pv.PERSPECTIVE[3][2] = camera_pv.PERSPECTIVE[3][3] - camera_pv.PERSPECTIVE[3][2];
 	}
+
+	camera_pv.INV_PERSPECTIVE = glm::inverse(camera_pv.PERSPECTIVE);
 }
 
 void CameraManager::update_scene_camera(size_t index, const SceneTree::CameraTreeData &ctd) {

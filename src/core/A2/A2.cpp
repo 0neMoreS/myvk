@@ -595,10 +595,11 @@ void A2::update(float dt) {
 	camera_manager.update(dt, camera_tree_data, rtg.configuration);
 
 	{ // update global data
-		pv_matrix.PERSPECTIVE = camera_manager.get_perspective();
-		pv_matrix.VIEW = camera_manager.get_view();
-		pv_matrix.CAMERA_POSITION = glm::vec4(camera_manager.get_active_camera().camera_position, 1.0f);
-		pv_matrix.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
+		auto const &camera_pv = camera_manager.get_camera_pv();
+		pv_matrix.PERSPECTIVE = camera_pv.PERSPECTIVE;
+		pv_matrix.INV_PERSPECTIVE = camera_pv.INV_PERSPECTIVE;
+		pv_matrix.VIEW = camera_pv.VIEW;
+		pv_matrix.CAMERA_POSITION = camera_pv.CAMERA_POSITION;
 
 		light.LIGHT_POSITION = (BLENDER_TO_VULKAN_4 * light_tree_data[0].model_matrix[3]);
 		if(doc->lights[0].sphere){

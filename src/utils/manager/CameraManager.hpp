@@ -41,6 +41,7 @@ public:
 
 	struct CameraPV {
 		glm::mat4 PERSPECTIVE;
+		glm::mat4 INV_PERSPECTIVE;
         glm::mat4 VIEW;
         glm::vec4 CAMERA_POSITION;
 	};

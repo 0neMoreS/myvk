@@ -6,6 +6,8 @@
 struct SSDOAOBlurPipeline : Pipeline {
     VkDescriptorSetLayout set0_AOInput = VK_NULL_HANDLE;
     VkDescriptorSet set0_AOInput_instance = VK_NULL_HANDLE;
+    VkDescriptorSetLayout set1_GBuffer = VK_NULL_HANDLE;
+    VkDescriptorSet set1_GBuffer_instance = VK_NULL_HANDLE;
 
     void create(
         RTG &,

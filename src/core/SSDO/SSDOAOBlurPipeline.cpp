@@ -6,6 +6,11 @@
 #include <cassert>
 #include <vector>
 
+struct AOBlurPush {
+    float nearPlane;
+    float farPlane;
+};
+
 static uint32_t vert_code[] = {
 #include "../../shaders/spv/SSDO-ao.vert.inl"
 };
@@ -52,16 +57,57 @@ void SSDOAOBlurPipeline::create(
     }
 
     {
-        std::array<VkDescriptorSetLayout, 1> layouts{
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings{
+            VkDescriptorSetLayoutBinding{
+                .binding = 0,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = uint32_t(bindings.size()),
+            .pBindings = bindings.data(),
+        };
+
+        VK(vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set1_GBuffer));
+
+        VkDescriptorSetAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = texture_manager.texture_descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &set1_GBuffer,
+        };
+
+        VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set1_GBuffer_instance));
+    }
+
+    {
+        std::array<VkDescriptorSetLayout, 2> layouts{
             set0_AOInput,
+            set1_GBuffer,
+        };
+
+        VkPushConstantRange push_constant_range{
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .offset = 0,
+            .size = sizeof(AOBlurPush),
         };
 
         VkPipelineLayoutCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = uint32_t(layouts.size()),
             .pSetLayouts = layouts.data(),
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges = nullptr,
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &push_constant_range,
         };
 
         VK(vkCreatePipelineLayout(rtg.device, &create_info, nullptr, &layout));
@@ -199,6 +245,15 @@ void SSDOAOBlurPipeline::destroy(RTG &rtg) {
     if (set0_AOInput_instance != VK_NULL_HANDLE) {
         set0_AOInput_instance = VK_NULL_HANDLE;
     }
+
+    if (set1_GBuffer != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(rtg.device, set1_GBuffer, nullptr);
+        set1_GBuffer = VK_NULL_HANDLE;
+    }
+
+    if (set1_GBuffer_instance != VK_NULL_HANDLE) {
+        set1_GBuffer_instance = VK_NULL_HANDLE;
+    }
 }
 
 SSDOAOBlurPipeline::~SSDOAOBlurPipeline() {
@@ -208,4 +263,6 @@ SSDOAOBlurPipeline::~SSDOAOBlurPipeline() {
     assert(frag_module == VK_NULL_HANDLE);
     assert(set0_AOInput == VK_NULL_HANDLE);
     assert(set0_AOInput_instance == VK_NULL_HANDLE);
+    assert(set1_GBuffer == VK_NULL_HANDLE);
+    assert(set1_GBuffer_instance == VK_NULL_HANDLE);
 }

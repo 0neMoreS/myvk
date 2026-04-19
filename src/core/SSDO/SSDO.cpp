@@ -454,6 +454,28 @@ void SSDO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 		};
 		vkUpdateDescriptorSets(rtg_.device, 1, &ao_blur_read_write, 0, nullptr);
 
+		std::array<VkWriteDescriptorSet, 2> ao_blur_gbuffer_writes{
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_blur_pipeline.set1_GBuffer_instance,
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[0],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_blur_pipeline.set1_GBuffer_instance,
+				.dstBinding = 1,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[2],
+			},
+		};
+		vkUpdateDescriptorSets(rtg_.device, uint32_t(ao_blur_gbuffer_writes.size()), ao_blur_gbuffer_writes.data(), 0, nullptr);
+
 		VkDescriptorImageInfo ao_info{
 			.sampler = gbuffer_manager.gbuffer_sampler,
 			.imageView = gbuffer_manager.ao_blur_target.view,
@@ -1130,6 +1152,33 @@ void SSDO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					0,
 					1, &ao_blur_pipeline.set0_AOInput_instance,
 					0, nullptr
+				);
+
+				vkCmdBindDescriptorSets(
+					workspace.command_buffer,
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					ao_blur_pipeline.layout,
+					1,
+					1, &ao_blur_pipeline.set1_GBuffer_instance,
+					0, nullptr
+				);
+
+				struct AOBlurPush {
+					float nearPlane;
+					float farPlane;
+				};
+				auto const &camera = camera_manager.get_active_camera();
+				AOBlurPush push{
+					.nearPlane = camera.camera_near,
+					.farPlane = camera.camera_far,
+				};
+				vkCmdPushConstants(
+					workspace.command_buffer,
+					ao_blur_pipeline.layout,
+					VK_SHADER_STAGE_FRAGMENT_BIT,
+					0,
+					sizeof(AOBlurPush),
+					&push
 				);
 
 				vkCmdDraw(workspace.command_buffer, 3, 1, 0, 0);

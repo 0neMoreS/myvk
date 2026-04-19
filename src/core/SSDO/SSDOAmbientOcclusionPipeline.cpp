@@ -1,10 +1,8 @@
 #include "SSDOAmbientOcclusionPipeline.hpp"
 
-#include "TextureCommon.hpp"
 #include "VK.hpp"
 
 #include <array>
-#include <random>
 #include <vector>
 
 static uint32_t vert_code[] = {
@@ -115,46 +113,6 @@ void SSDOAmbientOcclusionPipeline::create(
             .pSetLayouts = &set2_Noise,
         };
         VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, &set2_Noise_instance));
-    }
-
-    { // create runtime noise texture (4x4 RGBA32F)
-        constexpr uint32_t noise_size = 4;
-        std::vector<float> noise_data(noise_size * noise_size * 4);
-
-        std::mt19937 rng(0xA0A0u);
-        std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-        for (uint32_t i = 0; i < noise_size * noise_size; ++i) {
-            noise_data[4 * i + 0] = dist(rng);
-            noise_data[4 * i + 1] = dist(rng);
-            noise_data[4 * i + 2] = 0.0f;
-            noise_data[4 * i + 3] = 1.0f;
-        }
-
-        noise_image = rtg.helpers.create_image(
-            VkExtent2D{.width = noise_size, .height = noise_size},
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            Helpers::Unmapped,
-            0,
-            1,
-            1
-        );
-
-        void *noise_ptr = noise_data.data();
-        rtg.helpers.transfer_to_image({noise_ptr}, {noise_data.size() * sizeof(float)}, noise_image, 1, false, 1);
-
-        noise_image_view = create_image_view(rtg.device, noise_image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, false, 1);
-        noise_sampler = create_sampler(
-            rtg.device,
-            VK_FILTER_NEAREST,
-            VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
-            0.0f
-        );
     }
 
     { // pipeline layout
@@ -288,7 +246,13 @@ void SSDOAmbientOcclusionPipeline::create(
     vert_module = VK_NULL_HANDLE;
 
     {
-        VkDescriptorImageInfo noise_info = get_noise_descriptor_image_info();
+        auto const &ao_noise_texture = texture_manager.ao_noise_texture;
+        VkDescriptorImageInfo noise_info {
+            .sampler = ao_noise_texture.sampler,
+            .imageView = ao_noise_texture.image_view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+
         VkWriteDescriptorSet write{
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = set2_Noise_instance,
@@ -321,29 +285,7 @@ void SSDOAmbientOcclusionPipeline::create(
     pipeline_name_to_index["SSDOAmbientOcclusionPipeline"] = 7;
 }
 
-VkDescriptorImageInfo SSDOAmbientOcclusionPipeline::get_noise_descriptor_image_info() const {
-    return VkDescriptorImageInfo{
-        .sampler = noise_sampler,
-        .imageView = noise_image_view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-}
-
 void SSDOAmbientOcclusionPipeline::destroy(RTG &rtg) {
-    if (noise_sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(rtg.device, noise_sampler, nullptr);
-        noise_sampler = VK_NULL_HANDLE;
-    }
-
-    if (noise_image_view != VK_NULL_HANDLE) {
-        vkDestroyImageView(rtg.device, noise_image_view, nullptr);
-        noise_image_view = VK_NULL_HANDLE;
-    }
-
-    if (noise_image.handle != VK_NULL_HANDLE) {
-        rtg.helpers.destroy_image(std::move(noise_image));
-    }
-
     if (layout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(rtg.device, layout, nullptr);
         layout = VK_NULL_HANDLE;
@@ -388,7 +330,4 @@ SSDOAmbientOcclusionPipeline::~SSDOAmbientOcclusionPipeline() {
     assert(set1_GBuffer_instance == VK_NULL_HANDLE);
     assert(set2_Noise == VK_NULL_HANDLE);
     assert(set2_Noise_instance == VK_NULL_HANDLE);
-    assert(noise_sampler == VK_NULL_HANDLE);
-    assert(noise_image_view == VK_NULL_HANDLE);
-    assert(noise_image.handle == VK_NULL_HANDLE);
 }

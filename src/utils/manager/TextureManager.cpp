@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <algorithm>
+#include <random>
+#include <vector>
 
 void TextureManager::destroy(RTG &rtg) {
     for (auto &material_slots : raw_2d_textures_by_material) {
@@ -27,6 +29,8 @@ void TextureManager::destroy(RTG &rtg) {
         TextureCommon::destroy_texture(*raw_brdf_LUT_texture, rtg.device, rtg.helpers);
     }
     raw_brdf_LUT_texture = nullptr;
+
+    TextureCommon::destroy_texture(ao_noise_texture, rtg.device, rtg.helpers);
 
     // Destroy dummy shadow textures
     if (dummy_shadow_2d_array_view != VK_NULL_HANDLE) {
@@ -148,6 +152,46 @@ void TextureManager::create(
             std::string brdf_lut_path = s72_dir + "brdf_LUT.png";
             raw_brdf_LUT_texture = Texture2DLoader::load_image(rtg.helpers, brdf_lut_path, VK_FILTER_LINEAR, false, false);
             
+        }
+
+        { // Create AO noise texture (4x4 RGBA32F)
+            constexpr uint32_t noise_size = 4;
+            std::vector<float> noise_data(noise_size * noise_size * 4);
+
+            std::mt19937 rng(0xA0A0u);
+            std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+            for (uint32_t i = 0; i < noise_size * noise_size; ++i) {
+                noise_data[4 * i + 0] = dist(rng);
+                noise_data[4 * i + 1] = dist(rng);
+                noise_data[4 * i + 2] = 0.0f;
+                noise_data[4 * i + 3] = 1.0f;
+            }
+
+            ao_noise_texture.image = rtg.helpers.create_image(
+                VkExtent2D{.width = noise_size, .height = noise_size},
+                VK_FORMAT_R32G32B32A32_SFLOAT,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                Helpers::Unmapped,
+                0,
+                1,
+                1
+            );
+
+            void *noise_ptr = noise_data.data();
+            rtg.helpers.transfer_to_image({noise_ptr}, {noise_data.size() * sizeof(float)}, ao_noise_texture.image, 1, false, 1);
+
+            ao_noise_texture.image_view = create_image_view(rtg.device, ao_noise_texture.image.handle, VK_FORMAT_R32G32B32A32_SFLOAT, false, 1);
+            ao_noise_texture.sampler = create_sampler(
+                rtg.device,
+                VK_FILTER_NEAREST,
+                VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+                0.0f
+            );
         }
 
         { // Create dummy shadow textures for fallback

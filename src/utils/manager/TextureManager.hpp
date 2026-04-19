@@ -29,6 +29,9 @@ class TextureManager {
         // BRDF LUT texture
         std::unique_ptr<TextureCommon::Texture> raw_brdf_LUT_texture;
 
+        // AO noise texture (shared by SSAO/SSDO)
+        TextureCommon::Texture ao_noise_texture{};
+
         // Dummy shadow textures for fallback when shadow maps are not available
         TextureCommon::Texture dummy_shadow_2d{};
         VkImageView dummy_shadow_2d_array_view = VK_NULL_HANDLE;

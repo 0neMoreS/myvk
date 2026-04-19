@@ -250,7 +250,7 @@ void A3PBRPipeline::create(
                         const auto &target = shadow_buffer_manager->sun_shadow_targets[i % available];
                         sun_shadow_infos[i] = VkDescriptorImageInfo{
                             .sampler = shadow_buffer_manager->sun_shadow_sampler,
-                            .imageView = target.depth_array_view,
+                            .imageView = target.depth_target.array_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
@@ -272,7 +272,7 @@ void A3PBRPipeline::create(
                         const auto &target = shadow_buffer_manager->sphere_shadow_targets[i % available];
                         sphere_shadow_infos[i] = VkDescriptorImageInfo{
                             .sampler = shadow_buffer_manager->sphere_shadow_sampler,
-                            .imageView = target.depth_cube_view,
+                            .imageView = target.depth_target.cube_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }
@@ -294,7 +294,7 @@ void A3PBRPipeline::create(
                         const auto &target = shadow_buffer_manager->spot_shadow_targets[i % available];
                         spot_shadow_infos[i] = VkDescriptorImageInfo{
                             .sampler = shadow_buffer_manager->spot_shadow_sampler,
-                            .imageView = target.depth_image_view,
+                            .imageView = target.depth_target.view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
                     }

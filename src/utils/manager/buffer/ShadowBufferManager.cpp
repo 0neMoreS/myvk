@@ -59,14 +59,7 @@ void ShadowBufferManager::create(
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass
         );
-
-        target.depth_array_image = std::move(array_target.image);
-        target.depth_array_view = array_target.array_view;
-
-        for (uint32_t i = 0; i < SunCascadeCount; ++i) {
-            target.cascade_image_views[i] = array_target.layer_views[i];
-            target.cascade_framebuffers[i] = array_target.layer_framebuffers[i];
-        }
+        target.depth_target = std::move(array_target);
 
         sun_shadow_targets.emplace_back(std::move(target));
     }
@@ -135,11 +128,7 @@ void ShadowBufferManager::create(
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass
         );
-
-        target.depth_cube_image = std::move(cube_target.image);
-        target.depth_cube_view = cube_target.cube_view;
-        target.face_image_views = cube_target.face_views;
-        target.face_framebuffers = cube_target.face_framebuffers;
+        target.depth_target = std::move(cube_target);
 
         sphere_shadow_targets.emplace_back(std::move(target));
     }
@@ -168,10 +157,7 @@ void ShadowBufferManager::create(
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass
         );
-
-        target.depth_image = std::move(spot_target.image);
-        target.depth_image_view = spot_target.view;
-        target.framebuffer = spot_target.framebuffer;
+        target.depth_target = std::move(spot_target);
 
         spot_shadow_targets.emplace_back(std::move(target));
     }
@@ -179,18 +165,7 @@ void ShadowBufferManager::create(
 
 void ShadowBufferManager::destroy(RTG &rtg) {
     for (SunShadowTarget &target : sun_shadow_targets) {
-        BufferRenderTarget::TargetArray array_target{};
-        array_target.image = std::move(target.depth_array_image);
-        array_target.array_view = target.depth_array_view;
-        array_target.layer_views.assign(target.cascade_image_views.begin(), target.cascade_image_views.end());
-        array_target.layer_framebuffers.assign(target.cascade_framebuffers.begin(), target.cascade_framebuffers.end());
-
-        BufferRenderTarget::destroy_target_array(rtg, array_target);
-
-        target.depth_array_image = std::move(array_target.image);
-        target.depth_array_view = array_target.array_view;
-        target.cascade_image_views.fill(VK_NULL_HANDLE);
-        target.cascade_framebuffers.fill(VK_NULL_HANDLE);
+        BufferRenderTarget::destroy_target_array(rtg, target.depth_target);
     }
     sun_shadow_targets.clear();
 
@@ -200,16 +175,7 @@ void ShadowBufferManager::destroy(RTG &rtg) {
     }
 
     for (SpotShadowTarget &target : spot_shadow_targets) {
-        BufferRenderTarget::Target2D spot_target{};
-        spot_target.image = std::move(target.depth_image);
-        spot_target.view = target.depth_image_view;
-        spot_target.framebuffer = target.framebuffer;
-
-        BufferRenderTarget::destroy_target_2d(rtg, spot_target);
-
-        target.depth_image = std::move(spot_target.image);
-        target.depth_image_view = spot_target.view;
-        target.framebuffer = spot_target.framebuffer;
+        BufferRenderTarget::destroy_target_2d(rtg, target.depth_target);
     }
     spot_shadow_targets.clear();
 
@@ -219,18 +185,7 @@ void ShadowBufferManager::destroy(RTG &rtg) {
     }
 
     for (SphereShadowTarget &target : sphere_shadow_targets) {
-        BufferRenderTarget::TargetCube cube_target{};
-        cube_target.image = std::move(target.depth_cube_image);
-        cube_target.cube_view = target.depth_cube_view;
-        cube_target.face_views = target.face_image_views;
-        cube_target.face_framebuffers = target.face_framebuffers;
-
-        BufferRenderTarget::destroy_target_cube(rtg, cube_target);
-
-        target.depth_cube_image = std::move(cube_target.image);
-        target.depth_cube_view = cube_target.cube_view;
-        target.face_image_views.fill(VK_NULL_HANDLE);
-        target.face_framebuffers.fill(VK_NULL_HANDLE);
+        BufferRenderTarget::destroy_target_cube(rtg, target.depth_target);
     }
     sphere_shadow_targets.clear();
 
@@ -242,10 +197,10 @@ void ShadowBufferManager::destroy(RTG &rtg) {
 
 ShadowBufferManager::~ShadowBufferManager() {
     for (SunShadowTarget const &target : sun_shadow_targets) {
-        if (target.depth_array_view != VK_NULL_HANDLE) {
+        if (target.depth_target.array_view != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: sun shadow depth_array_view not destroyed" << std::endl;
         }
-        if (target.depth_array_image.handle != VK_NULL_HANDLE) {
+        if (target.depth_target.image.handle != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: sun shadow depth_array_image not destroyed" << std::endl;
         }
     }
@@ -255,13 +210,13 @@ ShadowBufferManager::~ShadowBufferManager() {
     }
 
     for (SpotShadowTarget const &target : spot_shadow_targets) {
-        if (target.framebuffer != VK_NULL_HANDLE) {
+        if (target.depth_target.framebuffer != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: spot shadow framebuffer not destroyed" << std::endl;
         }
-        if (target.depth_image_view != VK_NULL_HANDLE) {
+        if (target.depth_target.view != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: spot shadow depth_image_view not destroyed" << std::endl;
         }
-        if (target.depth_image.handle != VK_NULL_HANDLE) {
+        if (target.depth_target.image.handle != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: spot shadow depth_image not destroyed" << std::endl;
         }
     }
@@ -271,10 +226,10 @@ ShadowBufferManager::~ShadowBufferManager() {
     }
 
     for (SphereShadowTarget const &target : sphere_shadow_targets) {
-        if (target.depth_cube_view != VK_NULL_HANDLE) {
+        if (target.depth_target.cube_view != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: sphere shadow depth_cube_view not destroyed" << std::endl;
         }
-        if (target.depth_cube_image.handle != VK_NULL_HANDLE) {
+        if (target.depth_target.image.handle != VK_NULL_HANDLE) {
             std::cerr << "ShadowBufferManager: sphere shadow depth_cube_image not destroyed" << std::endl;
         }
     }

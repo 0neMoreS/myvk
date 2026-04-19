@@ -167,13 +167,13 @@ A2::~A2() {
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
-	framebuffer_manager.on_swapchain(rtg_, swapchain, render_pass_manager);
+	framebuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
 
 	{
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
 			.sampler = framebuffer_manager.hdr_sampler,
-			.imageView = framebuffer_manager.hdr_color_image_view,
+			.imageView = framebuffer_manager.hdr_color_target.view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
@@ -278,7 +278,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.hdr_render_pass,
-				.framebuffer = framebuffer_manager.hdr_framebuffer,
+				.framebuffer = framebuffer_manager.hdr_color_target.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -459,7 +459,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-				.image = framebuffer_manager.hdr_color_image.handle,
+				.image = framebuffer_manager.hdr_color_target.image.handle,
 				.subresourceRange{
 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 					.baseMipLevel = 0,

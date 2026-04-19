@@ -36,65 +36,18 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     assert(render_pass_manager.ao_render_pass != VK_NULL_HANDLE);
     assert(render_pass_manager.depth_format != VK_FORMAT_UNDEFINED);
 
-    if (ao_blur_framebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(rtg.device, ao_blur_framebuffer, nullptr);
-        ao_blur_framebuffer = VK_NULL_HANDLE;
-    }
-    if (ao_framebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(rtg.device, ao_framebuffer, nullptr);
-        ao_framebuffer = VK_NULL_HANDLE;
-    }
     if (gbuffer_framebuffer != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
         gbuffer_framebuffer = VK_NULL_HANDLE;
     }
 
-    BufferRenderTarget::Target2D depth_target{
-        .image = std::move(depth_image),
-        .view = depth_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, depth_target);
-    depth_image = std::move(depth_target.image);
-    depth_view = depth_target.view;
-
-    BufferRenderTarget::Target2D albedo_target{
-        .image = std::move(albedo_image),
-        .view = albedo_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, albedo_target);
-    albedo_image = std::move(albedo_target.image);
-    albedo_view = albedo_target.view;
-
-    BufferRenderTarget::Target2D normal_target{
-        .image = std::move(normal_image),
-        .view = normal_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, normal_target);
-    normal_image = std::move(normal_target.image);
-    normal_view = normal_target.view;
-
-    BufferRenderTarget::Target2D ao_target{
-        .image = std::move(ao_image),
-        .view = ao_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, ao_target);
-    ao_image = std::move(ao_target.image);
-    ao_view = ao_target.view;
-
-    BufferRenderTarget::Target2D ao_blur_target{
-        .image = std::move(ao_blur_image),
-        .view = ao_blur_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, ao_blur_target);
-    ao_blur_image = std::move(ao_blur_target.image);
-    ao_blur_view = ao_blur_target.view;
 
-    auto new_depth = BufferRenderTarget::create_target_2d(
+    depth_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
         render_pass_manager.depth_format,
@@ -102,10 +55,8 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
         VK_IMAGE_ASPECT_DEPTH_BIT,
         VK_NULL_HANDLE
     );
-    depth_image = std::move(new_depth.image);
-    depth_view = new_depth.view;
 
-    auto new_albedo = BufferRenderTarget::create_target_2d(
+    albedo_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
         render_pass_manager.albedo_format,
@@ -113,10 +64,8 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_NULL_HANDLE
     );
-    albedo_image = std::move(new_albedo.image);
-    albedo_view = new_albedo.view;
 
-    auto new_normal = BufferRenderTarget::create_target_2d(
+    normal_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
         render_pass_manager.normal_format,
@@ -124,10 +73,8 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_NULL_HANDLE
     );
-    normal_image = std::move(new_normal.image);
-    normal_view = new_normal.view;
 
-    auto new_ao = BufferRenderTarget::create_target_2d(
+    ao_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
         VK_FORMAT_R8_UNORM,
@@ -135,11 +82,8 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
         VK_IMAGE_ASPECT_COLOR_BIT,
         render_pass_manager.ao_render_pass
     );
-    ao_image = std::move(new_ao.image);
-    ao_view = new_ao.view;
-    ao_framebuffer = new_ao.framebuffer;
 
-    auto new_ao_blur = BufferRenderTarget::create_target_2d(
+    ao_blur_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
         VK_FORMAT_R8_UNORM,
@@ -147,14 +91,11 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
         VK_IMAGE_ASPECT_COLOR_BIT,
         render_pass_manager.ao_render_pass
     );
-    ao_blur_image = std::move(new_ao_blur.image);
-    ao_blur_view = new_ao_blur.view;
-    ao_blur_framebuffer = new_ao_blur.framebuffer;
 
     std::vector<VkImageView> gbuffer_attachments{
-        albedo_view,
-        normal_view,
-        depth_view,
+        albedo_target.view,
+        normal_target.view,
+        depth_target.view,
     };
     gbuffer_framebuffer = BufferRenderTarget::create_framebuffer(
         rtg,
@@ -165,63 +106,16 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
 }
 
 void GBufferManager::destroy(RTG &rtg) {
-    if (ao_blur_framebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(rtg.device, ao_blur_framebuffer, nullptr);
-        ao_blur_framebuffer = VK_NULL_HANDLE;
-    }
-    if (ao_framebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(rtg.device, ao_framebuffer, nullptr);
-        ao_framebuffer = VK_NULL_HANDLE;
-    }
     if (gbuffer_framebuffer != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
         gbuffer_framebuffer = VK_NULL_HANDLE;
     }
 
-    BufferRenderTarget::Target2D depth_target{
-        .image = std::move(depth_image),
-        .view = depth_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, depth_target);
-    depth_image = std::move(depth_target.image);
-    depth_view = depth_target.view;
-
-    BufferRenderTarget::Target2D albedo_target{
-        .image = std::move(albedo_image),
-        .view = albedo_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, albedo_target);
-    albedo_image = std::move(albedo_target.image);
-    albedo_view = albedo_target.view;
-
-    BufferRenderTarget::Target2D normal_target{
-        .image = std::move(normal_image),
-        .view = normal_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, normal_target);
-    normal_image = std::move(normal_target.image);
-    normal_view = normal_target.view;
-
-    BufferRenderTarget::Target2D ao_target{
-        .image = std::move(ao_image),
-        .view = ao_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, ao_target);
-    ao_image = std::move(ao_target.image);
-    ao_view = ao_target.view;
-
-    BufferRenderTarget::Target2D ao_blur_target{
-        .image = std::move(ao_blur_image),
-        .view = ao_blur_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, ao_blur_target);
-    ao_blur_image = std::move(ao_blur_target.image);
-    ao_blur_view = ao_blur_target.view;
 
     if (gbuffer_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(rtg.device, gbuffer_sampler, nullptr);
@@ -233,17 +127,17 @@ std::array<VkDescriptorImageInfo, 3> GBufferManager::get_descriptor_image_infos(
     return {
         VkDescriptorImageInfo{
             .sampler = gbuffer_sampler,
-            .imageView = depth_view,
+            .imageView = depth_target.view,
             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
         },
         VkDescriptorImageInfo{
             .sampler = gbuffer_sampler,
-            .imageView = albedo_view,
+            .imageView = albedo_target.view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         },
         VkDescriptorImageInfo{
             .sampler = gbuffer_sampler,
-            .imageView = normal_view,
+            .imageView = normal_target.view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         },
     };
@@ -252,49 +146,43 @@ std::array<VkDescriptorImageInfo, 3> GBufferManager::get_descriptor_image_infos(
 VkDescriptorImageInfo GBufferManager::get_ao_descriptor_image_info() const {
     return VkDescriptorImageInfo{
         .sampler = gbuffer_sampler,
-        .imageView = ao_view,
+        .imageView = ao_target.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 }
 
 GBufferManager::~GBufferManager() {
-    if (ao_blur_framebuffer != VK_NULL_HANDLE) {
-        std::cerr << "GBufferManager: ao_blur_framebuffer not destroyed" << std::endl;
-    }
-    if (ao_framebuffer != VK_NULL_HANDLE) {
-        std::cerr << "GBufferManager: ao_framebuffer not destroyed" << std::endl;
-    }
     if (gbuffer_framebuffer != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: gbuffer_framebuffer not destroyed" << std::endl;
     }
-    if (depth_view != VK_NULL_HANDLE) {
+    if (depth_target.view != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: depth_view not destroyed" << std::endl;
     }
-    if (albedo_view != VK_NULL_HANDLE) {
+    if (albedo_target.view != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: albedo_view not destroyed" << std::endl;
     }
-    if (normal_view != VK_NULL_HANDLE) {
+    if (normal_target.view != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: normal_view not destroyed" << std::endl;
     }
-    if (ao_view != VK_NULL_HANDLE) {
+    if (ao_target.view != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: ao_view not destroyed" << std::endl;
     }
-    if (ao_blur_view != VK_NULL_HANDLE) {
+    if (ao_blur_target.view != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: ao_blur_view not destroyed" << std::endl;
     }
-    if (depth_image.handle != VK_NULL_HANDLE) {
+    if (depth_target.image.handle != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: depth_image not destroyed" << std::endl;
     }
-    if (albedo_image.handle != VK_NULL_HANDLE) {
+    if (albedo_target.image.handle != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: albedo_image not destroyed" << std::endl;
     }
-    if (normal_image.handle != VK_NULL_HANDLE) {
+    if (normal_target.image.handle != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: normal_image not destroyed" << std::endl;
     }
-    if (ao_image.handle != VK_NULL_HANDLE) {
+    if (ao_target.image.handle != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: ao_image not destroyed" << std::endl;
     }
-    if (ao_blur_image.handle != VK_NULL_HANDLE) {
+    if (ao_blur_target.image.handle != VK_NULL_HANDLE) {
         std::cerr << "GBufferManager: ao_blur_image not destroyed" << std::endl;
     }
     if (gbuffer_sampler != VK_NULL_HANDLE) {

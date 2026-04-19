@@ -297,7 +297,7 @@ SSAO::~SSAO() {
 
 void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
-	framebuffer_manager.on_swapchain(rtg_, swapchain, render_pass_manager);
+	framebuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
 	gbuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain.extent);
 
 	{
@@ -395,7 +395,7 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 
 		VkDescriptorImageInfo ao_info{
 			.sampler = gbuffer_manager.gbuffer_sampler,
-			.imageView = gbuffer_manager.ao_blur_view,
+			.imageView = gbuffer_manager.ao_blur_target.view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 		VkWriteDescriptorSet ao_read_write{
@@ -412,7 +412,7 @@ void SSAO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
 			.sampler = framebuffer_manager.hdr_sampler,
-			.imageView = framebuffer_manager.hdr_color_image_view,
+			.imageView = framebuffer_manager.hdr_color_target.view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
@@ -617,7 +617,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					VkRenderPassBeginInfo begin_info{
 						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 						.renderPass = render_pass_manager.shadow_render_pass,
-						.framebuffer = shadow_target.cascade_framebuffers[cascade_index],
+						.framebuffer = shadow_target.depth_target.layer_framebuffers[cascade_index],
 						.renderArea{
 							.offset = {.x = 0, .y = 0},
 							.extent = shadow_extent,
@@ -698,7 +698,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					VkRenderPassBeginInfo begin_info{
 						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 						.renderPass = render_pass_manager.shadow_render_pass,
-						.framebuffer = shadow_target.face_framebuffers[face_index],
+						.framebuffer = shadow_target.depth_target.face_framebuffers[face_index],
 						.renderArea{
 							.offset = {.x = 0, .y = 0},
 							.extent = shadow_extent,
@@ -778,7 +778,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				VkRenderPassBeginInfo begin_info{
 					.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 					.renderPass = render_pass_manager.shadow_render_pass,
-					.framebuffer = shadow_target.framebuffer,
+					.framebuffer = shadow_target.depth_target.framebuffer,
 					.renderArea{
 						.offset = {.x = 0, .y = 0},
 						.extent = shadow_extent,
@@ -906,7 +906,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = gbuffer_manager.depth_image.handle,
+					.image = gbuffer_manager.depth_target.image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
 						.baseMipLevel = 0,
@@ -923,7 +923,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = gbuffer_manager.normal_image.handle,
+					.image = gbuffer_manager.normal_target.image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
@@ -940,7 +940,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image = gbuffer_manager.albedo_image.handle,
+					.image = gbuffer_manager.albedo_target.image.handle,
 					.subresourceRange{
 						.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 						.baseMipLevel = 0,
@@ -969,7 +969,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.ao_render_pass,
-				.framebuffer = gbuffer_manager.ao_framebuffer,
+				.framebuffer = gbuffer_manager.ao_target.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -1026,7 +1026,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-				.image = gbuffer_manager.ao_image.handle,
+				.image = gbuffer_manager.ao_target.image.handle,
 				.subresourceRange{
 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 					.baseMipLevel = 0,
@@ -1054,7 +1054,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.ao_render_pass,
-				.framebuffer = gbuffer_manager.ao_blur_framebuffer,
+				.framebuffer = gbuffer_manager.ao_blur_target.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -1093,7 +1093,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-				.image = gbuffer_manager.ao_blur_image.handle,
+				.image = gbuffer_manager.ao_blur_target.image.handle,
 				.subresourceRange{
 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 					.baseMipLevel = 0,
@@ -1121,7 +1121,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.hdr_render_pass,
-				.framebuffer = framebuffer_manager.hdr_framebuffer,
+				.framebuffer = framebuffer_manager.hdr_color_target.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
@@ -1213,7 +1213,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-				.image = framebuffer_manager.hdr_color_image.handle,
+				.image = framebuffer_manager.hdr_color_target.image.handle,
 				.subresourceRange{
 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 					.baseMipLevel = 0,

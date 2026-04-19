@@ -4,6 +4,7 @@
 #include "VK.hpp"
 #include "RenderPassManager.hpp"
 #include "LightsManager.hpp"
+#include "RenderTarget.hpp"
 
 #include <array>
 #include <vector>
@@ -15,25 +16,17 @@ public:
 
     struct SunShadowTarget {
         uint32_t resolution = 0;
-        Helpers::AllocatedImage depth_array_image;
-        VkImageView depth_array_view = VK_NULL_HANDLE;
-        std::array<VkImageView, SunCascadeCount> cascade_image_views{};
-        std::array<VkFramebuffer, SunCascadeCount> cascade_framebuffers{};
+        BufferRenderTarget::TargetArray depth_target;
     };
 
     struct SpotShadowTarget {
         uint32_t resolution = 0;
-        Helpers::AllocatedImage depth_image;
-        VkImageView depth_image_view = VK_NULL_HANDLE;
-        VkFramebuffer framebuffer = VK_NULL_HANDLE;
+        BufferRenderTarget::Target2D depth_target;
     };
 
     struct SphereShadowTarget {
         uint32_t resolution = 0;
-        Helpers::AllocatedImage depth_cube_image;
-        VkImageView depth_cube_view = VK_NULL_HANDLE;
-        std::array<VkImageView, SphereFaceCount> face_image_views{};
-        std::array<VkFramebuffer, SphereFaceCount> face_framebuffers{};
+        BufferRenderTarget::TargetCube depth_target;
     };
 
     std::vector<SunShadowTarget> sun_shadow_targets;

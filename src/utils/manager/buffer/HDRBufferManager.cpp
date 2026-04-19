@@ -30,7 +30,7 @@ void HDRBufferManager::create(RTG &rtg, RenderPassManager &, bool use_hdr_tonema
     }
 }
 
-void HDRBufferManager::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapchain, RenderPassManager &render_pass_manager) {
+void HDRBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manager, RTG::SwapchainEvent const &swapchain) {
     for (VkFramebuffer &framebuffer : swapchain_framebuffers) {
         if (framebuffer != VK_NULL_HANDLE) {
             vkDestroyFramebuffer(rtg.device, framebuffer, nullptr);
@@ -39,26 +39,10 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapcha
     }
     swapchain_framebuffers.clear();
 
-    BufferRenderTarget::Target2D depth_target{
-        .image = std::move(depth_image),
-        .view = depth_image_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
     BufferRenderTarget::destroy_target_2d(rtg, depth_target);
-    depth_image = std::move(depth_target.image);
-    depth_image_view = depth_target.view;
+    BufferRenderTarget::destroy_target_2d(rtg, hdr_color_target);
 
-    BufferRenderTarget::Target2D hdr_target{
-        .image = std::move(hdr_color_image),
-        .view = hdr_color_image_view,
-        .framebuffer = hdr_framebuffer,
-    };
-    BufferRenderTarget::destroy_target_2d(rtg, hdr_target);
-    hdr_color_image = std::move(hdr_target.image);
-    hdr_color_image_view = hdr_target.view;
-    hdr_framebuffer = hdr_target.framebuffer;
-
-    auto new_depth = BufferRenderTarget::create_target_2d(
+    depth_target = BufferRenderTarget::create_target_2d(
         rtg,
         swapchain.extent,
         render_pass_manager.depth_format,
@@ -66,11 +50,9 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapcha
         VK_IMAGE_ASPECT_DEPTH_BIT,
         VK_NULL_HANDLE
     );
-    depth_image = std::move(new_depth.image);
-    depth_image_view = new_depth.view;
 
     if (use_hdr_tonemap_) {
-        auto new_hdr = BufferRenderTarget::create_target_2d(
+        hdr_color_target = BufferRenderTarget::create_target_2d(
             rtg,
             swapchain.extent,
             render_pass_manager.hdr_format,
@@ -78,14 +60,12 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapcha
             VK_IMAGE_ASPECT_COLOR_BIT,
             VK_NULL_HANDLE
         );
-        hdr_color_image = std::move(new_hdr.image);
-        hdr_color_image_view = new_hdr.view;
 
         std::vector<VkImageView> hdr_attachments{
-            hdr_color_image_view,
-            depth_image_view,
+            hdr_color_target.view,
+            depth_target.view,
         };
-        hdr_framebuffer = BufferRenderTarget::create_framebuffer(
+        hdr_color_target.framebuffer = BufferRenderTarget::create_framebuffer(
             rtg,
             render_pass_manager.hdr_render_pass,
             swapchain.extent,
@@ -107,7 +87,7 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RTG::SwapchainEvent const &swapcha
         for (size_t i = 0; i < swapchain.image_views.size(); ++i) {
             std::vector<VkImageView> attachments{
                 swapchain.image_views[i],
-                depth_image_view,
+                depth_target.view,
             };
             swapchain_framebuffers[i] = BufferRenderTarget::create_framebuffer(
                 rtg,
@@ -128,24 +108,8 @@ void HDRBufferManager::destroy(RTG &rtg) {
     }
     swapchain_framebuffers.clear();
 
-    BufferRenderTarget::Target2D hdr_target{
-        .image = std::move(hdr_color_image),
-        .view = hdr_color_image_view,
-        .framebuffer = hdr_framebuffer,
-    };
-    BufferRenderTarget::destroy_target_2d(rtg, hdr_target);
-    hdr_color_image = std::move(hdr_target.image);
-    hdr_color_image_view = hdr_target.view;
-    hdr_framebuffer = hdr_target.framebuffer;
-
-    BufferRenderTarget::Target2D depth_target{
-        .image = std::move(depth_image),
-        .view = depth_image_view,
-        .framebuffer = VK_NULL_HANDLE,
-    };
+    BufferRenderTarget::destroy_target_2d(rtg, hdr_color_target);
     BufferRenderTarget::destroy_target_2d(rtg, depth_target);
-    depth_image = std::move(depth_target.image);
-    depth_image_view = depth_target.view;
 
     if (hdr_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(rtg.device, hdr_sampler, nullptr);
@@ -161,13 +125,13 @@ HDRBufferManager::~HDRBufferManager() {
         }
     }
 
-    if (hdr_framebuffer != VK_NULL_HANDLE) {
+    if (hdr_color_target.framebuffer != VK_NULL_HANDLE) {
         std::cerr << "HDRBufferManager: hdr_framebuffer not destroyed" << std::endl;
     }
-    if (hdr_color_image_view != VK_NULL_HANDLE) {
+    if (hdr_color_target.view != VK_NULL_HANDLE) {
         std::cerr << "HDRBufferManager: hdr_color_image_view not destroyed" << std::endl;
     }
-    if (depth_image_view != VK_NULL_HANDLE) {
+    if (depth_target.view != VK_NULL_HANDLE) {
         std::cerr << "HDRBufferManager: depth_image_view not destroyed" << std::endl;
     }
     if (hdr_sampler != VK_NULL_HANDLE) {

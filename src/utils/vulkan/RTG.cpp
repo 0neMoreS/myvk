@@ -445,6 +445,27 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 				.runtimeDescriptorArray = VK_TRUE,
 			};
 
+			VkPhysicalDeviceVulkan13Features supported_vulkan13_features{
+				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+				.pNext = nullptr,
+			};
+
+			VkPhysicalDeviceFeatures2 supported_features2{
+				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+				.pNext = &supported_vulkan13_features,
+			};
+			vkGetPhysicalDeviceFeatures2(physical_device, &supported_features2);
+
+			if (supported_vulkan13_features.shaderDemoteToHelperInvocation != VK_TRUE) {
+				throw std::runtime_error("Physical device does not support shaderDemoteToHelperInvocation, but the compiled shaders require it.");
+			}
+
+			VkPhysicalDeviceVulkan13Features vulkan13_features{
+				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+				.pNext = &indexing_features,
+				.shaderDemoteToHelperInvocation = VK_TRUE,
+			};
+
 			VkPhysicalDeviceFeatures device_features{
 				.fillModeNonSolid = VK_TRUE,
 				.pipelineStatisticsQuery = VK_TRUE,
@@ -452,7 +473,7 @@ RTG::RTG(Configuration const &configuration_) : helpers(*this) {
 
 			VkPhysicalDeviceFeatures2 device_features2{
 				.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-				.pNext = &indexing_features,
+				.pNext = &vulkan13_features,
 				.features = device_features,
 			};
 

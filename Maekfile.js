@@ -182,6 +182,51 @@ const ssao_ao_blur_shaders = [
 	maek.GLSLC('./src/shaders/SSAO/SSAO-ao-blur.frag'),
 ];
 
+const ssdo_background_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-background.vert'),
+	maek.GLSLC('./src/shaders/SSDO/SSDO-background.frag'),
+];
+
+const ssdo_pbr_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-pbr.vert'),
+	maek.GLSLC('./src/shaders/SSDO/SSDO-pbr.frag'),
+];
+
+const ssdo_spot_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-spot-shadow.vert'),
+];
+
+const ssdo_sphere_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-sphere-shadow.vert'),
+];
+
+const ssdo_sun_shadow_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-sun-shadow.vert'),
+];
+
+const ssdo_tiled_lighting_compute_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-tiled-lighting.comp'),
+];
+
+const ssdo_tonemap_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-tonemap.vert'),
+	maek.GLSLC('./src/shaders/SSDO/SSDO-tonemap.frag'),
+];
+
+const ssdo_deferred_write_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-deferred-write.vert'),
+	maek.GLSLC('./src/shaders/SSDO/SSDO-deferred-write.frag'),
+];
+
+const ssdo_ao_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-ao.vert'),
+	maek.GLSLC('./src/shaders/SSDO/SSDO-ao.frag'),
+];
+
+const ssdo_ao_blur_shaders = [
+	maek.GLSLC('./src/shaders/SSDO/SSDO-ao-blur.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
@@ -228,6 +273,18 @@ const common_objs = [
 	maek.CPP('./src/core/SSAO/SSAOSunShadowPipeline.cpp', undefined, { depends: [...ssao_sun_shadow_shaders ] }),
 	maek.CPP('./src/core/SSAO/SSAOTiledLightingComputePipeline.cpp', undefined, { depends: [...ssao_tiled_lighting_compute_shaders] }),
 	maek.CPP('./src/core/SSAO/SSAOToneMappingPipeline.cpp', undefined, { depends: [...ssao_tonemap_shaders] }),
+	// SSDO files
+	maek.CPP('./src/core/SSDO/SSDO.cpp'),
+	maek.CPP('./src/core/SSDO/SSDOBackgroundPipeline.cpp', undefined, { depends: [...ssdo_background_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDODeferredWritePipeline.cpp', undefined, { depends: [...ssdo_deferred_write_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOAmbientOcclusionPipeline.cpp', undefined, { depends: [...ssdo_ao_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOAOBlurPipeline.cpp', undefined, { depends: [...ssdo_ao_blur_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOPBRPipeline.cpp', undefined, { depends: [...ssdo_pbr_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOSpotShadowPipeline.cpp', undefined, { depends: [...ssdo_spot_shadow_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOSphereShadowPipeline.cpp', undefined, { depends: [...ssdo_sphere_shadow_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOSunShadowPipeline.cpp', undefined, { depends: [...ssdo_sun_shadow_shaders ] }),
+	maek.CPP('./src/core/SSDO/SSDOTiledLightingComputePipeline.cpp', undefined, { depends: [...ssdo_tiled_lighting_compute_shaders] }),
+	maek.CPP('./src/core/SSDO/SSDOToneMappingPipeline.cpp', undefined, { depends: [...ssdo_tonemap_shaders] }),
 	// Cube integrator
 	maek.CPP('./src/core/Cube/CubeIntegrator.cpp', undefined, { depends: [...cube_lambertian_shader, ...cube_ggx_shader, ...cube_brdf_lut_shader] }),
 	// utility files
@@ -352,6 +409,7 @@ function custom_flags_and_rules() {
 			`/I./src/core/A3`,
 			`/I./src/core/Cube`,
 			`/I./src/core/SSAO`,
+			`/I./src/core/SSDO`,
 			`/I./src/utils/general`,
 			`/I./src/utils/loader`,
 			`/I./src/utils/manager`,

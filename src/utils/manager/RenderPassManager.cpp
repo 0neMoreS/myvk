@@ -435,7 +435,7 @@ void RenderPassManager::create(
 		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &shadow_render_pass) );
 	}
 
-	update_scissor_and_viewport(rtg, rtg.swapchain_extent, aspect);
+	(void)aspect;
 }
 
 void RenderPassManager::destroy(RTG& rtg) {
@@ -468,80 +468,6 @@ void RenderPassManager::destroy(RTG& rtg) {
 		vkDestroyRenderPass(rtg.device, shadow_render_pass, nullptr);
 		shadow_render_pass = VK_NULL_HANDLE;
 	}
-}
-
-void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent, float aspect) {
-	const float swap_aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-
-	uint32_t w = extent.width;
-	uint32_t h = extent.height;
-
-	if (swap_aspect >= aspect) {
-		w = static_cast<uint32_t>(std::round(h * aspect));
-	} else {
-		h = static_cast<uint32_t>(std::round(w / aspect));
-	}
-
-	int32_t offset_x = (static_cast<int32_t>(extent.width) - static_cast<int32_t>(w)) / 2;
-    int32_t offset_y = (static_cast<int32_t>(extent.height) - static_cast<int32_t>(h)) / 2;
-	
-	// scissor
-	rtg.scissor = {
-		.offset = {.x = offset_x, .y = offset_y},
-		.extent = VkExtent2D{w, h},
-	};
-
-	//viewport
-	rtg.viewport = {
-		.x = float(offset_x),
-		.y = float(offset_y),
-		.width = float(w),
-		.height = float(h),
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f,
-	};
-
-	{
-		rtg.full_scissor = {
-			.offset = {.x = 0, .y = 0},
-			.extent = VkExtent2D{rtg.swapchain_extent.width, rtg.swapchain_extent.height},
-		};
-
-		rtg.full_viewport = {
-			.x = 0.0f,
-			.y = 0.0f,
-			.width = float(rtg.swapchain_extent.width),
-			.height = float(rtg.swapchain_extent.height),
-			.minDepth = 0.0f,
-			.maxDepth = 1.0f,
-		};
-	}
-}
-
-VkRect2D RenderPassManager::get_shadow_scissor(uint32_t shadow_resolution) const {
-	if (shadow_resolution == 0) {
-		shadow_resolution = 1;
-	}
-
-    return VkRect2D{
-		.offset = {.x = 0, .y = 0},
-		.extent = VkExtent2D{shadow_resolution, shadow_resolution},
-    };
-}
-
-VkViewport RenderPassManager::get_shadow_viewport(uint32_t shadow_resolution) const {
-	if (shadow_resolution == 0) {
-		shadow_resolution = 1;
-	}
-
-    return VkViewport{
-		.x = 0.0f,
-		.y = 0.0f,
-		.width = static_cast<float>(shadow_resolution),
-		.height = static_cast<float>(shadow_resolution),
-		.minDepth = 0.0f,
-		.maxDepth = 1.0f,
-    };
 }
 
 RenderPassManager::~RenderPassManager() {

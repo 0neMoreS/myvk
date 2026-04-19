@@ -207,6 +207,32 @@ void ShadowBufferManager::destroy(RTG &rtg) {
     }
 }
 
+VkRect2D ShadowBufferManager::get_shadow_scissor(uint32_t shadow_resolution) {
+    if (shadow_resolution == 0) {
+        shadow_resolution = 1;
+    }
+
+    return VkRect2D{
+        .offset = {.x = 0, .y = 0},
+        .extent = VkExtent2D{shadow_resolution, shadow_resolution},
+    };
+}
+
+VkViewport ShadowBufferManager::get_shadow_viewport(uint32_t shadow_resolution) {
+    if (shadow_resolution == 0) {
+        shadow_resolution = 1;
+    }
+
+    return VkViewport{
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(shadow_resolution),
+        .height = static_cast<float>(shadow_resolution),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+}
+
 ShadowBufferManager::~ShadowBufferManager() {
     for (SunShadowTarget const &target : sun_shadow_targets) {
         if (target.depth_target.array_view != VK_NULL_HANDLE) {

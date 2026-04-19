@@ -17,6 +17,11 @@ public:
     std::array<VkClearValue, 1> tonemap_clears;
     VkClearAttachment clear_center_attachment{};
 
+    VkRect2D scissor{};
+    VkViewport viewport{};
+    VkRect2D full_scissor{};
+    VkViewport full_viewport{};
+
     // Scene HDR color target and scene depth target
     BufferRenderTarget::Target2D hdr_color_target;
     BufferRenderTarget::Target2D depth_target;
@@ -28,6 +33,7 @@ public:
 
     void create(RTG &rtg, RenderPassManager &render_pass_manager, bool use_hdr_tonemap);
     void on_swapchain(RTG &rtg, RenderPassManager &render_pass_manager, RTG::SwapchainEvent const &swapchain);
+    void update_scissor_and_viewport(VkExtent2D const& extent, float aspect);
     void destroy(RTG &rtg);
 
     HDRBufferManager() = default;

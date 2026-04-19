@@ -41,6 +41,9 @@ public:
     std::vector<SphereShadowTarget> sphere_shadow_targets;
     VkSampler sphere_shadow_sampler = VK_NULL_HANDLE;
 
+    static VkRect2D get_shadow_scissor(uint32_t shadow_resolution);
+    static VkViewport get_shadow_viewport(uint32_t shadow_resolution);
+
     void create(
         RTG &rtg,
         RenderPassManager &render_pass_manager,

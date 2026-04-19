@@ -1,6 +1,7 @@
 #include "HDRBufferManager.hpp"
 
 #include <array>
+#include <cmath>
 #include <iostream>
 
 void HDRBufferManager::create(RTG &rtg, RenderPassManager &, bool use_hdr_tonemap) {
@@ -120,6 +121,50 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_man
             );
         }
     }
+}
+
+void HDRBufferManager::update_scissor_and_viewport(VkExtent2D const& extent, float aspect) {
+    const float swap_aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+
+    uint32_t w = extent.width;
+    uint32_t h = extent.height;
+
+    if (swap_aspect >= aspect) {
+        w = static_cast<uint32_t>(std::round(h * aspect));
+    } else {
+        h = static_cast<uint32_t>(std::round(w / aspect));
+    }
+
+    int32_t offset_x = (static_cast<int32_t>(extent.width) - static_cast<int32_t>(w)) / 2;
+    int32_t offset_y = (static_cast<int32_t>(extent.height) - static_cast<int32_t>(h)) / 2;
+
+    scissor = {
+        .offset = {.x = offset_x, .y = offset_y},
+        .extent = VkExtent2D{w, h},
+    };
+
+    viewport = {
+        .x = float(offset_x),
+        .y = float(offset_y),
+        .width = float(w),
+        .height = float(h),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    full_scissor = {
+        .offset = {.x = 0, .y = 0},
+        .extent = VkExtent2D{extent.width, extent.height},
+    };
+
+    full_viewport = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = float(extent.width),
+        .height = float(extent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
 }
 
 void HDRBufferManager::destroy(RTG &rtg) {

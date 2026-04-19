@@ -149,10 +149,6 @@ struct RTG {
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE; //in non-headless mode, swapchain images are managed by this object; in headless mode this will be null
 
 	VkExtent2D swapchain_extent = {.width = 0, .height = 0}; //current size of the swapchain
-	VkRect2D scissor{};
-	VkViewport viewport{};
-	VkRect2D full_scissor{};
-	VkViewport full_viewport{};
 	std::vector< VkImage > swapchain_images; //images in the swapchain
 	std::vector< VkImageView > swapchain_image_views; //image views of the images in the swapchain
 	//Render-finished semaphore is indexed by acquired swapchain image index.

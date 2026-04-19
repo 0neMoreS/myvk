@@ -170,7 +170,7 @@ A2::~A2() {
 }
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
+	framebuffer_manager.update_scissor_and_viewport(swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
 	framebuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
 
 	{
@@ -295,8 +295,8 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &framebuffer_manager.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &framebuffer_manager.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -503,14 +503,14 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				VkClearRect clear_center_rect{
-					.rect = rtg.scissor,
+					.rect = framebuffer_manager.scissor,
 					.baseArrayLayer = 0,
 					.layerCount = 1,
 				};
 
 				{
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &framebuffer_manager.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &framebuffer_manager.viewport);
 					vkCmdClearAttachments(workspace.command_buffer, 1, &framebuffer_manager.clear_center_attachment, 1, &clear_center_rect);
 				}		
 
@@ -706,12 +706,12 @@ void A2::on_input(InputEvent const &event) {
 	// Change active camera with TAB
 		if (event.key.key == GLFW_KEY_TAB) {
 			camera_manager.change_active_camera();
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
+			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 
 		if (event.key.key == GLFW_KEY_LEFT_ALT){
 			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
-			render_pass_manager.update_scissor_and_viewport(rtg, rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
+			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 	}
 }

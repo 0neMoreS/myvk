@@ -64,7 +64,7 @@ struct A2 : RTG::Application {
 
 	virtual void on_swapchain(RTG &, RTG::SwapchainEvent const &) override;
 	
-	HDRBufferManager framebuffer_manager;
+	HDRBufferManager hdrbuffer_manager;
 	//--------------------------------------------------------------------
 	//Resources that change when time passes or the user interacts:
 

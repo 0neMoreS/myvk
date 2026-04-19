@@ -26,7 +26,7 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	objects_pipeline{},
 	scene_manager{},
 	texture_manager{},
-	framebuffer_manager{},
+	hdrbuffer_manager{},
 	mesh_tree_data{},
 	light_tree_data{},
 	camera_tree_data{},
@@ -35,11 +35,11 @@ A1::A1(RTG &rtg, const std::string &filename) :
 	SceneTree::traverse_scene(doc, mesh_tree_data, light_tree_data, camera_tree_data, environment_tree_data);
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
-	framebuffer_manager.create(rtg, render_pass_manager, false);
+	hdrbuffer_manager.create(rtg, render_pass_manager, false);
 	render_pass_manager.create(
 		rtg,
 		camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera),
-		framebuffer_manager
+		hdrbuffer_manager
 	);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
@@ -118,7 +118,7 @@ A1::~A1() {
 
 	scene_manager.destroy(rtg);
 
-	framebuffer_manager.destroy(rtg);
+	hdrbuffer_manager.destroy(rtg);
 
 	lines_pipeline.destroy(rtg);
 	
@@ -132,19 +132,19 @@ A1::~A1() {
 }
 
 void A1::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
-	framebuffer_manager.update_scissor_and_viewport(swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera));
+	hdrbuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
+	hdrbuffer_manager.update_scissor_and_viewport(swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera));
 }
 
 void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	//assert that parameters are valid:
 	assert(&rtg == &rtg_);
 	assert(render_params.workspace_index < workspace_manager.workspaces.size());
-	assert(render_params.image_index < framebuffer_manager.swapchain_framebuffers.size());
+	assert(render_params.image_index < hdrbuffer_manager.swapchain_framebuffers.size());
 
 	//get more convenient names for the current workspace and target framebuffer:
 	WorkspaceManager::Workspace &workspace = workspace_manager.workspaces[render_params.workspace_index];
-	VkFramebuffer framebuffer = framebuffer_manager.swapchain_framebuffers[render_params.image_index];
+	VkFramebuffer framebuffer = hdrbuffer_manager.swapchain_framebuffers[render_params.image_index];
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
 	workspace.reset_recording();
 	
@@ -260,23 +260,23 @@ void A1::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(framebuffer_manager.clears.size()),
-				.pClearValues = framebuffer_manager.clears.data(),
+				.clearValueCount = uint32_t(hdrbuffer_manager.clears.size()),
+				.pClearValues = hdrbuffer_manager.clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				VkClearRect clear_center_rect{
-					.rect = framebuffer_manager.scissor,
+					.rect = hdrbuffer_manager.scissor,
 					.baseArrayLayer = 0,
 					.layerCount = 1,
 				};
 
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &framebuffer_manager.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &framebuffer_manager.viewport);
-					vkCmdClearAttachments(workspace.command_buffer, 1, &framebuffer_manager.clear_center_attachment, 1, &clear_center_rect);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &hdrbuffer_manager.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &hdrbuffer_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &hdrbuffer_manager.clear_center_attachment, 1, &clear_center_rect);
 				}
 
 				{ // draw with the lines pipeline:
@@ -605,12 +605,12 @@ void A1::on_input(InputEvent const &event) {
 	// Change active camera with TAB
 		if (event.key.key == GLFW_KEY_TAB) {
 			camera_manager.change_active_camera();
-			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
+			hdrbuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 		}
 
 		if (event.key.key == GLFW_KEY_LEFT_ALT){
 			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
-			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
+			hdrbuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 		}
 	}
 }

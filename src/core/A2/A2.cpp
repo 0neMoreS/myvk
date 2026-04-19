@@ -28,7 +28,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	workspace_manager{}, 
 	scene_manager{},
 	camera_manager{},
-	framebuffer_manager{},
+	hdrbuffer_manager{},
 	mesh_tree_data{},
 	light_tree_data{},
 	camera_tree_data{},
@@ -38,11 +38,11 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
-	framebuffer_manager.create(rtg, render_pass_manager, true);
+	hdrbuffer_manager.create(rtg, render_pass_manager, true);
 	render_pass_manager.create(
 		rtg,
 		camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera),
-		framebuffer_manager
+		hdrbuffer_manager
 	);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
@@ -150,7 +150,7 @@ A2::~A2() {
 
 	scene_manager.destroy(rtg);
 
-	framebuffer_manager.destroy(rtg);
+	hdrbuffer_manager.destroy(rtg);
 
 	background_pipeline.destroy(rtg);
 
@@ -170,14 +170,14 @@ A2::~A2() {
 }
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
-	framebuffer_manager.update_scissor_and_viewport(swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
-	framebuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
+	hdrbuffer_manager.update_scissor_and_viewport(swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
+	hdrbuffer_manager.on_swapchain(rtg_, render_pass_manager, swapchain);
 
 	{
 		// Update descriptor to bind new HDR color image (every swapchain resize)
 		VkDescriptorImageInfo image_info{
-			.sampler = framebuffer_manager.hdr_sampler,
-			.imageView = framebuffer_manager.hdr_color_target.view,
+			.sampler = hdrbuffer_manager.hdr_sampler,
+			.imageView = hdrbuffer_manager.hdr_color_target.view,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
@@ -200,11 +200,11 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 	//assert that parameters are valid:
 	assert(&rtg == &rtg_);
 	assert(render_params.workspace_index < workspace_manager.workspaces.size());
-	assert(render_params.image_index < framebuffer_manager.swapchain_framebuffers.size());
+	assert(render_params.image_index < hdrbuffer_manager.swapchain_framebuffers.size());
 
 	//get more convenient names for the current workspace and target framebuffer:
 	WorkspaceManager::Workspace &workspace = workspace_manager.workspaces[render_params.workspace_index];
-	VkFramebuffer framebuffer = framebuffer_manager.swapchain_framebuffers[render_params.image_index];
+	VkFramebuffer framebuffer = hdrbuffer_manager.swapchain_framebuffers[render_params.image_index];
 	//record (into `workspace.command_buffer`) commands that run a `render_pass` that just clears `framebuffer`:
 	workspace.reset_recording();
 	
@@ -282,21 +282,21 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			VkRenderPassBeginInfo begin_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 				.renderPass = render_pass_manager.hdr_render_pass,
-				.framebuffer = framebuffer_manager.hdr_color_target.framebuffer,
+				.framebuffer = hdrbuffer_manager.hdr_color_target.framebuffer,
 				.renderArea{
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(framebuffer_manager.clears.size()),
-				.pClearValues = framebuffer_manager.clears.data(),
+				.clearValueCount = uint32_t(hdrbuffer_manager.clears.size()),
+				.pClearValues = hdrbuffer_manager.clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &framebuffer_manager.full_scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &framebuffer_manager.full_viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &hdrbuffer_manager.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &hdrbuffer_manager.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -463,7 +463,7 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 				.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-				.image = framebuffer_manager.hdr_color_target.image.handle,
+				.image = hdrbuffer_manager.hdr_color_target.image.handle,
 				.subresourceRange{
 					.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 					.baseMipLevel = 0,
@@ -496,22 +496,22 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(framebuffer_manager.tonemap_clears.size()),
-				.pClearValues = framebuffer_manager.tonemap_clears.data(),
+				.clearValueCount = uint32_t(hdrbuffer_manager.tonemap_clears.size()),
+				.pClearValues = hdrbuffer_manager.tonemap_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				VkClearRect clear_center_rect{
-					.rect = framebuffer_manager.scissor,
+					.rect = hdrbuffer_manager.scissor,
 					.baseArrayLayer = 0,
 					.layerCount = 1,
 				};
 
 				{
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &framebuffer_manager.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &framebuffer_manager.viewport);
-					vkCmdClearAttachments(workspace.command_buffer, 1, &framebuffer_manager.clear_center_attachment, 1, &clear_center_rect);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &hdrbuffer_manager.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &hdrbuffer_manager.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &hdrbuffer_manager.clear_center_attachment, 1, &clear_center_rect);
 				}		
 
 				// Bind tone mapping pipeline
@@ -706,12 +706,12 @@ void A2::on_input(InputEvent const &event) {
 	// Change active camera with TAB
 		if (event.key.key == GLFW_KEY_TAB) {
 			camera_manager.change_active_camera();
-			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
+			hdrbuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 
 		if (event.key.key == GLFW_KEY_LEFT_ALT){
 			rtg.configuration.open_debug_camera = !rtg.configuration.open_debug_camera;
-			framebuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
+			hdrbuffer_manager.update_scissor_and_viewport(rtg.swapchain_extent, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera) );
 		}
 	}
 }

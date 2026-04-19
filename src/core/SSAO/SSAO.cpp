@@ -294,10 +294,9 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	std::vector<const char *> compute_bindings = lit_global_bindings;
 	compute_bindings.insert(compute_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
-
-	// init write buffer
 	update_pipeline_descriptors("SSAOTiledLightingComputePipeline", tiled_compute_pipeline, "Global", compute_bindings);
-	{
+
+	{ // init write buffer
 		for (auto &workspace : workspace_manager.workspaces) {
 			workspace.reset_recording();
 			workspace.begin_recording();

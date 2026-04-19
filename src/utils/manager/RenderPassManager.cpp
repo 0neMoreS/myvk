@@ -7,7 +7,6 @@
 
 void RenderPassManager::create(
 	RTG& rtg,
-	float aspect,
 	HDRBufferManager const& hdr_buffer_manager,
 	GBufferManager const* gbuffer_manager,
 	ShadowBufferManager const* shadow_buffer_manager
@@ -434,8 +433,6 @@ void RenderPassManager::create(
 
 		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &shadow_render_pass) );
 	}
-
-	(void)aspect;
 }
 
 void RenderPassManager::destroy(RTG& rtg) {

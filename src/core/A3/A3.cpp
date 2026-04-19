@@ -46,7 +46,6 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	hdrbuffer_manager.create(rtg, render_pass_manager, true);
 	render_pass_manager.create(
 		rtg,
-		camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera),
 		hdrbuffer_manager,
 		nullptr,
 		&shadow_buffer_manager

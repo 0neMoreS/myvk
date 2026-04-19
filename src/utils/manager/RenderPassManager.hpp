@@ -18,7 +18,6 @@ public:
 
     void create(
         RTG& rtg,
-        float aspect,
         HDRBufferManager const& hdr_buffer_manager,
         GBufferManager const* gbuffer_manager = nullptr,
         ShadowBufferManager const* shadow_buffer_manager = nullptr

@@ -7,6 +7,7 @@ layout(set=0,binding=0,std140) uniform PV {
     mat4 PERSPECTIVE;
 	mat4 INV_PERSPECTIVE;
     mat4 VIEW;
+	mat4 INV_PV;
 	vec4 CAMERA_POSITION;
 };
 

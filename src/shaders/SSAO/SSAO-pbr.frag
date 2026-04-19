@@ -17,6 +17,7 @@ layout(set=0,binding=0,std140) uniform PV {
 	mat4 PERSPECTIVE;
 	mat4 INV_PERSPECTIVE;
 	mat4 VIEW;
+	mat4 INV_PV;
 	vec4 CAMERA_POSITION;
 };
 
@@ -41,7 +42,7 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 	vec4 albedoMetallic = texture(gBufferAlbedo, uv);
 	vec4 normalRoughness = texture(gBufferNormal, uv);
 	float depth = texture(gBufferDepth, uv).r;
-	mat4 invPV = inverse(PERSPECTIVE * VIEW);
+	mat4 invPV = INV_PV;
 	vec4 world = invPV * vec4(uv * 2.0 - 1.0, depth, 1.0);
 	world /= max(world.w, 1e-5);
 

@@ -416,6 +416,7 @@ void A1::update(float dt) {
 		pv_matrix.PERSPECTIVE = camera_pv.PERSPECTIVE;
 		pv_matrix.INV_PERSPECTIVE = camera_pv.INV_PERSPECTIVE;
 		pv_matrix.VIEW = camera_pv.VIEW;
+		pv_matrix.INV_PV = camera_pv.INV_PV;
 		pv_matrix.CAMERA_POSITION = camera_pv.CAMERA_POSITION;
 
 		// Defaults first, then override per available light.

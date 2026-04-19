@@ -10,9 +10,10 @@ namespace A1CommonData
         glm::mat4 PERSPECTIVE;
         glm::mat4 INV_PERSPECTIVE;
         glm::mat4 VIEW;
+        glm::mat4 INV_PV;
         glm::vec4 CAMERA_POSITION;
     };
-    static_assert(sizeof(PV) == 16*4 + 16*4 + 16*4 + 4*4, "PV is the expected size.");
+    static_assert(sizeof(PV) == 16*4 + 16*4 + 16*4 + 16*4 + 4*4, "PV is the expected size.");
 
     struct World {
         struct { float x, y, z, padding_; } SKY_DIRECTION;

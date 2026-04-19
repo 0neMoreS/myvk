@@ -43,6 +43,7 @@ public:
 		glm::mat4 PERSPECTIVE;
 		glm::mat4 INV_PERSPECTIVE;
         glm::mat4 VIEW;
+        glm::mat4 INV_PV;
         glm::vec4 CAMERA_POSITION;
 	};
 

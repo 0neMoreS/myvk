@@ -11,10 +11,11 @@ namespace SSAOCommonData
         glm::mat4 PERSPECTIVE;
         glm::mat4 INV_PERSPECTIVE;
         glm::mat4 VIEW;
+        glm::mat4 INV_PV;
         glm::vec4 CAMERA_POSITION;
     };
 
-    static_assert(sizeof(PV) == 16*4 + 16*4 + 16*4 + 4*4, "PV is the expected size.");
+    static_assert(sizeof(PV) == 16*4 + 16*4 + 16*4 + 16*4 + 4*4, "PV is the expected size.");
 
     //types for descriptors:
     struct Transform {

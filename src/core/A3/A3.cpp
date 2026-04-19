@@ -44,12 +44,13 @@ A3::A3(RTG &rtg, const std::string &filename) :
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
+	framebuffer_manager.create(rtg, render_pass_manager, true);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
 	lights_manager.create(doc, light_tree_data, rtg.swapchain_extent);
 
-	shadow_map_manager.create(
+	shadow_buffer_manager.create(
 		rtg,
 		render_pass_manager,
 		lights_manager.get_shadow_sun_lights(),
@@ -61,7 +62,7 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	Pipeline::ManagerContext pipeline_context{
 		.texture_manager = &texture_manager,
-		.shadow_map_manager = &shadow_map_manager,
+		.shadow_buffer_manager = &shadow_buffer_manager,
 	};
 
 	// Scene pipelines render to HDR framebuffer
@@ -71,11 +72,11 @@ A3::A3(RTG &rtg, const std::string &filename) :
 
 	pbr_pipeline.create(rtg, render_pass_manager.hdr_render_pass, 0, pipeline_context);
 
-	sun_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
+	sun_shadow_pipeline.create(rtg, render_pass_manager.shadow_render_pass, 0, pipeline_context);
 
-	spot_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
+	spot_shadow_pipeline.create(rtg, render_pass_manager.shadow_render_pass, 0, pipeline_context);
 
-	sphere_shadow_pipeline.create(rtg, render_pass_manager.spot_shadow_render_pass, 0, pipeline_context);
+	sphere_shadow_pipeline.create(rtg, render_pass_manager.shadow_render_pass, 0, pipeline_context);
 #ifdef USE_TILED_LIGHTING
 	tiled_compute_pipeline.create(rtg, VK_NULL_HANDLE, 0, pipeline_context);
 #endif
@@ -267,7 +268,7 @@ A3::~A3() {
 	scene_manager.destroy(rtg);
 
 	framebuffer_manager.destroy(rtg);
-	shadow_map_manager.destroy(rtg);
+	shadow_buffer_manager.destroy(rtg);
 
 	background_pipeline.destroy(rtg);
 
@@ -296,7 +297,7 @@ A3::~A3() {
 
 void A3::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
-	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, true);
+	framebuffer_manager.on_swapchain(rtg_, swapchain, render_pass_manager);
 
 	{
 		// Update descriptor to bind new HDR color image (every swapchain resize)
@@ -493,22 +494,22 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			};
 
 			const uint32_t sun_shadow_count = std::min(
-				static_cast<uint32_t>(shadow_map_manager.sun_shadow_targets.size()),
+				static_cast<uint32_t>(shadow_buffer_manager.sun_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size())
 			);
 
 			for (uint32_t light_index = 0; light_index < sun_shadow_count; ++light_index) {
-				auto const &shadow_target = shadow_map_manager.sun_shadow_targets[light_index];
+				auto const &shadow_target = shadow_buffer_manager.sun_shadow_targets[light_index];
 
 				VkExtent2D shadow_extent{
 					.width = shadow_target.resolution,
 					.height = shadow_target.resolution,
 				};
 
-				for (uint32_t cascade_index = 0; cascade_index < ShadowMapManager::SunCascadeCount; ++cascade_index) {
+				for (uint32_t cascade_index = 0; cascade_index < ShadowBufferManager::SunCascadeCount; ++cascade_index) {
 					VkRenderPassBeginInfo begin_info{
 						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-						.renderPass = render_pass_manager.spot_shadow_render_pass,
+						.renderPass = render_pass_manager.shadow_render_pass,
 						.framebuffer = shadow_target.cascade_framebuffers[cascade_index],
 						.renderArea{
 							.offset = {.x = 0, .y = 0},
@@ -574,22 +575,22 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			};
 
 			const uint32_t sphere_shadow_count = std::min(
-				static_cast<uint32_t>(shadow_map_manager.sphere_shadow_targets.size()),
+				static_cast<uint32_t>(shadow_buffer_manager.sphere_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size())
 			);
 
 			for (uint32_t light_index = 0; light_index < sphere_shadow_count; ++light_index) {
-				auto const &shadow_target = shadow_map_manager.sphere_shadow_targets[light_index];
+				auto const &shadow_target = shadow_buffer_manager.sphere_shadow_targets[light_index];
 
 				VkExtent2D shadow_extent{
 					.width = shadow_target.resolution,
 					.height = shadow_target.resolution,
 				};
 
-				for (uint32_t face_index = 0; face_index < ShadowMapManager::SphereFaceCount; ++face_index) {
+				for (uint32_t face_index = 0; face_index < ShadowBufferManager::SphereFaceCount; ++face_index) {
 					VkRenderPassBeginInfo begin_info{
 						.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-						.renderPass = render_pass_manager.spot_shadow_render_pass,
+						.renderPass = render_pass_manager.shadow_render_pass,
 						.framebuffer = shadow_target.face_framebuffers[face_index],
 						.renderArea{
 							.offset = {.x = 0, .y = 0},
@@ -655,12 +656,12 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 			};
 
 			const uint32_t shadow_count = std::min(
-				static_cast<uint32_t>(shadow_map_manager.spot_shadow_targets.size()),
+				static_cast<uint32_t>(shadow_buffer_manager.spot_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())
 			);
 
 			for (uint32_t light_index = 0; light_index < shadow_count; ++light_index) {
-				auto const &shadow_target = shadow_map_manager.spot_shadow_targets[light_index];
+				auto const &shadow_target = shadow_buffer_manager.spot_shadow_targets[light_index];
 				
 				VkExtent2D shadow_extent{
 					.width = shadow_target.resolution,
@@ -669,7 +670,7 @@ void A3::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 
 				VkRenderPassBeginInfo begin_info{
 					.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-					.renderPass = render_pass_manager.spot_shadow_render_pass,
+					.renderPass = render_pass_manager.shadow_render_pass,
 					.framebuffer = shadow_target.framebuffer,
 					.renderArea{
 						.offset = {.x = 0, .y = 0},

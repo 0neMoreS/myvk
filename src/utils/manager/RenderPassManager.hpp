@@ -35,7 +35,7 @@ public:
     VkRenderPass tonemap_render_pass = VK_NULL_HANDLE;
 
     // Spot shadow render pass: depth-only rendering for spot light shadow maps
-    VkRenderPass spot_shadow_render_pass = VK_NULL_HANDLE;
+    VkRenderPass shadow_render_pass = VK_NULL_HANDLE;
 
     VkFormat hdr_format = VK_FORMAT_R16G16B16A16_SFLOAT;
     VkFormat depth_format = VK_FORMAT_UNDEFINED;

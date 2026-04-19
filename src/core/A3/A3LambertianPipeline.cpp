@@ -1,5 +1,5 @@
 #include "A3LambertianPipeline.hpp"
-#include "ShadowMapManager.hpp"
+#include "buffer/ShadowBufferManager.hpp"
 
 static uint32_t vert_code[] = {
 #include "../../shaders/spv/A3-lambertian.vert.inl"
@@ -30,7 +30,7 @@ void A3LambertianPipeline::create(
     const ManagerContext& context
 ){
     auto const &texture_manager = *context.texture_manager;
-    auto const *shadow_map_manager = context.shadow_map_manager;
+    auto const *shadow_map_manager = context.shadow_buffer_manager;
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 

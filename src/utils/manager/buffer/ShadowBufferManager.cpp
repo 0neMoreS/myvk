@@ -1,0 +1,285 @@
+#include "ShadowBufferManager.hpp"
+
+#include "RenderTarget.hpp"
+
+#include <array>
+#include <iostream>
+
+void ShadowBufferManager::create(
+    RTG &rtg,
+    RenderPassManager &render_pass_manager,
+    std::vector<LightsManager::SunLight> const &shadow_sun_lights,
+    std::vector<LightsManager::SphereLight> const &shadow_sphere_lights,
+    std::vector<LightsManager::SpotLight> const &shadow_spot_lights
+) {
+    destroy(rtg);
+
+    VkSamplerCreateInfo sun_sampler_info{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1.0f,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+        .unnormalizedCoordinates = VK_FALSE,
+    };
+    VK(vkCreateSampler(rtg.device, &sun_sampler_info, nullptr, &sun_shadow_sampler));
+
+    sun_shadow_targets.clear();
+    sun_shadow_targets.reserve(shadow_sun_lights.size());
+    for (const auto &light : shadow_sun_lights) {
+        uint32_t resolution = static_cast<uint32_t>(light.shadow);
+        if (resolution == 0) {
+            continue;
+        }
+
+        SunShadowTarget target{};
+        target.resolution = resolution;
+
+        VkExtent2D extent{
+            .width = resolution,
+            .height = resolution,
+        };
+
+        auto array_target = BufferRenderTarget::create_target_array(
+            rtg,
+            extent,
+            SunCascadeCount,
+            render_pass_manager.depth_format,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            render_pass_manager.shadow_render_pass
+        );
+
+        target.depth_array_image = std::move(array_target.image);
+        target.depth_array_view = array_target.array_view;
+
+        for (uint32_t i = 0; i < SunCascadeCount; ++i) {
+            target.cascade_image_views[i] = array_target.layer_views[i];
+            target.cascade_framebuffers[i] = array_target.layer_framebuffers[i];
+        }
+
+        sun_shadow_targets.emplace_back(std::move(target));
+    }
+
+    VkSamplerCreateInfo spot_sampler_info{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_NEAREST,
+        .minFilter = VK_FILTER_NEAREST,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1.0f,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+        .unnormalizedCoordinates = VK_FALSE,
+    };
+    VK(vkCreateSampler(rtg.device, &spot_sampler_info, nullptr, &spot_shadow_sampler));
+
+    VkSamplerCreateInfo sphere_sampler_info{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_NEAREST,
+        .minFilter = VK_FILTER_NEAREST,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1.0f,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+        .unnormalizedCoordinates = VK_FALSE,
+    };
+    VK(vkCreateSampler(rtg.device, &sphere_sampler_info, nullptr, &sphere_shadow_sampler));
+
+    sphere_shadow_targets.clear();
+    sphere_shadow_targets.reserve(shadow_sphere_lights.size());
+    for (const auto &light : shadow_sphere_lights) {
+        const uint32_t resolution = static_cast<uint32_t>(light.shadow);
+        if (resolution == 0) {
+            continue;
+        }
+
+        SphereShadowTarget target{};
+        target.resolution = resolution;
+
+        VkExtent2D extent{
+            .width = resolution,
+            .height = resolution,
+        };
+
+        auto cube_target = BufferRenderTarget::create_target_cube(
+            rtg,
+            extent,
+            render_pass_manager.depth_format,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            render_pass_manager.shadow_render_pass
+        );
+
+        target.depth_cube_image = std::move(cube_target.image);
+        target.depth_cube_view = cube_target.cube_view;
+        target.face_image_views = cube_target.face_views;
+        target.face_framebuffers = cube_target.face_framebuffers;
+
+        sphere_shadow_targets.emplace_back(std::move(target));
+    }
+
+    spot_shadow_targets.clear();
+    spot_shadow_targets.reserve(shadow_spot_lights.size());
+    for (const auto &light : shadow_spot_lights) {
+        uint32_t resolution = static_cast<uint32_t>(light.shadow);
+        if (resolution == 0) {
+            continue;
+        }
+
+        SpotShadowTarget target{};
+        target.resolution = resolution;
+
+        VkExtent2D extent{
+            .width = resolution,
+            .height = resolution,
+        };
+
+        auto spot_target = BufferRenderTarget::create_target_2d(
+            rtg,
+            extent,
+            render_pass_manager.depth_format,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            render_pass_manager.shadow_render_pass
+        );
+
+        target.depth_image = std::move(spot_target.image);
+        target.depth_image_view = spot_target.view;
+        target.framebuffer = spot_target.framebuffer;
+
+        spot_shadow_targets.emplace_back(std::move(target));
+    }
+}
+
+void ShadowBufferManager::destroy(RTG &rtg) {
+    for (SunShadowTarget &target : sun_shadow_targets) {
+        BufferRenderTarget::TargetArray array_target{};
+        array_target.image = std::move(target.depth_array_image);
+        array_target.array_view = target.depth_array_view;
+        array_target.layer_views.assign(target.cascade_image_views.begin(), target.cascade_image_views.end());
+        array_target.layer_framebuffers.assign(target.cascade_framebuffers.begin(), target.cascade_framebuffers.end());
+
+        BufferRenderTarget::destroy_target_array(rtg, array_target);
+
+        target.depth_array_image = std::move(array_target.image);
+        target.depth_array_view = array_target.array_view;
+        target.cascade_image_views.fill(VK_NULL_HANDLE);
+        target.cascade_framebuffers.fill(VK_NULL_HANDLE);
+    }
+    sun_shadow_targets.clear();
+
+    if (sun_shadow_sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(rtg.device, sun_shadow_sampler, nullptr);
+        sun_shadow_sampler = VK_NULL_HANDLE;
+    }
+
+    for (SpotShadowTarget &target : spot_shadow_targets) {
+        BufferRenderTarget::Target2D spot_target{};
+        spot_target.image = std::move(target.depth_image);
+        spot_target.view = target.depth_image_view;
+        spot_target.framebuffer = target.framebuffer;
+
+        BufferRenderTarget::destroy_target_2d(rtg, spot_target);
+
+        target.depth_image = std::move(spot_target.image);
+        target.depth_image_view = spot_target.view;
+        target.framebuffer = spot_target.framebuffer;
+    }
+    spot_shadow_targets.clear();
+
+    if (spot_shadow_sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(rtg.device, spot_shadow_sampler, nullptr);
+        spot_shadow_sampler = VK_NULL_HANDLE;
+    }
+
+    for (SphereShadowTarget &target : sphere_shadow_targets) {
+        BufferRenderTarget::TargetCube cube_target{};
+        cube_target.image = std::move(target.depth_cube_image);
+        cube_target.cube_view = target.depth_cube_view;
+        cube_target.face_views = target.face_image_views;
+        cube_target.face_framebuffers = target.face_framebuffers;
+
+        BufferRenderTarget::destroy_target_cube(rtg, cube_target);
+
+        target.depth_cube_image = std::move(cube_target.image);
+        target.depth_cube_view = cube_target.cube_view;
+        target.face_image_views.fill(VK_NULL_HANDLE);
+        target.face_framebuffers.fill(VK_NULL_HANDLE);
+    }
+    sphere_shadow_targets.clear();
+
+    if (sphere_shadow_sampler != VK_NULL_HANDLE) {
+        vkDestroySampler(rtg.device, sphere_shadow_sampler, nullptr);
+        sphere_shadow_sampler = VK_NULL_HANDLE;
+    }
+}
+
+ShadowBufferManager::~ShadowBufferManager() {
+    for (SunShadowTarget const &target : sun_shadow_targets) {
+        if (target.depth_array_view != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: sun shadow depth_array_view not destroyed" << std::endl;
+        }
+        if (target.depth_array_image.handle != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: sun shadow depth_array_image not destroyed" << std::endl;
+        }
+    }
+
+    if (sun_shadow_sampler != VK_NULL_HANDLE) {
+        std::cerr << "ShadowBufferManager: sun_shadow_sampler not destroyed" << std::endl;
+    }
+
+    for (SpotShadowTarget const &target : spot_shadow_targets) {
+        if (target.framebuffer != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: spot shadow framebuffer not destroyed" << std::endl;
+        }
+        if (target.depth_image_view != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: spot shadow depth_image_view not destroyed" << std::endl;
+        }
+        if (target.depth_image.handle != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: spot shadow depth_image not destroyed" << std::endl;
+        }
+    }
+
+    if (spot_shadow_sampler != VK_NULL_HANDLE) {
+        std::cerr << "ShadowBufferManager: spot_shadow_sampler not destroyed" << std::endl;
+    }
+
+    for (SphereShadowTarget const &target : sphere_shadow_targets) {
+        if (target.depth_cube_view != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: sphere shadow depth_cube_view not destroyed" << std::endl;
+        }
+        if (target.depth_cube_image.handle != VK_NULL_HANDLE) {
+            std::cerr << "ShadowBufferManager: sphere shadow depth_cube_image not destroyed" << std::endl;
+        }
+    }
+
+    if (sphere_shadow_sampler != VK_NULL_HANDLE) {
+        std::cerr << "ShadowBufferManager: sphere_shadow_sampler not destroyed" << std::endl;
+    }
+}

@@ -1,5 +1,5 @@
 #include "A3PBRPipeline.hpp"
-#include "ShadowMapManager.hpp"
+#include "buffer/ShadowBufferManager.hpp"
 
 static uint32_t vert_code[] = {
 #include "../../shaders/spv/A3-pbr.vert.inl"
@@ -30,7 +30,7 @@ void A3PBRPipeline::create(
     const ManagerContext& context
 ){
     auto const &texture_manager = *context.texture_manager;
-    auto const *shadow_map_manager = context.shadow_map_manager;
+    auto const *shadow_buffer_manager = context.shadow_buffer_manager;
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
@@ -244,12 +244,12 @@ void A3PBRPipeline::create(
 
             { // update shadow map descriptors (SunShadowMap, SphereShadowMap, SpotShadowMap)
                 std::vector<VkDescriptorImageInfo> sun_shadow_infos(sun_shadow_count);
-                if (shadow_map_manager && !shadow_map_manager->sun_shadow_targets.empty()) {
-                    const size_t available = shadow_map_manager->sun_shadow_targets.size();
+                if (shadow_buffer_manager && !shadow_buffer_manager->sun_shadow_targets.empty()) {
+                    const size_t available = shadow_buffer_manager->sun_shadow_targets.size();
                     for (uint32_t i = 0; i < sun_shadow_count; ++i) {
-                        const auto &target = shadow_map_manager->sun_shadow_targets[i % available];
+                        const auto &target = shadow_buffer_manager->sun_shadow_targets[i % available];
                         sun_shadow_infos[i] = VkDescriptorImageInfo{
-                            .sampler = shadow_map_manager->sun_shadow_sampler,
+                            .sampler = shadow_buffer_manager->sun_shadow_sampler,
                             .imageView = target.depth_array_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
@@ -266,12 +266,12 @@ void A3PBRPipeline::create(
                 }
 
                 std::vector<VkDescriptorImageInfo> sphere_shadow_infos(sphere_shadow_count);
-                if (shadow_map_manager && !shadow_map_manager->sphere_shadow_targets.empty()) {
-                    const size_t available = shadow_map_manager->sphere_shadow_targets.size();
+                if (shadow_buffer_manager && !shadow_buffer_manager->sphere_shadow_targets.empty()) {
+                    const size_t available = shadow_buffer_manager->sphere_shadow_targets.size();
                     for (uint32_t i = 0; i < sphere_shadow_count; ++i) {
-                        const auto &target = shadow_map_manager->sphere_shadow_targets[i % available];
+                        const auto &target = shadow_buffer_manager->sphere_shadow_targets[i % available];
                         sphere_shadow_infos[i] = VkDescriptorImageInfo{
-                            .sampler = shadow_map_manager->sphere_shadow_sampler,
+                            .sampler = shadow_buffer_manager->sphere_shadow_sampler,
                             .imageView = target.depth_cube_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };
@@ -288,12 +288,12 @@ void A3PBRPipeline::create(
                 }
 
                 std::vector<VkDescriptorImageInfo> spot_shadow_infos(spot_shadow_count);
-                if (shadow_map_manager && !shadow_map_manager->spot_shadow_targets.empty()) {
-                    const size_t available = shadow_map_manager->spot_shadow_targets.size();
+                if (shadow_buffer_manager && !shadow_buffer_manager->spot_shadow_targets.empty()) {
+                    const size_t available = shadow_buffer_manager->spot_shadow_targets.size();
                     for (uint32_t i = 0; i < spot_shadow_count; ++i) {
-                        const auto &target = shadow_map_manager->spot_shadow_targets[i % available];
+                        const auto &target = shadow_buffer_manager->spot_shadow_targets[i % available];
                         spot_shadow_infos[i] = VkDescriptorImageInfo{
-                            .sampler = shadow_map_manager->spot_shadow_sampler,
+                            .sampler = shadow_buffer_manager->spot_shadow_sampler,
                             .imageView = target.depth_image_view,
                             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                         };

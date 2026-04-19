@@ -24,8 +24,8 @@
 #include "A3CommonData.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
-#include "FrameBufferManager.hpp"
-#include "ShadowMapManager.hpp"
+#include "buffer/HDRBufferManager.hpp"
+#include "buffer/ShadowBufferManager.hpp"
 #include "LightsManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
@@ -73,8 +73,8 @@ struct A3 : RTG::Application {
 
 	virtual void on_swapchain(RTG &, RTG::SwapchainEvent const &) override;
 	
-	FrameBufferManager framebuffer_manager;
-	ShadowMapManager shadow_map_manager;
+	HDRBufferManager framebuffer_manager;
+	ShadowBufferManager shadow_buffer_manager;
 	//--------------------------------------------------------------------
 	//Resources that change when time passes or the user interacts:
 

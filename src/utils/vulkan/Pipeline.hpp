@@ -9,7 +9,7 @@
 #include "Vertex.hpp"
 #include "RTG.hpp"
 
-class ShadowMapManager;
+class ShadowBufferManager;
 
 struct Pipeline
 {
@@ -24,7 +24,7 @@ struct Pipeline
 
 	struct ManagerContext {
 		const TextureManager* texture_manager;
-		const ShadowMapManager* shadow_map_manager;
+		const ShadowBufferManager* shadow_buffer_manager;
 	};
 
     VkPipelineLayout layout = VK_NULL_HANDLE;	

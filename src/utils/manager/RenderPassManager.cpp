@@ -417,7 +417,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 			.pDependencies = shadow_dependencies.data(),
 		};
 
-		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &spot_shadow_render_pass) );
+		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &shadow_render_pass) );
 	}
 
 	{ // clears
@@ -484,9 +484,9 @@ void RenderPassManager::destroy(RTG& rtg) {
 		tonemap_render_pass = VK_NULL_HANDLE;
 	}
 
-	if (spot_shadow_render_pass != VK_NULL_HANDLE) {
-		vkDestroyRenderPass(rtg.device, spot_shadow_render_pass, nullptr);
-		spot_shadow_render_pass = VK_NULL_HANDLE;
+	if (shadow_render_pass != VK_NULL_HANDLE) {
+		vkDestroyRenderPass(rtg.device, shadow_render_pass, nullptr);
+		shadow_render_pass = VK_NULL_HANDLE;
 	}
 }
 
@@ -579,7 +579,7 @@ RenderPassManager::~RenderPassManager() {
 	if(ao_render_pass != VK_NULL_HANDLE) {
 		std::cerr << "[RenderPassManager] ao_render_pass not properly destroyed" << std::endl;
 	}
-	if(spot_shadow_render_pass != VK_NULL_HANDLE) {
+	if(shadow_render_pass != VK_NULL_HANDLE) {
 		std::cerr << "[RenderPassManager] spot_shadow_render_pass not properly destroyed" << std::endl;
 	}
 }

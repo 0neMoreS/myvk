@@ -39,6 +39,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
 	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
+	framebuffer_manager.create(rtg, render_pass_manager, true);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
@@ -46,7 +47,7 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	Pipeline::ManagerContext pipeline_context{
 		.texture_manager = &texture_manager,
-		.shadow_map_manager = nullptr,
+		.shadow_buffer_manager = nullptr,
 	};
 
 	// Scene pipelines render to HDR framebuffer
@@ -166,7 +167,7 @@ A2::~A2() {
 
 void A2::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 	render_pass_manager.update_scissor_and_viewport(rtg_, swapchain.extent, camera_manager.get_aspect_ratio(swapchain.extent, rtg.configuration.open_debug_camera) );
-	framebuffer_manager.create(rtg_, swapchain, render_pass_manager, true);
+	framebuffer_manager.on_swapchain(rtg_, swapchain, render_pass_manager);
 
 	{
 		// Update descriptor to bind new HDR color image (every swapchain resize)

@@ -16,7 +16,7 @@
 #include "A1ObjectsPipeline.hpp"
 #include "SceneManager.hpp"
 #include "TextureManager.hpp"
-#include "FrameBufferManager.hpp"
+#include "buffer/HDRBufferManager.hpp"
 #include "VK.hpp"
 #include "SceneTree.hpp"
 #include "A1CommonData.hpp"
@@ -58,7 +58,7 @@ struct A1 : RTG::Application {
 
 	virtual void on_swapchain(RTG &, RTG::SwapchainEvent const &) override;
 	
-	FrameBufferManager framebuffer_manager;
+	HDRBufferManager framebuffer_manager;
 	//--------------------------------------------------------------------
 	//Resources that change when time passes or the user interacts:
 

@@ -40,8 +40,8 @@ class WorkspaceManager {
             VkCommandBuffer command_buffer = VK_NULL_HANDLE; //from the command pool above; reset at the start of every render.
             WorkspaceManager *manager = nullptr;
             std::vector<std::vector<DescriptorSetGroup>> pipeline_descriptor_set_groups; // [pipelines_index][descriptor_set_index]
-            std::unordered_map<std::string, std::shared_ptr<BufferPair>> global_buffer_pairs; // buffer pairs not tied to any descriptor set
-            std::vector<std::vector<std::unique_ptr<BufferPair>>> data_buffer_pairs; // [pipelines_index][data_buffer_index] buffer pairs for data buffers that are written to by the CPU and read from shaders, but not tied to any particular descriptor set (e.g., for copying vertex data to the GPU)
+            std::unordered_map<std::string, std::shared_ptr<BufferPair>> global_buffer_pairs; // buffer pairs that have a fixed size and are shared across pipelines; keyed by buffer name
+            std::vector<std::vector<std::unique_ptr<BufferPair>>> data_buffer_pairs; // [pipelines_index][data_buffer_index] buffer pairs that need to be recreated per frame.
 
             void create(RTG& rtg);
             void destroy(RTG& rtg);

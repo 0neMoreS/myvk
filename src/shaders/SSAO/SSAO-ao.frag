@@ -18,19 +18,9 @@ layout(location = 0) out float outAO;
 
 const int kernelSize = 64;
 
-vec3 sampleKernel(int index) {
-    float fi = float(index);
-    float scale = fi / float(kernelSize);
-    scale = mix(0.1, 1.0, scale * scale);
-
-    float r1 = fract(sin(fi * 12.9898 + 78.233) * 43758.5453);
-    float r2 = fract(sin(fi * 39.3467 + 11.135) * 24634.6345);
-    float phi = r1 * 6.28318530718;
-    float z = r2;
-    float xy = sqrt(max(0.0, 1.0 - z * z));
-
-    return vec3(cos(phi) * xy, sin(phi) * xy, z) * scale;
-}
+layout(set = 0, binding = 1, std140) uniform KernelSamples {
+    vec4 samples[kernelSize];
+} kernelSamples;
 
 vec3 reconstructViewPosition(vec2 uv, float depth, mat4 invProjection) {
     vec4 clip = vec4(uv * 2.0 - 1.0, depth, 1.0);
@@ -55,7 +45,7 @@ void main() {
 
     float occlusion = 0.0;
     for (int i = 0; i < kernelSize; ++i) {
-        vec3 sample_pos = frag_pos + (tbn * sampleKernel(i)) * RADIUS_PIXELS;
+        vec3 sample_pos = frag_pos + (tbn * kernelSamples.samples[i].xyz) * RADIUS_PIXELS;
 
         vec4 offset = pv.PERSPECTIVE * vec4(sample_pos, 1.0);
         offset.xyz /= max(offset.w, 1e-5);

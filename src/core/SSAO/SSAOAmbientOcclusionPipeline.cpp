@@ -26,46 +26,29 @@ void SSAOAmbientOcclusionPipeline::create(
     vert_module = rtg.helpers.create_shader_module(vert_code);
     frag_module = rtg.helpers.create_shader_module(frag_code);
 
-    { // set0: per-workspace PV UBO
-        VkDescriptorSetLayoutBinding binding{
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    { // set0: per-workspace PV UBO + kernel samples UBO
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings{
+            VkDescriptorSetLayoutBinding{
+                .binding = 0,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
         };
 
         VkDescriptorSetLayoutCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = 1,
-            .pBindings = &binding,
+            .bindingCount = uint32_t(bindings.size()),
+            .pBindings = bindings.data(),
         };
 
         VK(vkCreateDescriptorSetLayout(rtg.device, &create_info, nullptr, &set0_PV));
-
-        VkDescriptorPoolSize pool_size{
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = uint32_t(rtg.workspaces.size()),
-        };
-
-        VkDescriptorPoolCreateInfo pool_create_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .maxSets = uint32_t(rtg.workspaces.size()),
-            .poolSizeCount = 1,
-            .pPoolSizes = &pool_size,
-        };
-
-        VK(vkCreateDescriptorPool(rtg.device, &pool_create_info, nullptr, &pv_descriptor_pool));
-
-        std::vector<VkDescriptorSetLayout> layouts(rtg.workspaces.size(), set0_PV);
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = pv_descriptor_pool,
-            .descriptorSetCount = uint32_t(layouts.size()),
-            .pSetLayouts = layouts.data(),
-        };
-
-        set0_PV_instances.resize(rtg.workspaces.size());
-        VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, set0_PV_instances.data()));
     }
 
     { // set1: depth + normal from GBuffer
@@ -311,6 +294,25 @@ void SSAOAmbientOcclusionPipeline::create(
         };
         vkUpdateDescriptorSets(rtg.device, 1, &write, 0, nullptr);
     }
+
+    block_descriptor_configs.push_back(
+        BlockDescriptorConfig{
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .layout = set0_PV,
+            .bindings_count = 2,
+        }
+    ); // PV + Kernel
+
+    block_descriptor_set_name_to_index = {
+        {"Global", 0},
+    };
+
+    block_binding_name_to_index = {
+        {"PV", 0},
+        {"SSAOAOKernel", 1},
+    };
+
+    pipeline_name_to_index["SSAOAmbientOcclusionPipeline"] = 7;
 }
 
 VkDescriptorImageInfo SSAOAmbientOcclusionPipeline::get_noise_descriptor_image_info() const {
@@ -322,11 +324,6 @@ VkDescriptorImageInfo SSAOAmbientOcclusionPipeline::get_noise_descriptor_image_i
 }
 
 void SSAOAmbientOcclusionPipeline::destroy(RTG &rtg) {
-    if (pv_descriptor_pool != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(rtg.device, pv_descriptor_pool, nullptr);
-        pv_descriptor_pool = VK_NULL_HANDLE;
-    }
-
     if (noise_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(rtg.device, noise_sampler, nullptr);
         noise_sampler = VK_NULL_HANDLE;
@@ -366,8 +363,6 @@ void SSAOAmbientOcclusionPipeline::destroy(RTG &rtg) {
         set2_Noise = VK_NULL_HANDLE;
     }
 
-    set0_PV_instances.clear();
-
     if (set1_GBuffer_instance != VK_NULL_HANDLE) {
         set1_GBuffer_instance = VK_NULL_HANDLE;
     }
@@ -382,9 +377,7 @@ SSAOAmbientOcclusionPipeline::~SSAOAmbientOcclusionPipeline() {
     assert(pipeline == VK_NULL_HANDLE);
     assert(vert_module == VK_NULL_HANDLE);
     assert(frag_module == VK_NULL_HANDLE);
-    assert(pv_descriptor_pool == VK_NULL_HANDLE);
     assert(set0_PV == VK_NULL_HANDLE);
-    assert(set0_PV_instances.empty());
     assert(set1_GBuffer == VK_NULL_HANDLE);
     assert(set1_GBuffer_instance == VK_NULL_HANDLE);
     assert(set2_Noise == VK_NULL_HANDLE);

@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <array>
 #include <cstdint>
 #include <cmath>
 #include <vector>
@@ -88,6 +89,8 @@ struct SSDO : RTG::Application {
 	virtual void on_input(InputEvent const &) override;
 
 	float time = 0.0f;
+	static constexpr uint32_t kAOKernelSize = 64;
+	std::array<glm::vec4, kAOKernelSize> ao_kernel_samples{};
 
 	QueryPoolManager query_pool_manager;
 	uint64_t gpu_frame_counter = 0;

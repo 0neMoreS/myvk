@@ -6,9 +6,7 @@
 #include <vector>
 
 struct SSDOAmbientOcclusionPipeline : Pipeline {
-    VkDescriptorPool pv_descriptor_pool = VK_NULL_HANDLE;
     VkDescriptorSetLayout set0_PV = VK_NULL_HANDLE;
-    std::vector<VkDescriptorSet> set0_PV_instances;
     VkDescriptorSetLayout set1_GBuffer = VK_NULL_HANDLE;
     VkDescriptorSet set1_GBuffer_instance = VK_NULL_HANDLE;
     VkDescriptorSetLayout set2_Noise = VK_NULL_HANDLE;

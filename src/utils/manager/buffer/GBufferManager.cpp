@@ -22,7 +22,7 @@ void GBufferManager::create(RTG &rtg, RenderPassManager &) {
     };
 
     ao_clears = {
-        VkClearValue{ .color{ .float32{1.0f, 0.0f, 0.0f, 0.0f} } },
+        VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
     };
 
     if (gbuffer_sampler == VK_NULL_HANDLE) {

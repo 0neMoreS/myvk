@@ -68,8 +68,8 @@ void SSDOAmbientOcclusionPipeline::create(
         VK(vkAllocateDescriptorSets(rtg.device, &alloc_info, set0_PV_instances.data()));
     }
 
-    { // set1: depth + normal from GBuffer
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings{
+    { // set1: depth + normal + albedo from GBuffer
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{
             VkDescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -78,6 +78,12 @@ void SSDOAmbientOcclusionPipeline::create(
             },
             VkDescriptorSetLayoutBinding{
                 .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            VkDescriptorSetLayoutBinding{
+                .binding = 2,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -261,7 +267,7 @@ void SSDOAmbientOcclusionPipeline::create(
         std::array<VkPipelineColorBlendAttachmentState, 1> attachment_states{
             VkPipelineColorBlendAttachmentState{
                 .blendEnable = VK_FALSE,
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
             },
         };
 

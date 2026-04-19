@@ -307,7 +307,7 @@ void SSDO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 
 	{
 		auto gbuffer_infos = gbuffer_manager.get_descriptor_image_infos();
-		std::array<VkWriteDescriptorSet, 2> ao_gbuffer_writes{
+		std::array<VkWriteDescriptorSet, 3> ao_gbuffer_writes{
 			VkWriteDescriptorSet{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstSet = ao_pipeline.set1_GBuffer_instance,
@@ -325,6 +325,15 @@ void SSDO::on_swapchain(RTG &rtg_, RTG::SwapchainEvent const &swapchain) {
 				.descriptorCount = 1,
 				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 				.pImageInfo = &gbuffer_infos[2],
+			},
+			VkWriteDescriptorSet{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = ao_pipeline.set1_GBuffer_instance,
+				.dstBinding = 2,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &gbuffer_infos[1],
 			},
 		};
 		vkUpdateDescriptorSets(rtg_.device, uint32_t(ao_gbuffer_writes.size()), ao_gbuffer_writes.data(), 0, nullptr);
@@ -956,7 +965,7 @@ void SSDO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		}
 
 		// =====================================================================
-		// AO pass: sample depth/normal and output AO texture
+		// AO pass: sample depth/normal/albedo and output AO texture
 		// =====================================================================
 		{
 			VkRenderPassBeginInfo begin_info{

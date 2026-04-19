@@ -29,6 +29,7 @@ struct GBufferSurface {
 	vec3 normal;
 	vec3 albedo;
 	float ao;
+	vec3 indirect;
 	float roughness;
 	float metallic;
 };
@@ -39,6 +40,7 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 
 	vec4 albedoMetallic = texture(gBufferAlbedo, uv);
 	vec4 normalRoughness = texture(gBufferNormal, uv);
+	vec4 aoData = texture(aoTexture, uv);
 	float depth = texture(gBufferDepth, uv).r;
 	mat4 invPV = inverse(PERSPECTIVE * VIEW);
 	vec4 world = invPV * vec4(uv * 2.0 - 1.0, depth, 1.0);
@@ -50,7 +52,8 @@ GBufferSurface sampleGBuffer(vec2 fragCoord) {
 	surface.normal = normalize(normalRoughness.xyz);
 	surface.albedo = albedoMetallic.xyz;
 	surface.metallic = albedoMetallic.a;
-	surface.ao = texture(aoTexture, uv).r;
+	surface.ao = aoData.a;
+	surface.indirect = aoData.rgb;
 	surface.roughness = normalRoughness.a;
 	return surface;
 }
@@ -131,6 +134,7 @@ void main() {
 	float roughness = g.roughness;
 	float metallic = g.metallic;
 	float ao = g.ao;
+	vec3 ssdoIndirect = g.indirect;
 	vec3 N = g.normal;
 
 	vec3 V = normalize(CAMERA_POSITION.xyz - shadedFragPos);
@@ -334,7 +338,7 @@ void main() {
 		vec2 brdf = texture(Textures[nonuniformEXT(0)], vec2(NdotV, roughness)).xy;
 		vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-		vec3 ambient = (kD * diffuse + specular) * ao;
+		vec3 ambient = (kD * diffuse + specular) * ao + ssdoIndirect;
 
 		color = ambient + Lo;
 	}

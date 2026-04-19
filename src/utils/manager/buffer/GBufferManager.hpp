@@ -11,7 +11,7 @@ struct GBufferManager {
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
     VkFormat albedo_format = VK_FORMAT_R8G8B8A8_UNORM;
     VkFormat normal_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    VkFormat ao_format = VK_FORMAT_R8_UNORM;
+    VkFormat ao_format = VK_FORMAT_R16G16B16A16_SFLOAT;
 
     std::array<VkClearValue, 3> gbuffer_clears;
     std::array<VkClearValue, 1> ao_clears;

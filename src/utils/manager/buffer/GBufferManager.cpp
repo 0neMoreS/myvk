@@ -7,6 +7,24 @@
 #include <iostream>
 
 void GBufferManager::create(RTG &rtg, RenderPassManager &) {
+    if (depth_format == VK_FORMAT_UNDEFINED) {
+        depth_format = rtg.helpers.find_image_format(
+            { VK_FORMAT_D32_SFLOAT, VK_FORMAT_X8_D24_UNORM_PACK32 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
+    }
+
+    gbuffer_clears = {
+        VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 0.0f} } },
+        VkClearValue{ .color{ .float32{0.0f, 0.0f, 1.0f, 1.0f} } },
+        VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
+    };
+
+    ao_clears = {
+        VkClearValue{ .color{ .float32{1.0f, 0.0f, 0.0f, 0.0f} } },
+    };
+
     if (gbuffer_sampler == VK_NULL_HANDLE) {
         VkSamplerCreateInfo sampler_info{
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -34,7 +52,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     assert(extent.width > 0 && extent.height > 0);
     assert(render_pass_manager.gbuffer_render_pass != VK_NULL_HANDLE);
     assert(render_pass_manager.ao_render_pass != VK_NULL_HANDLE);
-    assert(render_pass_manager.depth_format != VK_FORMAT_UNDEFINED);
+    assert(depth_format != VK_FORMAT_UNDEFINED);
 
     if (gbuffer_framebuffer != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(rtg.device, gbuffer_framebuffer, nullptr);
@@ -50,7 +68,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     depth_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
-        render_pass_manager.depth_format,
+        depth_format,
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_DEPTH_BIT,
         VK_NULL_HANDLE
@@ -59,7 +77,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     albedo_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
-        render_pass_manager.albedo_format,
+        albedo_format,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_NULL_HANDLE
@@ -68,7 +86,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     normal_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
-        render_pass_manager.normal_format,
+        normal_format,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_COLOR_BIT,
         VK_NULL_HANDLE
@@ -77,7 +95,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     ao_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
-        VK_FORMAT_R8_UNORM,
+        ao_format,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_COLOR_BIT,
         render_pass_manager.ao_render_pass
@@ -86,7 +104,7 @@ void GBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_manag
     ao_blur_target = BufferRenderTarget::create_target_2d(
         rtg,
         extent,
-        VK_FORMAT_R8_UNORM,
+        ao_format,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_COLOR_BIT,
         render_pass_manager.ao_render_pass

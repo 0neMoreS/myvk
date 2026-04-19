@@ -7,6 +7,29 @@ void HDRBufferManager::create(RTG &rtg, RenderPassManager &, bool use_hdr_tonema
     destroy(rtg);
     use_hdr_tonemap_ = use_hdr_tonemap;
 
+    if (depth_format == VK_FORMAT_UNDEFINED) {
+        depth_format = rtg.helpers.find_image_format(
+            { VK_FORMAT_D32_SFLOAT, VK_FORMAT_X8_D24_UNORM_PACK32 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
+    }
+
+    clears = {
+        VkClearValue{ .color{ .float32{63.0f / 255.0f, 63.0f / 255.0f, 63.0f / 255.0f, 1.0f} } },
+        VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
+    };
+
+    tonemap_clears = {
+        VkClearValue{ .color{ .float32{63.0f / 255.0f, 63.0f / 255.0f, 63.0f / 255.0f, 1.0f} } },
+    };
+
+    clear_center_attachment = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .colorAttachment = 0,
+        .clearValue = VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
+    };
+
     if (hdr_sampler == VK_NULL_HANDLE) {
         VkSamplerCreateInfo sampler_info{
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -45,7 +68,7 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_man
     depth_target = BufferRenderTarget::create_target_2d(
         rtg,
         swapchain.extent,
-        render_pass_manager.depth_format,
+        depth_format,
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_ASPECT_DEPTH_BIT,
         VK_NULL_HANDLE
@@ -55,7 +78,7 @@ void HDRBufferManager::on_swapchain(RTG &rtg, RenderPassManager &render_pass_man
         hdr_color_target = BufferRenderTarget::create_target_2d(
             rtg,
             swapchain.extent,
-            render_pass_manager.hdr_format,
+            hdr_format,
             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_IMAGE_ASPECT_COLOR_BIT,
             VK_NULL_HANDLE

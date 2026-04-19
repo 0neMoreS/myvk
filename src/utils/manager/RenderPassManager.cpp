@@ -1,15 +1,30 @@
 #include "RenderPassManager.hpp"
+#include "buffer/GBufferManager.hpp"
+#include "buffer/HDRBufferManager.hpp"
+#include "buffer/ShadowBufferManager.hpp"
 #include "RTG.hpp"
 #include <array>
 
-void RenderPassManager::create(RTG& rtg, float aspect) {
-    //select a depth format:
-	//  (at least one of these two must be supported, according to the spec; but neither are required)
-	depth_format = rtg.helpers.find_image_format(
-		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_X8_D24_UNORM_PACK32 },
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-	);
+void RenderPassManager::create(
+	RTG& rtg,
+	float aspect,
+	HDRBufferManager const& hdr_buffer_manager,
+	GBufferManager const* gbuffer_manager,
+	ShadowBufferManager const* shadow_buffer_manager
+) {
+	VkFormat const hdr_format = hdr_buffer_manager.hdr_format;
+	VkFormat const main_depth_format = hdr_buffer_manager.depth_format;
+	VkFormat const gbuffer_albedo_format = gbuffer_manager ? gbuffer_manager->albedo_format : VK_FORMAT_R8G8B8A8_UNORM;
+	VkFormat const gbuffer_normal_format = gbuffer_manager ? gbuffer_manager->normal_format : VK_FORMAT_R16G16B16A16_SFLOAT;
+	VkFormat const gbuffer_depth_format =
+		(gbuffer_manager && gbuffer_manager->depth_format != VK_FORMAT_UNDEFINED)
+			? gbuffer_manager->depth_format
+			: main_depth_format;
+	VkFormat const ao_format = gbuffer_manager ? gbuffer_manager->ao_format : VK_FORMAT_R8_UNORM;
+	VkFormat const shadow_depth_format =
+		(shadow_buffer_manager && shadow_buffer_manager->depth_format != VK_FORMAT_UNDEFINED)
+			? shadow_buffer_manager->depth_format
+			: main_depth_format;
 
 	{ //create render pass
 		//attachments
@@ -25,7 +40,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.finalLayout = rtg.present_layout,
 			},
 			VkAttachmentDescription{ //1 - depth attachment:
-				.format = depth_format,
+				.format = main_depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -104,7 +119,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
 			VkAttachmentDescription{ // 1 - depth attachment
-				.format = depth_format,
+				.format = main_depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -171,7 +186,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	{ // Create GBuffer render pass (for deferred geometry writes)
 		std::array< VkAttachmentDescription, 3 > gbuffer_attachments{
 			VkAttachmentDescription{ // 0 - albedo
-				.format = albedo_format,
+				.format = gbuffer_albedo_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -181,7 +196,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
 			VkAttachmentDescription{ // 1 - normal
-				.format = normal_format,
+				.format = gbuffer_normal_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -191,7 +206,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 				.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			},
 			VkAttachmentDescription{ // 2 - depth
-				.format = depth_format,
+				.format = gbuffer_depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -256,7 +271,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	{ // Create AO render pass (fullscreen AO output)
 		std::array< VkAttachmentDescription, 1 > ao_attachments{
 			VkAttachmentDescription{ // 0 - AO color attachment
-				.format = VK_FORMAT_R8_UNORM,
+				.format = ao_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -363,7 +378,7 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 	{ // Create spot shadow render pass (depth only)
 		std::array< VkAttachmentDescription, 1 > shadow_attachments{
 			VkAttachmentDescription{ // 0 - depth attachment
-				.format = depth_format,
+				.format = shadow_depth_format,
 				.samples = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -420,41 +435,6 @@ void RenderPassManager::create(RTG& rtg, float aspect) {
 		VK( vkCreateRenderPass(rtg.device, &shadow_create_info, nullptr, &shadow_render_pass) );
 	}
 
-	{ // clears
-		clears = {
-			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
-			VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
-		};
-
-		tonemap_clears = {
-			VkClearValue{ .color{ .float32{63.0f/255.0f, 63.0f/255.0f, 63.0f/255.0f, 1.0f} } },
-		};
-
-		gbuffer_clears = {
-			VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 0.0f} } },
-			VkClearValue{ .color{ .float32{0.0f, 0.0f, 1.0f, 1.0f} } },
-			VkClearValue{ .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 } },
-		};
-
-		ao_clears = {
-			VkClearValue{ .color{ .float32{1.0f, 0.0f, 0.0f, 0.0f} } },
-		};
-	}
-
-	{ // clear_center_attachment
-		clear_center_attachment = {
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.colorAttachment = 0,
-			.clearValue = VkClearValue{ .color{ .float32{0.0f, 0.0f, 0.0f, 1.0f} } },
-		};
-
-		clear_center_rect = {
-			.rect = scissor,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
-		};
-	}
-
 	update_scissor_and_viewport(rtg, rtg.swapchain_extent, aspect);
 }
 
@@ -506,13 +486,13 @@ void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& 
     int32_t offset_y = (static_cast<int32_t>(extent.height) - static_cast<int32_t>(h)) / 2;
 	
 	// scissor
-	scissor = {
+	rtg.scissor = {
 		.offset = {.x = offset_x, .y = offset_y},
 		.extent = VkExtent2D{w, h},
 	};
 
 	//viewport
-	viewport = {
+	rtg.viewport = {
 		.x = float(offset_x),
 		.y = float(offset_y),
 		.width = float(w),
@@ -521,15 +501,13 @@ void RenderPassManager::update_scissor_and_viewport(RTG& rtg, VkExtent2D const& 
 		.maxDepth = 1.0f,
 	};
 
-	clear_center_rect.rect = scissor;
-
 	{
-		full_scissor = {
+		rtg.full_scissor = {
 			.offset = {.x = 0, .y = 0},
 			.extent = VkExtent2D{rtg.swapchain_extent.width, rtg.swapchain_extent.height},
 		};
 
-		full_viewport = {
+		rtg.full_viewport = {
 			.x = 0.0f,
 			.y = 0.0f,
 			.width = float(rtg.swapchain_extent.width),

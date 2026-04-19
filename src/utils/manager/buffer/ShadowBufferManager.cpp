@@ -14,6 +14,18 @@ void ShadowBufferManager::create(
 ) {
     destroy(rtg);
 
+    if (depth_format == VK_FORMAT_UNDEFINED) {
+        depth_format = rtg.helpers.find_image_format(
+            { VK_FORMAT_D32_SFLOAT, VK_FORMAT_X8_D24_UNORM_PACK32 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+        );
+    }
+
+    shadow_clear_value = VkClearValue{
+        .depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
+    };
+
     VkSamplerCreateInfo sun_sampler_info{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = VK_FILTER_LINEAR,
@@ -54,7 +66,7 @@ void ShadowBufferManager::create(
             rtg,
             extent,
             SunCascadeCount,
-            render_pass_manager.depth_format,
+            depth_format,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass
@@ -123,7 +135,7 @@ void ShadowBufferManager::create(
         auto cube_target = BufferRenderTarget::create_target_cube(
             rtg,
             extent,
-            render_pass_manager.depth_format,
+            depth_format,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass
@@ -152,7 +164,7 @@ void ShadowBufferManager::create(
         auto spot_target = BufferRenderTarget::create_target_2d(
             rtg,
             extent,
-            render_pass_manager.depth_format,
+            depth_format,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_IMAGE_ASPECT_DEPTH_BIT,
             render_pass_manager.shadow_render_pass

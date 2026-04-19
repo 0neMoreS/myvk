@@ -7,13 +7,22 @@
 #include <iostream>
 
 struct RTG;
+class HDRBufferManager;
+struct GBufferManager;
+class ShadowBufferManager;
 
 class RenderPassManager {
 public:
     RenderPassManager() = default;
     ~RenderPassManager();
 
-    void create(RTG& rtg, float aspect);
+    void create(
+        RTG& rtg,
+        float aspect,
+        HDRBufferManager const& hdr_buffer_manager,
+        GBufferManager const* gbuffer_manager = nullptr,
+        ShadowBufferManager const* shadow_buffer_manager = nullptr
+    );
     void destroy(RTG& rtg);
 
     void update_scissor_and_viewport(RTG& rtg, VkExtent2D const& extent, float aspect);
@@ -37,21 +46,4 @@ public:
     // Spot shadow render pass: depth-only rendering for spot light shadow maps
     VkRenderPass shadow_render_pass = VK_NULL_HANDLE;
 
-    VkFormat hdr_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    VkFormat depth_format = VK_FORMAT_UNDEFINED;
-    VkFormat albedo_format = VK_FORMAT_R8G8B8A8_UNORM;
-    VkFormat normal_format = VK_FORMAT_R16G16B16A16_SFLOAT;
-
-    std::array<VkClearValue, 2> clears;
-    VkClearAttachment clear_center_attachment;
-    VkClearRect clear_center_rect;
-
-    std::array< VkClearValue, 1 > tonemap_clears;
-    std::array< VkClearValue, 3 > gbuffer_clears;
-    std::array< VkClearValue, 1 > ao_clears;
-
-    VkRect2D scissor;
-    VkViewport viewport;
-    VkRect2D full_scissor;
-    VkViewport full_viewport;
 };

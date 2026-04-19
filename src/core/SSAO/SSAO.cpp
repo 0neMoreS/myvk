@@ -45,9 +45,15 @@ SSAO::SSAO(RTG &rtg, const std::string &filename) :
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
-	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 	framebuffer_manager.create(rtg, render_pass_manager, true);
 	gbuffer_manager.create(rtg, render_pass_manager);
+	render_pass_manager.create(
+		rtg,
+		camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera),
+		framebuffer_manager,
+		&gbuffer_manager,
+		&shadow_buffer_manager
+	);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
@@ -596,10 +602,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// Sun cascade shadow pass: render depth per shadow sun light and cascade
 		// =====================================================================
 		{
-			VkClearValue shadow_clear_value{
-				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
-			};
-
 			const uint32_t sun_shadow_count = std::min(
 				static_cast<uint32_t>(shadow_buffer_manager.sun_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_sun_lights().size())
@@ -623,7 +625,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							.extent = shadow_extent,
 						},
 						.clearValueCount = 1,
-						.pClearValues = &shadow_clear_value,
+						.pClearValues = &shadow_buffer_manager.shadow_clear_value,
 					};
 
 					vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -677,10 +679,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// Sphere shadow pass: render depth cubemap for each shadow-casting sphere light
 		// =====================================================================
 		{
-			VkClearValue shadow_clear_value{
-				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
-			};
-
 			const uint32_t sphere_shadow_count = std::min(
 				static_cast<uint32_t>(shadow_buffer_manager.sphere_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_sphere_lights().size())
@@ -704,7 +702,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 							.extent = shadow_extent,
 						},
 						.clearValueCount = 1,
-						.pClearValues = &shadow_clear_value,
+						.pClearValues = &shadow_buffer_manager.shadow_clear_value,
 					};
 
 					vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -758,10 +756,6 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 		// Spot shadow pass: render depth for each shadow-casting spot light
 		// =====================================================================
 		{
-			VkClearValue shadow_clear_value{
-				.depthStencil{ .depth = rtg.configuration.reverse_z ? 0.0f : 1.0f, .stencil = 0 },
-			};
-
 			const uint32_t shadow_count = std::min(
 				static_cast<uint32_t>(shadow_buffer_manager.spot_shadow_targets.size()),
 				static_cast<uint32_t>(lights_manager.get_shadow_spot_lights().size())
@@ -784,7 +778,7 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 						.extent = shadow_extent,
 					},
 					.clearValueCount = 1,
-					.pClearValues = &shadow_clear_value,
+					.pClearValues = &shadow_buffer_manager.shadow_clear_value,
 				};
 
 				vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -845,14 +839,14 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.gbuffer_clears.size()),
-				.pClearValues = render_pass_manager.gbuffer_clears.data(),
+				.clearValueCount = uint32_t(gbuffer_manager.gbuffer_clears.size()),
+				.pClearValues = gbuffer_manager.gbuffer_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
-				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
 
 				if (!deferred_object_instances.empty()) {
 					vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, deferred_write_pipeline.pipeline);
@@ -974,14 +968,14 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.ao_clears.size()),
-				.pClearValues = render_pass_manager.ao_clears.data(),
+				.clearValueCount = uint32_t(gbuffer_manager.ao_clears.size()),
+				.pClearValues = gbuffer_manager.ao_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
-				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
 
 				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_pipeline.pipeline);
 
@@ -1059,14 +1053,14 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.ao_clears.size()),
-				.pClearValues = render_pass_manager.ao_clears.data(),
+				.clearValueCount = uint32_t(gbuffer_manager.ao_clears.size()),
+				.pClearValues = gbuffer_manager.ao_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
-				vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
-				vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+				vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
+				vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
 
 				vkCmdBindPipeline(workspace.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_blur_pipeline.pipeline);
 
@@ -1126,16 +1120,16 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.clears.size()),
-				.pClearValues = render_pass_manager.clears.data(),
+				.clearValueCount = uint32_t(framebuffer_manager.clears.size()),
+				.pClearValues = framebuffer_manager.clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -1246,16 +1240,22 @@ void SSAO::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.tonemap_clears.size()),
-				.pClearValues = render_pass_manager.tonemap_clears.data(),
+				.clearValueCount = uint32_t(framebuffer_manager.tonemap_clears.size()),
+				.pClearValues = framebuffer_manager.tonemap_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
+				VkClearRect clear_center_rect{
+					.rect = rtg.scissor,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				};
+
 				{
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
-					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &framebuffer_manager.clear_center_attachment, 1, &clear_center_rect);
 				}		
 
 				// Bind tone mapping pipeline

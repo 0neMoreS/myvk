@@ -38,8 +38,12 @@ A2::A2(RTG &rtg, const std::string &filename) :
 
 	camera_manager.create(doc, rtg.swapchain_extent.width, rtg.swapchain_extent.height, this->camera_tree_data, rtg.configuration);
 
-	render_pass_manager.create(rtg, camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera));
 	framebuffer_manager.create(rtg, render_pass_manager, true);
+	render_pass_manager.create(
+		rtg,
+		camera_manager.get_aspect_ratio(rtg.swapchain_extent, rtg.configuration.open_debug_camera),
+		framebuffer_manager
+	);
 
 	query_pool_manager.create(rtg, static_cast<uint32_t>(rtg.workspaces.size()));
 
@@ -283,16 +287,16 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.clears.size()),
-				.pClearValues = render_pass_manager.clears.data(),
+				.clearValueCount = uint32_t(framebuffer_manager.clears.size()),
+				.pClearValues = framebuffer_manager.clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
 				// run pipelines here
 				{ //set scissor rectangle:
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.full_scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.full_viewport);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.full_scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.full_viewport);
 				}
 
 				{ //draw skybox with background pipeline if available
@@ -492,16 +496,22 @@ void A2::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					.offset = {.x = 0, .y = 0},
 					.extent = rtg.swapchain_extent,
 				},
-				.clearValueCount = uint32_t(render_pass_manager.tonemap_clears.size()),
-				.pClearValues = render_pass_manager.tonemap_clears.data(),
+				.clearValueCount = uint32_t(framebuffer_manager.tonemap_clears.size()),
+				.pClearValues = framebuffer_manager.tonemap_clears.data(),
 			};
 
 			vkCmdBeginRenderPass(workspace.command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 			{
+				VkClearRect clear_center_rect{
+					.rect = rtg.scissor,
+					.baseArrayLayer = 0,
+					.layerCount = 1,
+				};
+
 				{
-					vkCmdSetScissor(workspace.command_buffer, 0, 1, &render_pass_manager.scissor);
-					vkCmdSetViewport(workspace.command_buffer, 0, 1, &render_pass_manager.viewport);
-					vkCmdClearAttachments(workspace.command_buffer, 1, &render_pass_manager.clear_center_attachment, 1, &render_pass_manager.clear_center_rect);
+					vkCmdSetScissor(workspace.command_buffer, 0, 1, &rtg.scissor);
+					vkCmdSetViewport(workspace.command_buffer, 0, 1, &rtg.viewport);
+					vkCmdClearAttachments(workspace.command_buffer, 1, &framebuffer_manager.clear_center_attachment, 1, &clear_center_rect);
 				}		
 
 				// Bind tone mapping pipeline

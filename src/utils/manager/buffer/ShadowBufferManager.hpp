@@ -14,6 +14,9 @@ public:
     static constexpr uint32_t SunCascadeCount = 4;
     static constexpr uint32_t SphereFaceCount = 6;
 
+    VkFormat depth_format = VK_FORMAT_UNDEFINED;
+    VkClearValue shadow_clear_value{};
+
     struct SunShadowTarget {
         uint32_t resolution = 0;
         BufferRenderTarget::TargetArray depth_target;

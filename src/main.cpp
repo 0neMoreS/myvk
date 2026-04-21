@@ -7,6 +7,7 @@
 #include "A3.hpp"
 #include "SSAO.hpp"
 #include "SSDO.hpp"
+#include "Deferred.hpp"
 
 #include <iostream>
 
@@ -48,7 +49,7 @@ int main(int argc, char **argv) {
 
 		//initializes global (whole-life-of-application) resources:
 		// BatchCache application(rtg, configuration.index);
-		SSDO application(rtg, configuration.s72_filename);
+		Deferred application(rtg, configuration.s72_filename);
 
 		//main loop -- handles events, renders frames, etc:
 		rtg.run(application);

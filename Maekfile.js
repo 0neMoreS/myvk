@@ -227,6 +227,42 @@ const ssdo_ao_blur_shaders = [
 	maek.GLSLC('./src/shaders/SSDO/SSDO-ao-blur.frag'),
 ];
 
+const deferred_background_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-background.vert'),
+	maek.GLSLC('./src/shaders/Deferred/Deferred-background.frag'),
+];
+
+const deferred_pbr_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-pbr.vert'),
+	maek.GLSLC('./src/shaders/Deferred/Deferred-pbr.frag'),
+];
+
+const deferred_spot_shadow_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-spot-shadow.vert'),
+];
+
+const deferred_sphere_shadow_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-sphere-shadow.vert'),
+];
+
+const deferred_sun_shadow_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-sun-shadow.vert'),
+];
+
+const deferred_tiled_lighting_compute_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-tiled-lighting.comp'),
+];
+
+const deferred_tonemap_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-tonemap.vert'),
+	maek.GLSLC('./src/shaders/Deferred/Deferred-tonemap.frag'),
+];
+
+const deferred_write_shaders = [
+	maek.GLSLC('./src/shaders/Deferred/Deferred-write.vert'),
+	maek.GLSLC('./src/shaders/Deferred/Deferred-write.frag'),
+];
+
 //maek.CPP(...) builds a c++ file:
 // it returns the path to the output object file
 const common_objs = [
@@ -261,6 +297,16 @@ const common_objs = [
 	maek.CPP('./src/core/A3/A3SunShadowPipeline.cpp', undefined, { depends: [...a3_sun_shadow_shaders, ...a3_cascade_debug_shaders] }),
 	maek.CPP('./src/core/A3/A3TiledLightingComputePipeline.cpp', undefined, { depends: [...a3_tiled_lighting_compute_shaders] }),
 	maek.CPP('./src/core/A3/A3TonemappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
+	// Deferred files
+	maek.CPP('./src/core/Deferred/Deferred.cpp'),
+	maek.CPP('./src/core/Deferred/DeferredBackgroundPipeline.cpp', undefined, { depends: [...deferred_background_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredWritePipeline.cpp', undefined, { depends: [...deferred_write_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredPBRPipeline.cpp', undefined, { depends: [...deferred_pbr_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredSpotShadowPipeline.cpp', undefined, { depends: [...deferred_spot_shadow_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredSphereShadowPipeline.cpp', undefined, { depends: [...deferred_sphere_shadow_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredSunShadowPipeline.cpp', undefined, { depends: [...deferred_sun_shadow_shaders ] }),
+	maek.CPP('./src/core/Deferred/DeferredTiledLightingComputePipeline.cpp', undefined, { depends: [...deferred_tiled_lighting_compute_shaders] }),
+	maek.CPP('./src/core/Deferred/DeferredToneMappingPipeline.cpp', undefined, { depends: [...deferred_tonemap_shaders] }),
 	// SSAO files
 	maek.CPP('./src/core/SSAO/SSAO.cpp'),
 	maek.CPP('./src/core/SSAO/SSAOBackgroundPipeline.cpp', undefined, { depends: [...ssao_background_shaders] }),
@@ -410,6 +456,7 @@ function custom_flags_and_rules() {
 			`/I./src/core/Cube`,
 			`/I./src/core/SSAO`,
 			`/I./src/core/SSDO`,
+			`/I./src/core/Deferred`,
 			`/I./src/utils/general`,
 			`/I./src/utils/loader`,
 			`/I./src/utils/manager`,

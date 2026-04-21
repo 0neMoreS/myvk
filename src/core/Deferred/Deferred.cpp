@@ -15,39 +15,6 @@
 #include <iostream>
 #include <type_traits>
 
-namespace {
-float fract(float x) {
-	return x - std::floor(x);
-}
-
-std::array<glm::vec4, Deferred::kAOKernelSize> build_ao_kernel_samples() {
-	std::array<glm::vec4, Deferred::kAOKernelSize> samples{};
-	constexpr float two_pi = 6.28318530718f;
-	const float kernel_size = static_cast<float>(samples.size());
-
-	for (uint32_t i = 0; i < samples.size(); ++i) {
-		float fi = static_cast<float>(i);
-		float scale = fi / kernel_size;
-		scale = 0.1f + (1.0f - 0.1f) * (scale * scale);
-
-		float r1 = fract(std::sin(fi * 12.9898f + 78.233f) * 43758.5453f);
-		float r2 = fract(std::sin(fi * 39.3467f + 11.135f) * 24634.6345f);
-		float phi = r1 * two_pi;
-		float z = r2;
-		float xy = std::sqrt(std::max(0.0f, 1.0f - z * z));
-
-		samples[i] = glm::vec4(
-			std::cos(phi) * xy * scale,
-			std::sin(phi) * xy * scale,
-			z * scale,
-			0.0f
-		);
-	}
-
-	return samples;
-}
-}
-
 Deferred::Deferred(RTG &rtg) : Deferred(rtg, "origin-check.s72") {
 }
 
@@ -123,11 +90,10 @@ Deferred::Deferred(RTG &rtg, const std::string &filename) :
 	tonemapping_pipeline.create(rtg, render_pass_manager.tonemap_render_pass, 0, pipeline_context);
 
 	gbuffer_manager.on_swapchain(rtg, render_pass_manager, rtg.swapchain_extent);
-	ao_kernel_samples = build_ao_kernel_samples();
 
 	std::vector< std::vector< Pipeline::BlockDescriptorConfig > > block_descriptor_configs_by_pipeline{8};
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredBackgroundPipeline"]] = background_pipeline.block_descriptor_configs;
-	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredDeferredWritePipeline"]] = deferred_write_pipeline.block_descriptor_configs;
+	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredWritePipeline"]] = deferred_write_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredPBRPipeline"]] = pbr_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredSunShadowPipeline"]] = sun_shadow_pipeline.block_descriptor_configs;
 	block_descriptor_configs_by_pipeline[pipeline_name_to_index["DeferredSpotShadowPipeline"]] = spot_shadow_pipeline.block_descriptor_configs;
@@ -155,11 +121,6 @@ Deferred::Deferred(RTG &rtg, const std::string &filename) :
 		WorkspaceManager::GlobalBufferConfig{
 			.name = "PV",
 			.size = sizeof(DeferredCommonData::PV),
-			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
-		},
-		WorkspaceManager::GlobalBufferConfig{
-			.name = "DeferredAOKernel",
-			.size = sizeof(glm::vec4) * kAOKernelSize,
 			.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
 		},
 		WorkspaceManager::GlobalBufferConfig{
@@ -278,7 +239,7 @@ Deferred::Deferred(RTG &rtg, const std::string &filename) :
 	pbr_bindings.insert(pbr_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 
 	update_pipeline_descriptors("DeferredBackgroundPipeline", background_pipeline, "PV", {"PV"});
-	update_pipeline_descriptors("DeferredDeferredWritePipeline", deferred_write_pipeline, "PV", {"PV"});
+	update_pipeline_descriptors("DeferredWritePipeline", deferred_write_pipeline, "PV", {"PV"});
 	update_pipeline_descriptors("DeferredPBRPipeline", pbr_pipeline, "Global", pbr_bindings);
 	update_pipeline_descriptors("DeferredSunShadowPipeline", sun_shadow_pipeline, "Global", {"ShadowSunLights"});
 	update_pipeline_descriptors("DeferredSpotShadowPipeline", spot_shadow_pipeline, "Global", {"ShadowSpotLights"});
@@ -287,38 +248,6 @@ Deferred::Deferred(RTG &rtg, const std::string &filename) :
 	std::vector<const char *> compute_bindings = lit_global_bindings;
 	compute_bindings.insert(compute_bindings.end(), tiled_light_bindings.begin(), tiled_light_bindings.end());
 	update_pipeline_descriptors("DeferredTiledLightingComputePipeline", tiled_compute_pipeline, "Global", compute_bindings);
-
-	{ // init write buffer
-		for (auto &workspace : workspace_manager.workspaces) {
-			workspace.reset_recording();
-			workspace.begin_recording();
-		}
-
-		workspace_manager.write_all_global_buffers(
-			rtg,
-			"DeferredAOKernel",
-			ao_kernel_samples.data(),
-			sizeof(ao_kernel_samples)
-		);
-
-		for (auto &workspace : workspace_manager.workspaces) {
-			workspace.end_recording();
-		}
-
-		std::vector<VkCommandBuffer> init_command_buffers;
-		init_command_buffers.reserve(workspace_manager.workspaces.size());
-		for (auto &workspace : workspace_manager.workspaces) {
-			init_command_buffers.push_back(workspace.command_buffer);
-		}
-
-		VkSubmitInfo submit_info{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.commandBufferCount = uint32_t(init_command_buffers.size()),
-			.pCommandBuffers = init_command_buffers.data(),
-		};
-		VK( vkQueueSubmit(rtg.graphics_queue, 1, &submit_info, VK_NULL_HANDLE) );
-		VK( vkQueueWaitIdle(rtg.graphics_queue) );
-	}
 
 	scene_manager.create(rtg, doc);
 }
@@ -515,7 +444,7 @@ void Deferred::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 				workspace.write_buffer(rtg, pipeline_idx, set_idx, binding_idx, transform_data.data(), needed_bytes);
 			};
 
-			upload_transforms("DeferredDeferredWritePipeline", deferred_object_instances, deferred_write_pipeline);
+			upload_transforms("DeferredWritePipeline", deferred_object_instances, deferred_write_pipeline);
 			upload_transforms("DeferredSunShadowPipeline", shadow_object_instances, sun_shadow_pipeline);
 			upload_transforms("DeferredSpotShadowPipeline", shadow_object_instances, spot_shadow_pipeline);
 			upload_transforms("DeferredSphereShadowPipeline", shadow_object_instances, sphere_shadow_pipeline);
@@ -841,8 +770,8 @@ void Deferred::render(RTG &rtg_, RTG::RenderParams const &render_params) {
 					std::array< VkDeviceSize, 1 > offsets{ 0 };
 					vkCmdBindVertexBuffers(workspace.command_buffer, 0, uint32_t(vertex_buffers.size()), vertex_buffers.data(), offsets.data());
 
-					auto &pv_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["DeferredDeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
-					auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["DeferredDeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
+					auto &pv_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["DeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["PV"]].descriptor_set;
+					auto &transform_descriptor_set = workspace.pipeline_descriptor_set_groups[pipeline_name_to_index["DeferredWritePipeline"]][deferred_write_pipeline.block_descriptor_set_name_to_index["Transforms"]].descriptor_set;
 
 					std::array< VkDescriptorSet, 3 > descriptor_sets{
 						pv_descriptor_set,
@@ -1180,7 +1109,6 @@ void Deferred::update(float dt) {
 	}
 
 	{ // update object instances with frustum culling
-		pbr_object_instances.clear();
 		deferred_object_instances.clear();
 		shadow_object_instances.clear();
 		// Get frustum for culling
@@ -1238,16 +1166,6 @@ void Deferred::update(float dt) {
 
 			// PBR material instance
 			if(material.has_value() && material->lambertian || material.has_value() && material->pbr) {
-				PBRInstance pbr_inst{
-					.object_ranges = object_range,
-					.object_transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					}
-				};
-
-				pbr_object_instances.emplace_back(std::move(pbr_inst));
-
 				DeferredInstance deferred_inst{
 					.object_ranges = object_range,
 					.object_transform{

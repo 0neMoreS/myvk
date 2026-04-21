@@ -1397,7 +1397,6 @@ void SSAO::update(float dt) {
 	}
 
 	{ // update object instances with frustum culling
-		pbr_object_instances.clear();
 		deferred_object_instances.clear();
 		shadow_object_instances.clear();
 		// Get frustum for culling
@@ -1455,16 +1454,6 @@ void SSAO::update(float dt) {
 
 			// PBR material instance
 			if(material.has_value() && material->lambertian || material.has_value() && material->pbr) {
-				PBRInstance pbr_inst{
-					.object_ranges = object_range,
-					.object_transform{
-						.MODEL = MODEL,
-						.MODEL_NORMAL = MODEL_NORMAL,
-					}
-				};
-
-				pbr_object_instances.emplace_back(std::move(pbr_inst));
-
 				DeferredInstance deferred_inst{
 					.object_ranges = object_range,
 					.object_transform{

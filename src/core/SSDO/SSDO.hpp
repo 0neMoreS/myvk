@@ -103,12 +103,6 @@ struct SSDO : RTG::Application {
 	};
 	std::vector< DeferredInstance > deferred_object_instances;
 
-	struct PBRInstance {
-		S72Loader::Mesh::ObjectRange object_ranges;
-		SSDOCommonData::Transform object_transform;
-	};
-	std::vector< PBRInstance > pbr_object_instances;
-
 	struct ShadowInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;
 		SSDOCommonData::Transform object_transform;

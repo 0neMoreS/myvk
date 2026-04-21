@@ -85,8 +85,6 @@ struct Deferred : RTG::Application {
 	virtual void on_input(InputEvent const &) override;
 
 	float time = 0.0f;
-	static constexpr uint32_t kAOKernelSize = 64;
-	std::array<glm::vec4, kAOKernelSize> ao_kernel_samples{};
 
 	QueryPoolManager query_pool_manager;
 	uint64_t gpu_frame_counter = 0;
@@ -98,12 +96,6 @@ struct Deferred : RTG::Application {
 		size_t material_index;
 	};
 	std::vector< DeferredInstance > deferred_object_instances;
-
-	struct PBRInstance {
-		S72Loader::Mesh::ObjectRange object_ranges;
-		DeferredCommonData::Transform object_transform;
-	};
-	std::vector< PBRInstance > pbr_object_instances;
 
 	struct ShadowInstance {
 		S72Loader::Mesh::ObjectRange object_ranges;

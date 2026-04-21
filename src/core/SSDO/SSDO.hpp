@@ -17,7 +17,7 @@
 #include "SSDOBackgroundPipeline.hpp"
 #include "SSDODeferredWritePipeline.hpp"
 #include "SSDOAmbientOcclusionPipeline.hpp"
-#include "SSDOAOBlurPipeline.hpp"
+#include "SSDOBlurPipeline.hpp"
 #include "buffer/GBufferManager.hpp"
 #include "SSDOPBRPipeline.hpp"
 #include "SSDOSunShadowPipeline.hpp"
@@ -59,7 +59,7 @@ struct SSDO : RTG::Application {
 	SSDOBackgroundPipeline background_pipeline;
 	SSDODeferredWritePipeline deferred_write_pipeline;
 	SSDOAmbientOcclusionPipeline ao_pipeline;
-	SSDOAOBlurPipeline ao_blur_pipeline;
+	SSDOBlurPipeline ao_blur_pipeline;
 	GBufferManager gbuffer_manager;
 	SSDOPBRPipeline pbr_pipeline;
 	SSDOSunShadowPipeline sun_shadow_pipeline;

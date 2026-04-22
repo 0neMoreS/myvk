@@ -19,5 +19,5 @@ void main() {
         }
     }
 
-    outAO = result / 16.0;
+    outAO = result / float((KERNEL_SIZE * 2 + 1) * (KERNEL_SIZE * 2 + 1));
 }

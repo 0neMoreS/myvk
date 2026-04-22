@@ -12,6 +12,7 @@ layout(push_constant) uniform CameraParams {
 
 layout(location = 0) out vec4 outAO;
 
+const int KERNEL_SIZE = 2;
 const float SIGMA_SPATIAL = 2.0;
 const float SIGMA_DEPTH = 0.20;
 const float SIGMA_NORMAL = 0.15;
@@ -38,8 +39,8 @@ void main() {
 
     vec4 result = vec4(0.0);
     float weight_sum = 0.0;
-    for (int x = -2; x <= 2; ++x) {
-        for (int y = -2; y <= 2; ++y) {
+    for (int x = -KERNEL_SIZE; x <= KERNEL_SIZE; ++x) {
+        for (int y = -KERNEL_SIZE; y <= KERNEL_SIZE; ++y) {
             vec2 offset = vec2(float(x), float(y)) * texel_size;
             vec2 sample_uv = uv + offset;
             if (any(lessThan(sample_uv, vec2(0.0))) || any(greaterThan(sample_uv, vec2(1.0)))) {
@@ -70,8 +71,8 @@ void main() {
 //     vec2 texel_size = 1.0 / tex_size;
 
 //     vec4 result = vec4(0.0);
-//     for (int x = -2; x <= 2; ++x) {
-//         for (int y = -2; y <= 2; ++y) {
+//     for (int x = -KERNEL_SIZE; x <= KERNEL_SIZE; ++x) {
+//         for (int y = -KERNEL_SIZE; y <= KERNEL_SIZE; ++y) {
 //             vec2 offset = vec2(float(x), float(y)) * texel_size;
 //             result += texture(aoInput, uv + offset);
 //         }

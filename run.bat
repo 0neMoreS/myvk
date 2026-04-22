@@ -3,7 +3,7 @@ node .\Maekfile.js && ^
 .\bin\main.exe ^
 --physical-device "NVIDIA GeForce RTX 5080 Laptop GPU" ^
 --drawing-size 1920 1080 ^
---camera "Camera-Shadow512" ^
+--camera "Camera2" ^
 --scene ./report/SSAO/SSAO-AO-Test.s72 ^
 --exposure 0 ^
 --reverse-z

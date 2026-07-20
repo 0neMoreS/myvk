@@ -296,7 +296,7 @@ const common_objs = [
 	maek.CPP('./src/core/A3/A3SphereShadowPipeline.cpp', undefined, { depends: [...a3_sphere_shadow_shaders] }),
 	maek.CPP('./src/core/A3/A3SunShadowPipeline.cpp', undefined, { depends: [...a3_sun_shadow_shaders, ...a3_cascade_debug_shaders] }),
 	maek.CPP('./src/core/A3/A3TiledLightingComputePipeline.cpp', undefined, { depends: [...a3_tiled_lighting_compute_shaders] }),
-	maek.CPP('./src/core/A3/A3TonemappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
+	maek.CPP('./src/core/A3/A3ToneMappingPipeline.cpp', undefined, { depends: [...a3_tonemap_shaders] }),
 	// Deferred files
 	maek.CPP('./src/core/Deferred/Deferred.cpp'),
 	maek.CPP('./src/core/Deferred/DeferredBackgroundPipeline.cpp', undefined, { depends: [...deferred_background_shaders] }),
